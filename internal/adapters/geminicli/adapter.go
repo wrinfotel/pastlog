@@ -198,7 +198,7 @@ func (a *Adapter) scanFile(path string, keep func([]byte) bool, emit func(agentl
 		if keep != nil && !keep(line) {
 			continue // prefilter: not a candidate, not an error
 		}
-		entries, ok := processRecord(line)
+		entries, ok := processRecord(line, &a.skipped)
 		if !ok {
 			a.skipped++
 			continue

@@ -115,7 +115,7 @@ func (a *Adapter) legacySession(raw []byte) (agentlog.SessionMeta, []agentlog.En
 	}
 	var entries []agentlog.Entry
 	for _, msg := range rec.Messages {
-		if sub, ok := processRecord(msg); ok {
+		if sub, ok := processRecord(msg, &a.skipped); ok {
 			entries = append(entries, sub...)
 		} else {
 			a.skipped++

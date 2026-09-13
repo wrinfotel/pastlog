@@ -117,10 +117,13 @@ func roleFor(recordType string) (string, bool) {
 
 // processRecord classifies one non-empty record into entries. ok=false means
 // the record was unreadable or an unknown shape and must be counted as
-// skipped. Checkpoint records are applied by mapping their message array;
-// everything unrecognized is skipped. Within one record the entry order is:
-// content texts, content part entries, tool calls/results, thoughts.
-func processRecord(line []byte) (entries []agentlog.Entry, ok bool) {
+// skipped by the caller. Checkpoint records ({$set:…}, recognized protocol
+// shapes) are applied by mapping their message array and never count
+// themselves; message elements inside them that fail to parse are genuinely
+// unknown shapes and are counted via skipped. Within one record the entry
+// order is: content texts, content part entries, tool calls/results,
+// thoughts.
+func processRecord(line []byte, skipped *int) (entries []agentlog.Entry, ok bool) {
 	trimmed := bytes.TrimSpace(line)
 	if len(trimmed) == 0 || trimmed[0] != '{' {
 		return nil, false
@@ -132,8 +135,10 @@ func processRecord(line []byte) (entries []agentlog.Entry, ok bool) {
 	if rec.Set != nil {
 		// compaction checkpoint: apply the snapshot's messages in place
 		for _, raw := range rec.Set.Messages {
-			if sub, ok := processRecord(raw); ok {
+			if sub, ok := processRecord(raw, skipped); ok {
 				entries = append(entries, sub...)
+			} else {
+				*skipped++ // unknown shape inside a recognized checkpoint
 			}
 		}
 		return entries, true

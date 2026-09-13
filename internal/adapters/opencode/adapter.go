@@ -318,6 +318,12 @@ func (a *Adapter) Entries(s agentlog.Session, iter func(agentlog.Entry) error) e
 			lastMsgID = msgID
 			seen = true
 		}
+		if !partData.Valid {
+			// message without any parts (LEFT JOIN null row): recognized
+			// structure, nothing to record — never counted as skipped
+			// (controller ruling on spec §8)
+			continue
+		}
 		var ts time.Time
 		if partCreated.Valid {
 			ts = time.UnixMilli(partCreated.Int64)

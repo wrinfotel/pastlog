@@ -73,15 +73,23 @@ available in the pure-Go modernc.org/sqlite build (verified).
 
 | type | count | payload | pastlog entry |
 |---|---|---|---|
-| `step-start` | 3021 | — | skipped, counted |
-| `step-finish` | 2891 | `tokens`, `cost` | skipped, counted |
+| `step-start` | 3021 | — | dropped silently (recognized, no entry) |
+| `step-finish` | 2891 | `tokens`, `cost` | dropped silently (recognized, no entry) |
 | `tool` | 2490 | `{type, tool, callID, state:{status, input, output?, title?, time, metadata}}` — `input` a JSON object, `output` a plain string (observed up to ~300 KB) | `ToolCall` role `tool`, text = compact JSON of `state.input` (falls back to the tool name), plus a `ToolResult` role `tool` with the output text when non-empty |
 | `text` | 2214 | `{type, text, time?}` | `Message` with the message row's role |
 | `reasoning` | 1311 | `{type, text, time}` | `Summary` role `assistant` |
-| `file` | 28 | `{type, mime, filename, url}` — url is a `data:` URL up to ~200 KB | skipped, **uncounted** (deliberate: recognized type with no searchable text) |
-| `patch` | 16 | `{type, hash, files[]}` | skipped, counted |
-| `compaction` | 15 | — | skipped, counted |
-| unknown | 0 | — | skipped, counted |
+| `file` | 28 | `{type, mime, filename, url}` — url is a `data:` URL up to ~200 KB | dropped silently (recognized, no entry — its url is a data: URL, not searchable text) |
+| `patch` | 16 | `{type, hash, files[]}` | dropped silently (recognized, no entry) |
+| `compaction` | 15 | — | dropped silently (recognized, no entry) |
+| unknown | 0 | — | skipped, **counted** |
+
+**Skipped-record accounting (controller ruling on spec §8):** the counter
+reserves itself for corrupt/UNKNOWN shapes — malformed `part.data` JSON and
+part types outside the recognized set above. Recognized-but-unmapped types
+(`file`, `patch`, `step-start`, `step-finish`, `compaction`) are dropped
+SILENTLY, so a full scan of healthy data reports zero skipped records.
+Recognized types: `text`, `reasoning`, `tool`, `file`, `patch`,
+`step-start`, `step-finish`, `compaction`.
 
 ## Mapping to pastlog's model
 
@@ -141,12 +149,20 @@ transient coordination state only, never session data.
 
 ## Defensive behavior
 
-- Malformed `part.data` / `message.data` JSON → skipped, counted
-  (`SkippedLines()`; the CLI summarizes as "N unreadable lines skipped" —
-  kept from M2 for all adapters).
-- Unknown part types and patch/step-*/compaction records → skipped, counted.
-- `file` parts → skipped, uncounted (deliberate, see table above).
-- Unreadable rows (unexpected NULLs) are skipped silently.
+- Malformed `part.data` JSON → skipped, counted (`SkippedLines()`; the CLI
+  summarizes as "N unreadable lines skipped" — kept from M2 for all
+  adapters). A full scan of the healthy real database counts **zero**
+  records.
+- Unknown part types (outside the recognized list above) → skipped, counted.
+- Messages without any `part` rows (e.g. aborted turns — visible as NULL
+  part columns in the LEFT JOIN cursor) are a recognized structure: nothing
+  to record, **not counted**.
+- Recognized-but-unmapped part types (`file`, `patch`, `step-start`,
+  `step-finish`, `compaction`) → dropped **silently** (controller ruling on
+  spec §8).
+- Unreadable rows (unexpected NULLs) are skipped silently; an unparseable
+  `message.data` yields entries with an empty best-effort role and is not
+  counted (nothing is dropped — the parts carry the content).
 - Iteration callbacks may abort the stream by returning an error; the error
   is propagated unchanged and the cursor is closed.
 

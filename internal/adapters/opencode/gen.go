@@ -112,13 +112,18 @@ func seed(db *sql.DB) error {
 		`INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES
 		 ('msg_fixture200001fi', 'ses_fixture200002fix', 1786220993100, 1786220993900,
 		  '{"role":"assistant","agent":"general"}')`,
+		// message without any parts (e.g. aborted turn): its LEFT JOIN row
+		// carries a NULL part — recognized structure, must not count as skipped
+		`INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES
+		 ('msg_fixture100003fi', 'ses_fixture100001fix', 1786220992300, 1786220992400,
+		  '{"role":"assistant","finish":"aborted"}')`,
 		// parent session parts, in transcript order
 		// user text
 		`INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES
 		 ('prt_fixture100001fi', 'msg_fixture100001fi', 'ses_fixture100001fix', 1786220928154, 1786220928154,
 		  '{"type":"text","text":"the widget flux calibration keeps drifting"}')`,
 		// assistant: step-start, text, reasoning, tool with output, tool
-		// without output, file (skipped, uncounted), patch (skipped, counted),
+		// without output, file (dropped silently), patch (dropped silently),
 		// unknown type (skipped, counted), malformed json (skipped, counted)
 		`INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES
 		 ('prt_fixture100002fi', 'msg_fixture100002fi', 'ses_fixture100001fix', 1786220929201, 1786220929201,
@@ -151,7 +156,7 @@ func seed(db *sql.DB) error {
 		`INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES
 		 ('prt_fixture100011fi', 'msg_fixture100002fi', 'ses_fixture100001fix', 1786220992100, 1786220992100,
 		  '{"type":"step-finish","tokens":42}')`,
-		// compaction record (skipped, counted)
+		// compaction record (dropped silently)
 		`INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES
 		 ('prt_fixture100012fi', 'msg_fixture100002fi', 'ses_fixture100001fix', 1786220992200, 1786220992200,
 		  '{"type":"compaction"}')`,

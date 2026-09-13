@@ -205,15 +205,18 @@ func TestEntriesSkippedRecordsCounted(t *testing.T) {
 	sessions := listSessions(t, a)
 	parent := sessionByID(t, sessions, parentID)
 	_ = a.Entries(parent, func(e agentlog.Entry) error { return nil })
-	// patch + unknown type + malformed json + compaction + step-start +
-	// step-finish = 6 skipped records; file is skipped uncounted (deliberate)
-	if a.SkippedLines() != 6 {
-		t.Errorf("SkippedLines = %d, want 6", a.SkippedLines())
+	// only genuinely unknown shapes count: the unknown "hologram" part type
+	// plus the malformed json row. The recognized-but-unmapped records
+	// (file, patch, step-start, step-finish, compaction) are dropped
+	// silently — spec §8 reserves the counter for corrupt/unknown shapes
+	// (controller ruling).
+	if a.SkippedLines() != 2 {
+		t.Errorf("SkippedLines = %d, want 2", a.SkippedLines())
 	}
 	// counts accumulate across scans
 	_ = a.Entries(parent, func(e agentlog.Entry) error { return nil })
-	if a.SkippedLines() != 12 {
-		t.Errorf("SkippedLines = %d, want 12 after two scans", a.SkippedLines())
+	if a.SkippedLines() != 4 {
+		t.Errorf("SkippedLines = %d, want 4 after two scans", a.SkippedLines())
 	}
 }
 

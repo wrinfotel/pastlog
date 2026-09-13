@@ -27,11 +27,11 @@ type toolStateRaw struct {
 }
 
 // partToEntries maps one part.data row to entries. skip=true counts the row
-// among the unreadable/unknown records (spec §8): malformed JSON, unknown
-// part types, and the deliberately unmapped patch/step-*/compaction records
-// (M3 brief). file parts are skipped uncounted — a recognized type pastlog
-// deliberately does not map (its url is a data: URL, not searchable text;
-// documented choice per the brief). Entries may be empty for readable parts
+// among the unreadable records (spec §8): malformed JSON and unknown part
+// types. The recognized-but-unmapped types (file, patch, step-start,
+// step-finish, compaction) are dropped SILENTLY — spec §8 reserves the
+// counter for corrupt/unknown shapes, so healthy data never reports skipped
+// records (controller ruling). Entries may be empty for readable parts
 // (e.g. an empty text part has nothing to record).
 func partToEntries(role, data string, ts time.Time) (entries []agentlog.Entry, skip bool) {
 	var p partRaw
@@ -51,14 +51,29 @@ func partToEntries(role, data string, ts time.Time) (entries []agentlog.Entry, s
 		return append(entries, agentlog.Entry{Kind: agentlog.Summary, Role: "assistant", Text: p.Text, Timestamp: ts}), false
 	case "tool":
 		return toolEntries(p, ts), false
-	case "file":
-		return nil, false // recognized, deliberately unmapped (SCHEMA.md)
 	default:
-		// patch, step-start, step-finish, compaction, unknown types —
-		// skipped and counted (M3 brief)
-		return nil, true
+		// recognized-but-unmapped (file, patch, step-start, step-finish,
+		// compaction) and unknown types alike; only the latter are counted —
+		// see the recognized-type list in SCHEMA.md
+		return nil, isUnknownPartType(p.Type)
 	}
 }
+
+// recognizedPartTypes are the part types observed on real data that pastlog
+// deliberately maps to no entry; they are dropped silently. Anything outside
+// this set and the mapped types is an unknown shape and counts as skipped.
+var recognizedPartTypes = map[string]bool{
+	"text":        true,
+	"reasoning":   true,
+	"tool":        true,
+	"file":        true,
+	"patch":       true,
+	"step-start":  true,
+	"step-finish": true,
+	"compaction":  true,
+}
+
+func isUnknownPartType(t string) bool { return !recognizedPartTypes[t] }
 
 // toolEntries maps a tool part to a ToolCall entry (compact JSON of
 // state.input, falling back to the tool name when input is missing) plus,

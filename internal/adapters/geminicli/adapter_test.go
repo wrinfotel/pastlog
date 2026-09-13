@@ -386,6 +386,7 @@ func TestNeverPanicsOnGarbage(t *testing.T) {
 		`{"type":"gemini","toolCalls":42}`,
 		`{"$set":{"messages":"not-an-array"}}`,
 		`{"$set":{"messages":[{"type":"user","content":null}]}}`, // tolerated: empty content
+		`{"$set":{"messages":[{"id":"no-type-here"}]}}`,          // unknown shape inside a recognized checkpoint: counted
 		"\x00\x01\x02binary",
 	}
 	home := t.TempDir()
@@ -403,13 +404,13 @@ func TestNeverPanicsOnGarbage(t *testing.T) {
 	a := New(home)
 	metas := listMetas(t, a)
 	// the no-content user record and the null-content checkpoint message are
-	// tolerated as readable records with no text; everything else is skipped
-	// and counted
+	// tolerated as readable records with no text; everything else — including
+	// unknown shapes inside a recognized checkpoint — is skipped and counted
 	if len(metas) != 1 || metas[0].Messages != 0 {
 		t.Errorf("got %+v, want 1 session with 0 messages", metas)
 	}
-	if a.SkippedLines() != 10 {
-		t.Errorf("SkippedLines = %d, want 10", a.SkippedLines())
+	if a.SkippedLines() != 11 {
+		t.Errorf("SkippedLines = %d, want 11", a.SkippedLines())
 	}
 }
 

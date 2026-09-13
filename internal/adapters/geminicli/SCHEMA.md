@@ -53,8 +53,12 @@ parsing.
 
 Compaction protocol: checkpoint records `{"$set":{"messages":[…]}}` (a
 snapshot of the conversation so far) and deletion records may appear mid-file.
-Checkpoints are applied by mapping their message array in place; every other
-record without a message `type` is skipped **and counted**.
+Checkpoints are recognized protocol records: they are applied by mapping
+their message array in place and are **never counted** as skipped; message
+elements inside them that fail to parse are genuinely unknown shapes and are
+counted. Records matching no known shape (no message `type`, no `$set`, no
+metadata fields — e.g. deletion records, whose shape pastlog does not
+recognize) are skipped **and counted**.
 
 ## Mapping to pastlog's model
 
@@ -99,15 +103,23 @@ element is the same ConversationRecord shape with the messages inline in a
 
 ## Defensive behavior
 
+**Skipped-record accounting (controller ruling on spec §8):** the counter
+reserves itself for corrupt/UNKNOWN shapes. Recognized-but-unmapped records —
+the compaction checkpoints `{$set:…}` — are applied in place and never
+counted, so healthy data reports zero skipped records. Everything that
+matches no known shape increments the counter:
+
 - Corrupt / truncated / non-object records → skipped, counted
   (`SkippedLines()`); the CLI summarizes as "N unreadable lines skipped".
-- Unknown record shapes (no message `type`, e.g. deletion records) → skipped
-  and counted.
+- Unknown record shapes (no message `type`, no `$set`, e.g. deletion
+  records, whose shape is unrecognized) → skipped and counted.
 - Known types with unusable `content`/`toolCalls`/`thoughts` shapes → skipped
   and counted. Unknown part shapes inside a readable array are skipped
   silently (the record itself was readable). A record with absent or null
   content is readable and simply contributes no entries.
-- Checkpoint message elements that fail to parse are skipped and counted.
+- Message elements inside a recognized container (checkpoint `messages`
+  arrays, legacy `chats.json` session `messages` arrays) that fail to parse
+  are unknown shapes → skipped and counted.
 - Lines longer than 16 MiB exceed the scanner buffer: the rest of that file
   is skipped and counted (1 per oversized file). The enlarged buffer (64 KiB
   initial, 16 MiB max) handles all plausible lines >64 KiB per spec §5.
