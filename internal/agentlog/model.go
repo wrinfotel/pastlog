@@ -64,3 +64,18 @@ type SkipCounter interface {
 type PathSource interface {
 	StoragePath() string
 }
+
+// WarningSource is optionally implemented by adapters that detected storage
+// they cannot read (e.g. a database locked by a running agent instance, spec
+// §4): Warning returns one actionable stderr line, "" when the adapter is
+// healthy. The CLI prints it once per run and continues with other agents.
+type WarningSource interface {
+	Warning() string
+}
+
+// TotalSizer is optionally implemented by adapters whose on-disk footprint
+// differs from the sum of their sessions' SizeBytes (e.g. a single database
+// file shared by all sessions); `agents` reports TotalBytes then.
+type TotalSizer interface {
+	TotalBytes() int64
+}
