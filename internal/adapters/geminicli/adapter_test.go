@@ -41,10 +41,12 @@ func buildHome(t *testing.T, files map[string]string) string {
 // realisticRel is the on-disk name gemini-cli uses: session-<ts>-<id8>.jsonl.
 const realisticRel = "chats/session-2026-08-02T14-03-gabc1111.jsonl"
 
-const realisticID = "gabc1111-1111-4111-8111-111111111111"
-const subagentID = "gsub2222-2222-4222-8222-222222222222"
-const legacyID1 = "gold3333-3333-4333-8333-333333333333"
-const legacyID2 = "gold4444-4444-4444-8444-444444444444"
+const (
+	realisticID = "gabc1111-1111-4111-8111-111111111111"
+	subagentID  = "gsub2222-2222-4222-8222-222222222222"
+	legacyID1   = "gold3333-3333-4333-8333-333333333333"
+	legacyID2   = "gold4444-4444-4444-8444-444444444444"
+)
 
 func newTestAdapter(t *testing.T, files map[string]string) *Adapter {
 	t.Helper()
@@ -379,7 +381,7 @@ func TestNeverPanicsOnGarbage(t *testing.T) {
 		"\"string\"",
 		"123",
 		`{"type":123}`,
-		`{"type":"user"}`,             // known type, no content
+		`{"type":"user"}`,              // known type, no content
 		`{"type":"user","content":42}`, // content of the wrong shape
 		`{"type":"gemini","toolCalls":42}`,
 		`{"$set":{"messages":"not-an-array"}}`,
