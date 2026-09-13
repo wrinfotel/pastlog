@@ -24,9 +24,15 @@ const (
 )
 
 // Adapter reads Codex CLI JSONL rollout files from <home>/.codex/sessions.
+//
+// Like the skipped counter (which accumulates across scans and is never
+// reset), the session id→file index built by fileForSession is cached on the
+// adapter: an Adapter is NOT safe for concurrent use — one Adapter per
+// goroutine, and resolve sessions through a single instance per run.
 type Adapter struct {
 	home    string
-	skipped int // unreadable/unknown lines, counted across scans
+	skipped int               // unreadable/unknown lines, counted across scans
+	index   map[string]string // session id -> rollout path, built lazily (see fileForSession)
 }
 
 // New builds an adapter rooted at the given user home directory.
@@ -97,6 +103,7 @@ func (a *Adapter) walk(iter func(agentlog.SessionMeta) error) error {
 		if !sum.sawLine {
 			continue // empty (or blank) file: not a session
 		}
+		a.registerIDs(path, sum.sessionID)
 		if err := iter(sum.meta(path)); err != nil {
 			return err
 		}
@@ -217,31 +224,57 @@ func (a *Adapter) sessionFiles() ([]string, error) {
 // fileForSession locates the JSONL file backing a session: first by rollout
 // filename (the fallback-id case), then by scanning session_meta records for
 // the payload id — the two may differ (SCHEMA.md).
+//
+// The id→path index is built lazily (see registerIDs): ONE pass over the
+// storage, instead of a per-session tree walk plus a per-session rescan of
+// every rollout's meta line (which made per-session Entries quadratic in the
+// session count — surfaced by the M4 benchmark). Sessions obtained from
+// listing resolve through the index that listing already filled.
 func (a *Adapter) fileForSession(id string) (string, bool) {
-	if id != "" {
-		matches, err := filepath.Glob(filepath.Join(a.sessionsDir(), "*", "*", "*", id+".jsonl"))
-		if err == nil && len(matches) > 0 {
-			return matches[0], true
-		}
+	if a.index == nil {
+		a.buildIndex()
 	}
-	files, err := a.sessionFiles()
-	if err != nil {
-		return "", false
-	}
-	for _, path := range files {
-		if a.fileHasMetaID(path, id) {
-			return path, true
-		}
-	}
-	return "", false
+	path, ok := a.index[id]
+	return path, ok
 }
 
-// fileHasMetaID reports whether the file's first session_meta payload id
-// equals id.
-func (a *Adapter) fileHasMetaID(path, id string) bool {
+// registerIDs records a file's id spellings — filename minus .jsonl (the
+// fallback id) and the first session_meta payload id — in the index. Files
+// are visited in sorted order and the first registration of an id wins.
+func (a *Adapter) registerIDs(path, recordID string) {
+	if a.index == nil {
+		a.index = map[string]string{}
+	}
+	base := strings.TrimSuffix(filepath.Base(path), ".jsonl")
+	if _, ok := a.index[base]; !ok {
+		a.index[base] = path
+	}
+	if recordID != "" {
+		if _, ok := a.index[recordID]; !ok {
+			a.index[recordID] = path
+		}
+	}
+}
+
+// buildIndex fills the id→path index when Entries is called without a
+// preceding listing pass.
+func (a *Adapter) buildIndex() {
+	files, err := a.sessionFiles()
+	if err != nil {
+		a.index = map[string]string{}
+		return
+	}
+	for _, path := range files {
+		a.registerIDs(path, a.fileMetaID(path))
+	}
+}
+
+// fileMetaID returns the first session_meta payload id in the file, "" when
+// the file has none (defensive parse).
+func (a *Adapter) fileMetaID(path string) string {
 	f, err := os.Open(path)
 	if err != nil {
-		return false
+		return ""
 	}
 	defer f.Close()
 
@@ -253,13 +286,11 @@ func (a *Adapter) fileHasMetaID(path, id string) bool {
 			continue
 		}
 		info, _, ok := processLine(line)
-		// session_meta typically appears once, on the first line; stop
-		// scanning as soon as one has been seen.
 		if ok && info.sessionID != "" {
-			return info.sessionID == id
+			return info.sessionID
 		}
 	}
-	return false
+	return ""
 }
 
 const maxTitleRunes = 80

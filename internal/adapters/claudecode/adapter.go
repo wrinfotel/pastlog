@@ -35,7 +35,8 @@ const (
 // after scans finish.
 type Adapter struct {
 	home    string
-	skipped int // unreadable/unknown lines, accumulated across scans (see type doc)
+	skipped int               // unreadable/unknown lines, accumulated across scans (see type doc)
+	index   map[string]string // session id -> file path, built lazily (see fileForSession)
 }
 
 // New builds an adapter rooted at the given user home directory.
@@ -108,6 +109,7 @@ func (a *Adapter) walk(iter func(agentlog.SessionMeta) error) error {
 		if !sum.sawLine {
 			continue // empty (or blank) file: not a session
 		}
+		a.registerIDs(path, sum.sessionID)
 		if err := iter(sum.meta(path)); err != nil {
 			return err
 		}
@@ -273,34 +275,61 @@ func (a *Adapter) sessionFiles() ([]string, error) {
 }
 
 // fileForSession locates the JSONL file backing a session: first by filename
-// (the common case), then by scanning records for the sessionId field — the
-// two may differ (SCHEMA.md). Filename matching goes through the WalkDir
-// lister, so homes containing glob metacharacters resolve correctly too.
+// (the common case), then by the records' sessionId field — the two may
+// differ (SCHEMA.md).
+//
+// The id→path index is built lazily (see registerIDs): ONE pass over the
+// storage, instead of a per-session directory walk plus a per-session rescan
+// of every candidate file (which made per-session Entries quadratic in the
+// session count — surfaced by the M4 benchmark). Sessions obtained from
+// listing resolve through the index that listing already filled; both id
+// spellings listing assigns (filename fallback and first-seen sessionId) are
+// indexed.
 func (a *Adapter) fileForSession(id string) (string, bool) {
-	files, err := a.sessionFiles()
-	if err != nil {
-		return "", false
+	if a.index == nil {
+		a.buildIndex()
 	}
-	if id != "" {
-		want := id + ".jsonl"
-		for _, path := range files {
-			if filepath.Base(path) == want {
-				return path, true
-			}
-		}
-	}
-	for _, path := range files {
-		if a.fileHasSessionID(path, id) {
-			return path, true
-		}
-	}
-	return "", false
+	path, ok := a.index[id]
+	return path, ok
 }
 
-func (a *Adapter) fileHasSessionID(path, id string) bool {
+// registerIDs records a file's id spellings — filename minus .jsonl and the
+// first sessionId seen in the records — in the index. Files are visited in
+// sorted order and the first registration of an id wins.
+func (a *Adapter) registerIDs(path, recordID string) {
+	if a.index == nil {
+		a.index = map[string]string{}
+	}
+	base := strings.TrimSuffix(filepath.Base(path), ".jsonl")
+	if _, ok := a.index[base]; !ok {
+		a.index[base] = path
+	}
+	if recordID != "" {
+		if _, ok := a.index[recordID]; !ok {
+			a.index[recordID] = path
+		}
+	}
+}
+
+// buildIndex fills the id→path index when Entries is called without a
+// preceding listing pass.
+func (a *Adapter) buildIndex() {
+	files, err := a.sessionFiles()
+	if err != nil {
+		a.index = map[string]string{}
+		return
+	}
+	for _, path := range files {
+		a.registerIDs(path, a.fileSessionID(path))
+	}
+}
+
+// fileSessionID returns the first sessionId field found in the file, "" when
+// none (defensive parse). This mirrors the id walk() assigns to the session.
+func (a *Adapter) fileSessionID(path string) string {
 	f, err := os.Open(path)
 	if err != nil {
-		return false
+		return ""
 	}
 	defer f.Close()
 
@@ -312,9 +341,9 @@ func (a *Adapter) fileHasSessionID(path, id string) bool {
 			continue
 		}
 		res := processLine(line)
-		if res.ok && res.info.sessionID == id {
-			return true
+		if res.ok && res.info.sessionID != "" {
+			return res.info.sessionID
 		}
 	}
-	return false
+	return ""
 }
