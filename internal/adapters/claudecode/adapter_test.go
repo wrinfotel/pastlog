@@ -175,6 +175,115 @@ func TestSessionsEmptyFileYieldsNothing(t *testing.T) {
 	}
 }
 
+// TestSessionsGlobMetacharacterHome pins the M4 lister fix: filepath.Glob
+// silently matches nothing when the home path contains glob metacharacters
+// ([, *, ?); the WalkDir lister must be immune, for both listing and
+// per-session file resolution.
+func TestSessionsGlobMetacharacterHome(t *testing.T) {
+	// Windows forbids * and ? in real filenames, but [ and ] are legal and
+	// are exactly the metacharacters that turn a Glob pattern into a broken
+	// character class.
+	home := filepath.Join(t.TempDir(), "we[ird]home")
+	dir := filepath.Join(home, ".claude", "projects", "pr[o]j")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := `{"type":"user","sessionId":"88888888-8888-4888-8888-888888888888","cwd":"/home/dev/app","timestamp":"2026-07-01T10:00:00Z","message":{"role":"user","content":"one"}}`
+	if err := os.WriteFile(filepath.Join(dir, "88888888-8888-4888-8888-888888888888.jsonl"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := New(home)
+	got := listSessions(t, a)
+	if len(got) != 1 {
+		t.Fatalf("got %d sessions, want 1 (lister must survive glob metacharacters)", len(got))
+	}
+	var texts []string
+	err := a.Entries(got[0], func(e agentlog.Entry) error { texts = append(texts, e.Text); return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(texts) != 1 || texts[0] != "one" {
+		t.Errorf("Entries should resolve the file inside a metacharacter home, got %v", texts)
+	}
+}
+
+// TestSessionFilesOnlyProjectDirJSONL pins the documented scope (SCHEMA.md):
+// only *.jsonl files directly inside project directories are sessions — files
+// directly under projects/ or nested deeper are ignored, exactly like the old
+// Glob pattern projects/*/*.jsonl.
+func TestSessionFilesOnlyProjectDirJSONL(t *testing.T) {
+	a := newTestAdapter(t, map[string]string{
+		"proj/11111111-1111-4111-8111-111111111111.jsonl": "realistic.jsonl",
+	})
+	// a file directly under projects/ and one nested two levels deep must not
+	// become sessions
+	for _, rel := range []string{
+		filepath.Join("stray.jsonl"),
+		filepath.Join("proj", "nested", "deeper.jsonl"),
+	} {
+		dst := filepath.Join(a.home, ".claude", "projects", rel)
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(dst, []byte(`{"type":"user","sessionId":"x","cwd":"/p","message":{"role":"user","content":"s"}}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := listSessions(t, a); len(got) != 1 {
+		t.Fatalf("got %d sessions, want 1 (stray and nested files ignored)", len(got))
+	}
+}
+
+// TestOversizedLineCountsOneSkipped pins the buffer-overflow branch of
+// scanner.Err(): a line beyond maxLineSize leaves the rest of the file
+// unreadable and counts exactly one skipped line (SCHEMA.md), while earlier
+// lines still parse.
+func TestOversizedLineCountsOneSkipped(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, ".claude", "projects", "proj")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	oversized := `{"type":"user","cwd":"/home/dev/app","timestamp":"2026-07-01T10:00:05Z","message":{"role":"user","content":"` +
+		strings.Repeat("a", 17*1024*1024) + `"}}`
+	content := `{"type":"user","cwd":"/home/dev/app","timestamp":"2026-07-01T10:00:00Z","message":{"role":"user","content":"first"}}` + "\n" + oversized
+	if err := os.WriteFile(filepath.Join(dir, "99999999-9999-4999-8999-999999999999.jsonl"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := New(home)
+	metas := listMetas(t, a)
+	if len(metas) != 1 || metas[0].Messages != 1 {
+		t.Fatalf("got %+v, want 1 session with the first line's message", metas)
+	}
+	if a.SkippedLines() != 1 {
+		t.Errorf("SkippedLines = %d, want 1 (one skipped per oversized file)", a.SkippedLines())
+	}
+}
+
+// TestScanFileIOErrorNotCountedAsSkipped pins the I/O branch of scanner.Err()
+// (M4-B7): a read failure makes the file unreadable (skipped silently, like
+// any unreadable file) — it must not inflate the unreadable-content counter,
+// and it must never be fatal.
+func TestScanFileIOErrorNotCountedAsSkipped(t *testing.T) {
+	a := newTestAdapter(t, nil)
+	// a directory named *.jsonl: os.Open succeeds, reading fails with an I/O
+	// error that is not bufio.ErrTooLong
+	dirFile := filepath.Join(a.home, ".claude", "projects", "proj", "iam-a-directory.jsonl")
+	if err := os.MkdirAll(dirFile, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sum, err := a.scanFile(dirFile, nil, nil)
+	if err != nil {
+		t.Fatalf("I/O failures stay non-fatal, got %v", err)
+	}
+	if sum.sawLine {
+		t.Error("no line can be read from a directory")
+	}
+	if a.SkippedLines() != 0 {
+		t.Errorf("SkippedLines = %d, want 0 (I/O errors are unreadable files, not unreadable lines)", a.SkippedLines())
+	}
+}
+
 func TestDefensiveParsingCountsSkipped(t *testing.T) {
 	a := newTestAdapter(t, map[string]string{
 		"proj/44444444-4444-4444-8444-444444444444.jsonl": "truncated.jsonl",

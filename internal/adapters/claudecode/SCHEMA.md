@@ -76,7 +76,13 @@ results are always role `tool`.
   is skipped and counted (1 per oversized file). Real-world lines are well
   under 1 MiB; the enlarged buffer (64 KiB initial, 16 MiB max) handles all
   plausible lines >64 KiB per spec §5.
+- Other read failures mid-file (I/O errors) make the file unreadable: the
+  file is skipped silently and NOT counted — nothing was parsed wrong, the
+  storage itself became unreadable (same class as an unopenable file).
 - Unreadable files (permission errors) are skipped silently.
+- The skipped counter accumulates across scans and is never reset; an adapter
+  is not safe for concurrent scans (one Adapter per goroutine; see the
+  Adapter type documentation).
 - Iteration callbacks may abort the stream by returning an error; the error
   is propagated unchanged.
 

@@ -7,7 +7,9 @@ package claudecode
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,9 +25,17 @@ const (
 )
 
 // Adapter reads Claude Code JSONL session logs from <home>/.claude/projects.
+//
+// Skipped-counter semantics (spec §8): the unreadable-line counter accumulates
+// across every scan the adapter performs (listing, per-session entries, the
+// search prefilter pass) and is never reset — report it after the runs you
+// want it to cover, on a freshly built adapter. Because of that shared
+// counter, an Adapter is NOT safe for concurrent scans: use one Adapter per
+// goroutine. Reading SkippedLines concurrently with a scan races; read it
+// after scans finish.
 type Adapter struct {
 	home    string
-	skipped int // unreadable/unknown lines, counted across scans
+	skipped int // unreadable/unknown lines, accumulated across scans (see type doc)
 }
 
 // New builds an adapter rooted at the given user home directory.
@@ -39,6 +49,8 @@ func (a *Adapter) Detect() bool {
 }
 
 // SkippedLines implements agentlog.SkipCounter (spec §8 stderr summary).
+// The total accumulates across scans and is never reset — see the Adapter
+// type documentation for the exact semantics.
 func (a *Adapter) SkippedLines() int { return a.skipped }
 
 // StoragePath implements agentlog.PathSource: the directory scanned for
@@ -196,31 +208,73 @@ func (a *Adapter) scanFile(path string, keep func([]byte) bool, emit func(agentl
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		// A line beyond maxLineSize exhausts the buffer; the rest of this
-		// file is unreadable to us. Count it and move on — never fatal.
-		a.skipped++
+		// Two distinct failure kinds leave the rest of this file unreadable;
+		// never fatal (spec §8 best effort):
+		//   - bufio.ErrTooLong: a line beyond maxLineSize exhausted the
+		//     buffer. The line itself is unreadable content — count exactly
+		//     one skipped line per oversized file (SCHEMA.md).
+		//   - anything else is an I/O read error: the file became unreadable
+		//     mid-scan. Its lines are not corrupt — this is the "unreadable
+		//     file" class, skipped silently like an unopenable file and not
+		//     counted (SCHEMA.md).
+		if errors.Is(err, bufio.ErrTooLong) {
+			a.skipped++
+		}
 	}
 	return sum, nil
 }
 
-// sessionFiles lists all session JSONL paths, sorted for determinism.
+// sessionFiles lists all session JSONL paths, sorted for determinism
+// (WalkDir visits entries lexically, and files sort inside their directory).
+// It deliberately uses WalkDir instead of filepath.Glob: Glob silently
+// matches nothing when the home path contains glob metacharacters ([, *, ?),
+// while a directory walk is immune (M4). Only *.jsonl files directly inside
+// project directories are considered (SCHEMA.md) — files directly under
+// projects/ or nested deeper are ignored, exactly like the old
+// projects/*/*.jsonl pattern.
 func (a *Adapter) sessionFiles() ([]string, error) {
-	return filepath.Glob(filepath.Join(a.projectsDir(), "*", "*.jsonl"))
+	root := a.projectsDir()
+	var files []string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err // unreadable subtree: surfaced, not silently truncated
+		}
+		if d.IsDir() {
+			if path != root && filepath.Dir(path) != root {
+				return fs.SkipDir // sessions live exactly one level deep
+			}
+			return nil
+		}
+		if filepath.Dir(path) == root {
+			return nil // stray file directly under projects/: not a session
+		}
+		if strings.HasSuffix(d.Name(), ".jsonl") {
+			files = append(files, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return files, nil
 }
 
 // fileForSession locates the JSONL file backing a session: first by filename
 // (the common case), then by scanning records for the sessionId field — the
-// two may differ (SCHEMA.md).
+// two may differ (SCHEMA.md). Filename matching goes through the WalkDir
+// lister, so homes containing glob metacharacters resolve correctly too.
 func (a *Adapter) fileForSession(id string) (string, bool) {
-	if id != "" {
-		matches, err := filepath.Glob(filepath.Join(a.projectsDir(), "*", id+".jsonl"))
-		if err == nil && len(matches) > 0 {
-			return matches[0], true
-		}
-	}
 	files, err := a.sessionFiles()
 	if err != nil {
 		return "", false
+	}
+	if id != "" {
+		want := id + ".jsonl"
+		for _, path := range files {
+			if filepath.Base(path) == want {
+				return path, true
+			}
+		}
 	}
 	for _, path := range files {
 		if a.fileHasSessionID(path, id) {
