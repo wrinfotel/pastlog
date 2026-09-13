@@ -259,7 +259,7 @@ func functionCallEntry(part []byte, ts time.Time) (agentlog.Entry, bool) {
 	if err := json.Unmarshal(part, &fc); err != nil {
 		return agentlog.Entry{}, false
 	}
-	text := compactJSON(fc.FunctionCall.Args)
+	text := agentlog.CompactJSON(fc.FunctionCall.Args)
 	if text == "" {
 		text = fc.FunctionCall.Name
 	}
@@ -304,7 +304,7 @@ func toolCallEntries(raw json.RawMessage, ts time.Time) ([]agentlog.Entry, bool)
 	}
 	var entries []agentlog.Entry
 	for _, tc := range calls {
-		text := compactJSON(tc.Args)
+		text := agentlog.CompactJSON(tc.Args)
 		if text == "" {
 			text = tc.Name
 		}
@@ -393,20 +393,6 @@ func partListText(raw json.RawMessage) string {
 		}
 	}
 	return ""
-}
-
-// compactJSON re-encodes raw without insignificant whitespace; "" when raw is
-// empty, null, or not valid JSON.
-func compactJSON(raw json.RawMessage) string {
-	trimmed := bytes.TrimSpace(raw)
-	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
-		return ""
-	}
-	var buf bytes.Buffer
-	if err := json.Compact(&buf, trimmed); err != nil {
-		return ""
-	}
-	return buf.String()
 }
 
 // firstString returns the first element of a string list, "" when empty.

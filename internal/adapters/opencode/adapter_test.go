@@ -220,6 +220,29 @@ func TestEntriesSkippedRecordsCounted(t *testing.T) {
 	}
 }
 
+// TestEntriesUnparseableMessageDataCountsSkipped pins the M4-B17 ruling: a
+// message row whose data is not valid JSON counts as skipped (aligned with
+// the spec §8 letter), while its parts still stream — content is never
+// dropped, the role just degrades to "".
+func TestEntriesUnparseableMessageDataCountsSkipped(t *testing.T) {
+	a := NewDir(buildFixtureDB(t))
+	var got []agentlog.Entry
+	err := a.Entries(agentlog.Session{ID: childID}, func(e agentlog.Entry) error {
+		got = append(got, e)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// the child session's readable message still yields its text part
+	if len(got) != 1 || got[0].Text != "child session report: flux stable" {
+		t.Fatalf("entries = %+v, want the readable part only", got)
+	}
+	if a.SkippedLines() != 1 {
+		t.Errorf("SkippedLines = %d, want 1 (the unparseable message.data row)", a.SkippedLines())
+	}
+}
+
 func TestEntriesUnknownSessionErrors(t *testing.T) {
 	a := NewDir(buildFixtureDB(t))
 	err := a.Entries(agentlog.Session{ID: "ses_nope"}, func(e agentlog.Entry) error { return nil })

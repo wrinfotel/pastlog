@@ -160,9 +160,9 @@ transient coordination state only, never session data.
 - Recognized-but-unmapped part types (`file`, `patch`, `step-start`,
   `step-finish`, `compaction`) → dropped **silently** (controller ruling on
   spec §8).
-- Unreadable rows (unexpected NULLs) are skipped silently; an unparseable
-  `message.data` yields entries with an empty best-effort role and is not
-  counted (nothing is dropped — the parts carry the content).
+- Unreadable rows (unexpected NULLs) are skipped silently. An unparseable
+  `message.data` counts as skipped (spec §8 letter, M4 ruling) — its parts
+  still stream so no content is dropped; the role just degrades to "".
 - Iteration callbacks may abort the stream by returning an error; the error
   is propagated unchanged and the cursor is closed.
 

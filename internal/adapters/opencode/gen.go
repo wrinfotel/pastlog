@@ -112,6 +112,17 @@ func seed(db *sql.DB) error {
 		`INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES
 		 ('msg_fixture200001fi', 'ses_fixture200002fix', 1786220993100, 1786220993900,
 		  '{"role":"assistant","agent":"general"}')`,
+		// unparseable message.data (M4): the role cannot be extracted, the
+		// row counts as skipped, and its parts still stream with an empty
+		// best-effort role (content is never dropped)
+		`INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES
+		 ('msg_fixture200002fi', 'ses_fixture200002fix', 1786220993950, 1786220993950,
+		  'not-json{{{')`,
+		// empty-text part under the broken message: nothing to record, no
+		// extra message count (the stats query needs non-empty text)
+		`INSERT INTO part (id, message_id, session_id, time_created, time_updated, data) VALUES
+		 ('prt_fixture200002fi', 'msg_fixture200002fi', 'ses_fixture200002fix', 1786220993960, 1786220993960,
+		  '{"type":"text","text":""}')`,
 		// message without any parts (e.g. aborted turn): its LEFT JOIN row
 		// carries a NULL part — recognized structure, must not count as skipped
 		`INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES

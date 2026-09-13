@@ -311,6 +311,7 @@ func (a *Adapter) Entries(s agentlog.Session, iter func(agentlog.Entry) error) e
 
 	var lastMsgID string
 	role := ""
+	roleOK := true
 	seen := false
 	for rows.Next() {
 		var msgID string
@@ -320,7 +321,13 @@ func (a *Adapter) Entries(s agentlog.Session, iter func(agentlog.Entry) error) e
 			continue // unreadable row: skip
 		}
 		if !seen || msgID != lastMsgID {
-			role = messageRole(msgData.String)
+			role, roleOK = messageRole(msgData.String)
+			if !roleOK {
+				// unparseable message.data: counts as skipped (spec §8
+				// letter, M4-B17); its parts still stream below, so no
+				// content is dropped — only the role degrades to ""
+				a.skipped++
+			}
 			lastMsgID = msgID
 			seen = true
 		}
@@ -353,17 +360,19 @@ func (a *Adapter) Entries(s agentlog.Session, iter func(agentlog.Entry) error) e
 	return nil
 }
 
-// messageRole extracts the role from a message.data JSON payload, "" when
-// unusable (defensive: Entry.Role is best effort per spec §5).
-func messageRole(data string) string {
+// messageRole extracts the role from a message.data JSON payload. ok=false
+// means data is not valid JSON: the row counts as skipped (M4-B17). A
+// parseable payload without a role field yields ok=true with "" — Entry.Role
+// is best effort per spec §5.
+func messageRole(data string) (role string, ok bool) {
 	if strings.TrimSpace(data) == "" {
-		return ""
+		return "", true // empty payload: readable, nothing to extract
 	}
 	var md struct {
 		Role string `json:"role"`
 	}
 	if err := json.Unmarshal([]byte(data), &md); err != nil {
-		return ""
+		return "", false
 	}
-	return md.Role
+	return md.Role, true
 }

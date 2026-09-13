@@ -83,7 +83,7 @@ func toolEntries(p partRaw, ts time.Time) []agentlog.Entry {
 	input := ""
 	name := p.Tool
 	if p.State != nil {
-		input = compactJSON(p.State.Input)
+		input = agentlog.CompactJSON(p.State.Input)
 	}
 	if input == "" {
 		input = name
@@ -97,20 +97,6 @@ func toolEntries(p partRaw, ts time.Time) []agentlog.Entry {
 		}
 	}
 	return entries
-}
-
-// compactJSON re-encodes raw without insignificant whitespace; "" when raw is
-// empty, null, or not valid JSON.
-func compactJSON(raw json.RawMessage) string {
-	trimmed := bytes.TrimSpace(raw)
-	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
-		return ""
-	}
-	var buf bytes.Buffer
-	if err := json.Compact(&buf, trimmed); err != nil {
-		return ""
-	}
-	return buf.String()
 }
 
 // outputText flattens a tool state.output: a JSON string unquotes to its
@@ -127,7 +113,7 @@ func outputText(raw json.RawMessage) string {
 			return s
 		}
 	}
-	if compact := compactJSON(trimmed); compact != "" {
+	if compact := agentlog.CompactJSON(trimmed); compact != "" {
 		return compact
 	}
 	return string(trimmed)
