@@ -130,6 +130,15 @@ file is not misread as a locked database. On SQLITE_BUSY / SQLITE_LOCKED
 Covered by `TestLockedDBWarnsAndContinues` / `TestLockedDBEntriesNoError`
 (second connection holding `BEGIN EXCLUSIVE`) and the CLI-level test.
 
+### Read-only scope
+
+`mode=ro` makes writes to `opencode.db` and `opencode.db-wal` impossible
+(verified against the real database: sizes and mtimes unchanged after full
+agents/sessions/search/show runs). Reading a WAL database requires SQLite to
+coordinate through the `-shm` file; read-only readers update their read-mark
+slots in it — standard SQLite behavior for every read-only client, affecting
+transient coordination state only, never session data.
+
 ## Defensive behavior
 
 - Malformed `part.data` / `message.data` JSON → skipped, counted

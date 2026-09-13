@@ -6,7 +6,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -73,10 +72,8 @@ func TestDetect(t *testing.T) {
 	if !a.Detect() {
 		t.Fatal("Detect should be true with a generated database")
 	}
-	if got := a.StoragePath(); !strings.HasSuffix(filepath.ToSlash(got), "/opencode.db") {
-		if !strings.HasSuffix(filepath.ToSlash(got), ".db") && !strings.Contains(filepath.ToSlash(got), "/") {
-			t.Errorf("StoragePath = %q", got)
-		}
+	if got, want := filepath.ToSlash(a.StoragePath()), filepath.ToSlash(a.dir); got != want {
+		t.Errorf("StoragePath = %q, want %q (the storage root)", got, want)
 	}
 	// a directory named opencode.db is not a database
 	dir := t.TempDir()

@@ -18,7 +18,7 @@ import (
 const (
 	allClaudeContent = `{"type":"user","sessionId":"ccaa1111-1111-4111-8111-111111111111","cwd":"/home/dev/cal","timestamp":"2026-08-02T14:03:22Z","message":{"role":"user","content":"check the calibration log"}}`
 	allCodexContent  = `{"timestamp":"2026-08-02T14:10:00Z","type":"session_meta","payload":{"id":"ccbb2222-2222-4222-8222-222222222222","cwd":"/home/dev/cal"}}
-{"timestamp":"2026-08-02T14:10:05Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"recalibrate the drift"}]}}`
+{"timestamp":"2026-08-02T14:10:05Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"calibration drift confirmed"}]}}`
 
 	allGeminiContent = `{"sessionId":"gccc3333-3333-4333-8333-333333333333","startTime":"2026-08-02T14:20:00Z","lastUpdated":"2026-08-02T14:21:00Z","kind":"main","directories":["/home/dev/cal"],"summary":"calibration review"}
 {"id":"gm1","timestamp":"2026-08-02T14:20:10Z","type":"user","content":"review the calibration constants"}`
@@ -76,7 +76,12 @@ func TestSearchAllAgents(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("search exit = %d, stderr: %s", code, errOut)
 	}
-	for _, want := range []string{`"agent": "claude-code"`, `"agent": "gemini-cli"`, `"agent": "opencode"`} {
+	for _, want := range []string{
+		`"agent": "claude-code"`,
+		`"agent": "codex"`,
+		`"agent": "gemini-cli"`,
+		`"agent": "opencode"`,
+	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("search should hit %s, got:\n%s", want, out)
 		}
