@@ -2,6 +2,9 @@ package search
 
 import (
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -121,6 +124,98 @@ func TestRunNotesFailingAdapter(t *testing.T) {
 	if !strings.Contains(notes[0], "broken-list: storage unreadable") ||
 		!strings.Contains(notes[1], "broken-scan: storage unreadable") {
 		t.Errorf("notes should name each failing adapter, got %v", notes)
+	}
+}
+
+// TestRunFastListingHitsMatchFullListing pins the fix-round regression
+// guarantee end to end over real adapters: switching the search flow to the
+// fast metadata listing (first record line + stat) changes nothing about the
+// results — same sessions, same order, same hits with identical highlight
+// offsets — including under filters.
+func TestRunFastListingHitsMatchFullListing(t *testing.T) {
+	home := t.TempDir()
+	write := func(rel, content string) {
+		t.Helper()
+		p := filepath.Join(home, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// line-1-complete claude file, a fallback claude file (summary first) and
+	// a codex rollout with a meta-first line — covering both listing modes
+	write(filepath.Join(".claude", "projects", "C--Users-dev-app", "61616161-6161-4161-8161-616161616161.jsonl"),
+		`{"type":"user","sessionId":"61616161-6161-4161-8161-616161616161","cwd":"/home/dev/app","timestamp":"2026-08-02T14:00:00Z","message":{"role":"user","content":"the zephyr valve sticks"}}`+"\n"+
+			`{"type":"summary","summary":"zephyr valve review","sessionId":"61616161-6161-4161-8161-616161616161"}`+"\n"+
+			`{"type":"user","sessionId":"61616161-6161-4161-8161-616161616161","cwd":"/home/dev/app","timestamp":"2026-08-02T14:01:00Z","message":{"role":"user","content":"zephyr valve replaced"}}`+"\n")
+	write(filepath.Join(".claude", "projects", "C--Users-dev-app", "62626262-6262-4262-8262-626262626262.jsonl"),
+		`{"type":"summary","summary":"older notes","sessionId":"62626262-6262-4262-8262-626262626262"}`+"\n"+
+			`{"type":"user","sessionId":"62626262-6262-4262-8262-626262626262","cwd":"/home/dev/app","timestamp":"2026-07-01T09:00:00Z","message":{"role":"user","content":"zephyr mentioned here too"}}`+"\n")
+	write(filepath.Join(".codex", "sessions", "2026", "08", "02", "rollout-2026-08-02T15-00-00-63636363-6363-4363-8363-636363636363.jsonl"),
+		`{"timestamp":"2026-08-02T15:00:00Z","type":"session_meta","payload":{"id":"63636363-6363-4363-8363-636363636363","cwd":"/home/dev/api"}}`+"\n"+
+			`{"timestamp":"2026-08-02T15:00:10Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"zephyr calibration drifted"}]}}`+"\n")
+
+	adapters := []agentlog.Adapter{claudecode.New(home), codex.New(home)}
+	run := func(fast bool, filter agentlog.SessionFilter) []string {
+		t.Helper()
+		results := Run(adapters, mustMatcher(t, "zephyr", MatchOptions{}), EngineOptions{Filter: filter, FastListing: fast})
+		var out []string
+		for _, r := range results {
+			for _, h := range r.Hits {
+				out = append(out, fmt.Sprintf("%s|%s|%d|%d|%s", r.Session.ID, h.Line, h.MatchStart, h.MatchEnd, h.Context))
+			}
+		}
+		return out
+	}
+
+	filters := []agentlog.SessionFilter{
+		{},
+		{Project: "app"},
+		{Since: time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)},
+	}
+	for i, f := range filters {
+		full, fast := run(false, f), run(true, f)
+		if strings.Join(full, "\n") != strings.Join(fast, "\n") {
+			t.Errorf("filter #%d: fast listing changed the results:\nfull:\n%s\nfast:\n%s", i, strings.Join(full, "\n"), strings.Join(fast, "\n"))
+		}
+	}
+	if n := len(run(false, agentlog.SessionFilter{})); n != 5 {
+		t.Errorf("fixture should produce 5 hits, got %d", n)
+	}
+}
+
+type fastFakeAdapter struct {
+	fakeAdapter
+	fastErr error
+}
+
+func (f *fastFakeAdapter) SessionsMetaFast(iter func(agentlog.SessionMeta) error) (bool, error) {
+	return true, f.fastErr
+}
+
+// TestRunNotesFailingFastAdapter pins that a failing fast listing is noted
+// exactly like a failing full listing.
+func TestRunNotesFailingFastAdapter(t *testing.T) {
+	broken := &fastFakeAdapter{fakeAdapter: fakeAdapter{name: "broken"}, fastErr: errors.New("permission denied")}
+	healthy := &fakeAdapter{
+		name: "claude-code",
+		metas: []agentlog.SessionMeta{
+			{Session: agentlog.Session{ID: "a1", StartedAt: tOld}, Messages: 1},
+		},
+		entries: map[string][]agentlog.Entry{
+			"a1": {{Kind: agentlog.Message, Role: "user", Text: "the jwt secret"}},
+		},
+	}
+	var notes []string
+	results := Run([]agentlog.Adapter{broken, healthy}, mustMatcher(t, "jwt", MatchOptions{}),
+		EngineOptions{FastListing: true, Note: func(n string) { notes = append(notes, n) }})
+	if len(results) != 1 || results[0].Session.ID != "a1" {
+		t.Fatalf("healthy adapter's hits must survive, got %+v", results)
+	}
+	if len(notes) != 1 || !strings.Contains(notes[0], "broken: storage unreadable") {
+		t.Errorf("fast listing failure should be noted once, got %v", notes)
 	}
 }
 

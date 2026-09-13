@@ -40,6 +40,14 @@ type EngineOptions struct {
 	Filter   agentlog.SessionFilter
 	Sessions int // max sessions scanned, 0 = unlimited
 	MaxHits  int // total hits cap across all sessions, 0 = unlimited
+	// FastListing lets adapters implementing agentlog.FastMetaSource list
+	// sessions from cheap sources (first record line + stat) instead of a
+	// full parse — spec §7: the search flow must not spend most of its time
+	// listing. Ids, projects, start timestamps, filters and sort order stay
+	// identical to the full listing; fields beyond the first record line
+	// (last timestamps, message counts) may be zero, so callers that render
+	// them (the --json machine output) must leave this false. Default false.
+	FastListing bool
 	// Note (optional) receives at most one lowercase line per adapter whose
 	// storage could not be read, whether while listing sessions or while
 	// scanning one (spec §8): search stays best effort — partial results are
@@ -61,7 +69,7 @@ type scoped struct {
 // hits are collected in total. Scan errors are ignored — search is best
 // effort, like listing.
 func Run(adapters []agentlog.Adapter, m *Matcher, o EngineOptions) []Result {
-	scoped := enumerate(adapters, o.Filter, o.Note)
+	scoped := enumerate(adapters, o.Filter, o.Note, o.FastListing)
 	sort.SliceStable(scoped, func(i, j int) bool {
 		if !scoped[i].meta.StartedAt.Equal(scoped[j].meta.StartedAt) {
 			return scoped[i].meta.StartedAt.After(scoped[j].meta.StartedAt)
@@ -120,8 +128,10 @@ func Run(adapters []agentlog.Adapter, m *Matcher, o EngineOptions) []Result {
 
 // enumerate streams session metadata from every adapter, applying the filter.
 // A failing adapter yields whatever it managed to stream (best effort) and,
-// when note is non-nil, one UnreadableNote line on the first failure.
-func enumerate(adapters []agentlog.Adapter, f agentlog.SessionFilter, note func(string)) []scoped {
+// when note is non-nil, one UnreadableNote line on the first failure. With
+// fast set, adapters implementing agentlog.FastMetaSource list from their
+// cheap pass first; used=false falls back to the full listing.
+func enumerate(adapters []agentlog.Adapter, f agentlog.SessionFilter, note func(string), fast bool) []scoped {
 	var out []scoped
 	for _, a := range adapters {
 		if f.Agent != "" && a.Name() != f.Agent {
@@ -138,6 +148,20 @@ func enumerate(adapters []agentlog.Adapter, f agentlog.SessionFilter, note func(
 			sm.Agent = a.Name()
 			if f.Match(sm.Session) {
 				out = append(out, scoped{sm, a})
+			}
+		}
+		if fast {
+			if fms, ok := a.(agentlog.FastMetaSource); ok {
+				used, err := fms.SessionsMetaFast(func(sm agentlog.SessionMeta) error {
+					add(sm)
+					return nil
+				})
+				if err != nil {
+					noteOnce(err)
+				}
+				if used {
+					continue
+				}
 			}
 		}
 		if ms, ok := a.(agentlog.MetaSource); ok {

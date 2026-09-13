@@ -355,6 +355,70 @@ func TestMalformedBlockKeepsEarlierEntriesAndCountsSkipped(t *testing.T) {
 	}
 }
 
+// TestSessionsMetaFastMatchesFullListing pins the search-flow fast listing
+// contract (M4 fix round): ids, projects and start timestamps are identical
+// to the full listing, for line-1-complete files (fast) and files that fall
+// back to the full parse alike. Fields beyond line 1 (ended timestamp,
+// message counts, summary titles) are zero only on the fast path.
+func TestSessionsMetaFastMatchesFullListing(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, ".claude", "projects", "proj")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fastContent := `{"type":"user","sessionId":"31313131-3131-4131-8131-313131313131","cwd":"/home/dev/app","timestamp":"2026-07-01T10:00:00Z","message":{"role":"user","content":"hello"}}` + "\n" +
+		`{"type":"summary","summary":"later summary title","sessionId":"31313131-3131-4131-8131-313131313131"}` + "\n" +
+		`{"type":"user","sessionId":"31313131-3131-4131-8131-313131313131","cwd":"/home/dev/app","timestamp":"2026-07-01T10:00:05Z","message":{"role":"user","content":"bye"}}` + "\n"
+	fallbackContent := `{"type":"summary","summary":"first title","sessionId":"32323232-3232-4232-8232-323232323232"}` + "\n" +
+		`{"type":"user","sessionId":"32323232-3232-4232-8232-323232323232","cwd":"/home/dev/app","timestamp":"2026-07-01T11:00:00Z","message":{"role":"user","content":"hi"}}` + "\n"
+	for name, content := range map[string]string{
+		"31313131-3131-4131-8131-313131313131.jsonl": fastContent,     // sorted first
+		"32323232-3232-4232-8232-323232323232.jsonl": fallbackContent, // line 1 lacks cwd/ts: full parse
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	list := func(a *Adapter, fast bool) []agentlog.SessionMeta {
+		t.Helper()
+		var out []agentlog.SessionMeta
+		if fast {
+			used, err := a.SessionsMetaFast(func(m agentlog.SessionMeta) error { out = append(out, m); return nil })
+			if err != nil || !used {
+				t.Fatalf("SessionsMetaFast: used=%v err=%v", used, err)
+			}
+		} else {
+			if err := a.SessionsMeta(func(m agentlog.SessionMeta) error { out = append(out, m); return nil }); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return out
+	}
+
+	fast, full := list(New(home), true), list(New(home), false)
+	if len(fast) != 2 || len(full) != 2 {
+		t.Fatalf("fast=%d full=%d sessions, want 2 each", len(fast), len(full))
+	}
+	for i := range fast {
+		if fast[i].ID != full[i].ID || fast[i].Project != full[i].Project || !fast[i].StartedAt.Equal(full[i].StartedAt) {
+			t.Errorf("session[%d]: fast %+v differs from full %+v in id/project/startedAt", i, fast[i], full[i])
+		}
+	}
+	// fast-eligible file (first in sorted order): fields beyond line 1 are zero
+	if fast[0].Messages != 0 || !fast[0].EndedAt.IsZero() || fast[0].Title != "" {
+		t.Errorf("fast meta for a line-1-complete file should carry no beyond-line-1 fields, got %+v", fast[0].Session)
+	}
+	// the full listing of the same file knows them all
+	if full[0].Messages != 2 || full[0].Title != "later summary title" {
+		t.Errorf("full meta = %+v, want 2 messages and the summary title", full[0].Session)
+	}
+	// the fallback file (line 1 lacks cwd/ts) yields the full meta on both paths
+	if fast[1].Messages != 1 || fast[1].Title != "first title" || fast[1].EndedAt.IsZero() {
+		t.Errorf("fallback file must produce the full meta on the fast path too, got %+v", fast[1].Session)
+	}
+}
+
 func TestDefensiveParsingCountsSkipped(t *testing.T) {
 	a := newTestAdapter(t, map[string]string{
 		"proj/44444444-4444-4444-8444-444444444444.jsonl": "truncated.jsonl",

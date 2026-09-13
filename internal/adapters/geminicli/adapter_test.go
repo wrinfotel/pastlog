@@ -354,6 +354,70 @@ func TestLongLineOver64KB(t *testing.T) {
 	}
 }
 
+// TestSessionsMetaFastMatchesFullListing pins the search-flow fast listing
+// contract (M4 fix round): a JSONL file opening with a metadata record lists
+// fast with ids/projects/titles/timestamps identical to the full listing
+// (only message counts are zero); a file whose first line is a plain record
+// falls back to the full parse and stays identical.
+func TestSessionsMetaFastMatchesFullListing(t *testing.T) {
+	home := t.TempDir()
+	chats := filepath.Join(home, ".gemini", "tmp", "ca11bad5fix", "chats")
+	if err := os.MkdirAll(chats, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fastContent := `{"sessionId":"51515151-5151-5151-8151-515151515151","startTime":"2026-07-01T10:00:00Z","lastUpdated":"2026-07-01T10:05:00Z","kind":"main","directories":["/home/dev/app"],"summary":"widget review"}` + "\n" +
+		`{"id":"m1","timestamp":"2026-07-01T10:01:00Z","type":"user","content":"hello"}` + "\n"
+	fallbackContent := `{"id":"m1","timestamp":"2026-07-01T11:00:00Z","type":"user","content":"no metadata first"}` + "\n"
+	for name, content := range map[string]string{
+		"session-2026-07-01T10-00-51515151.jsonl": fastContent,     // sorted first
+		"session-2026-07-01T11-00-52525252.jsonl": fallbackContent, // line 1 is not a metadata record
+	} {
+		if err := os.WriteFile(filepath.Join(chats, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	list := func(a *Adapter, fast bool) []agentlog.SessionMeta {
+		t.Helper()
+		var out []agentlog.SessionMeta
+		if fast {
+			used, err := a.SessionsMetaFast(func(m agentlog.SessionMeta) error { out = append(out, m); return nil })
+			if err != nil || !used {
+				t.Fatalf("SessionsMetaFast: used=%v err=%v", used, err)
+			}
+		} else {
+			if err := a.SessionsMeta(func(m agentlog.SessionMeta) error { out = append(out, m); return nil }); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return out
+	}
+
+	fast, full := list(New(home), true), list(New(home), false)
+	if len(fast) != 2 || len(full) != 2 {
+		t.Fatalf("fast=%d full=%d sessions, want 2 each", len(fast), len(full))
+	}
+	for i := range fast {
+		if fast[i].ID != full[i].ID || fast[i].Project != full[i].Project || fast[i].Title != full[i].Title ||
+			!fast[i].StartedAt.Equal(full[i].StartedAt) || !fast[i].EndedAt.Equal(full[i].EndedAt) {
+			t.Errorf("session[%d]: fast %+v differs from full %+v", i, fast[i], full[i])
+		}
+	}
+	// the metadata-first file carries everything but the message count on the
+	// fast path
+	if fast[0].Messages != 0 {
+		t.Errorf("fast meta Messages = %d, want 0", fast[0].Messages)
+	}
+	if full[0].Messages != 1 {
+		t.Errorf("full meta Messages = %d, want 1", full[0].Messages)
+	}
+	// the fallback file (first line is a plain record) is identical on both
+	// paths, including its filename-fallback id
+	if fast[1].ID != "session-2026-07-01T11-00-52525252" || fast[1].Messages != full[1].Messages {
+		t.Errorf("fallback file must produce the full meta on the fast path too, got %+v vs %+v", fast[1], full[1])
+	}
+}
+
 func TestUnicodeContent(t *testing.T) {
 	a := newTestAdapter(t, map[string]string{"chats/session-2026-07-03T09-15-guni5555.jsonl": "unicode.jsonl"})
 	got := listSessions(t, a)

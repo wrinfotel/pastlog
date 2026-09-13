@@ -74,6 +74,79 @@ func (a *Adapter) SessionsMeta(iter func(agentlog.SessionMeta) error) error {
 	return a.walk(iter)
 }
 
+// SessionsMetaFast implements agentlog.FastMetaSource: the search flow lists
+// sessions from the FIRST record line of each file plus a stat, instead of
+// parsing every line (spec §7: listing must not dominate a search run).
+// Line 1 carries sessionId, cwd and timestamp in practice; when it does not,
+// the file falls back to the full parse so ids, projects, start timestamps,
+// filters and sort order stay identical to SessionsMeta. Fields beyond line 1
+// (last timestamp, message counts, summary titles) are zero on this path.
+func (a *Adapter) SessionsMetaFast(iter func(agentlog.SessionMeta) error) (bool, error) {
+	files, err := a.sessionFiles()
+	if err != nil {
+		return true, fmt.Errorf("cannot list claude-code storage: %v", err)
+	}
+	for _, path := range files {
+		m, fast := a.fastMeta(path)
+		if !fast {
+			sum, err := a.scanFile(path, nil, nil)
+			if err != nil {
+				return true, err
+			}
+			if !sum.sawLine {
+				continue // empty (or blank) file: not a session
+			}
+			a.registerIDs(path, sum.sessionID)
+			m = sum.meta(path)
+		} else {
+			a.registerIDs(path, m.ID)
+		}
+		if err := iter(m); err != nil {
+			return true, err
+		}
+	}
+	return true, nil
+}
+
+// fastMeta builds session metadata from the file's first non-empty line plus
+// a stat. fast=false when that line is not a classified record carrying all
+// of sessionId, cwd and timestamp — the caller then does a full parse.
+func (a *Adapter) fastMeta(path string) (agentlog.SessionMeta, bool) {
+	f, err := os.Open(path)
+	if err != nil {
+		return agentlog.SessionMeta{}, false
+	}
+	defer f.Close()
+
+	info, err := f.Stat()
+	if err != nil {
+		return agentlog.SessionMeta{}, false
+	}
+
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, initialBuf), maxLineSize)
+	for scanner.Scan() { // first non-empty line is the first record
+		line := scanner.Bytes()
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
+		}
+		res := processLine(line)
+		if !res.ok || res.info.sessionID == "" || res.info.cwd == "" || res.info.ts.IsZero() {
+			return agentlog.SessionMeta{}, false
+		}
+		return agentlog.SessionMeta{
+			Session: agentlog.Session{
+				ID:        res.info.sessionID,
+				Agent:     agentName,
+				Project:   res.info.cwd,
+				StartedAt: res.info.ts,
+				SizeBytes: info.Size(),
+			},
+		}, true
+	}
+	return agentlog.SessionMeta{}, false
+}
+
 func (a *Adapter) Entries(s agentlog.Session, iter func(agentlog.Entry) error) error {
 	return a.entriesFor(s, nil, iter)
 }

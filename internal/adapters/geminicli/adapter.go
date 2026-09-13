@@ -64,6 +64,78 @@ func (a *Adapter) SessionsMeta(iter func(agentlog.SessionMeta) error) error {
 	return a.walk(iter)
 }
 
+// SessionsMetaFast implements agentlog.FastMetaSource: the search flow lists
+// sessions from the FIRST line of each JSONL file plus a stat — gemini-cli
+// files open with a metadata record carrying sessionId, project, title and
+// both timestamps (SCHEMA.md) — instead of parsing every line (spec §7).
+// When line 1 is not a metadata record with a sessionId, the file falls back
+// to the full parse so ids, projects, filters and sort order stay identical
+// to SessionsMeta. Message counts are zero on this path.
+func (a *Adapter) SessionsMetaFast(iter func(agentlog.SessionMeta) error) (bool, error) {
+	files, err := a.sessionFiles()
+	if err != nil {
+		return true, fmt.Errorf("cannot list gemini-cli storage: %v", err)
+	}
+	for _, path := range files {
+		m, fast := a.fastMeta(path)
+		if !fast {
+			sum, err := a.scanFile(path, nil, nil)
+			if err != nil {
+				return true, err
+			}
+			if !sum.sawLine {
+				continue // empty (or blank) file: not a session
+			}
+			m = sum.meta(path)
+		}
+		if err := iter(m); err != nil {
+			return true, err
+		}
+	}
+	return true, nil
+}
+
+// fastMeta builds session metadata from the file's first line plus a stat.
+// fast=false when that line is not a metadata record carrying a sessionId —
+// the caller then does a full parse.
+func (a *Adapter) fastMeta(path string) (agentlog.SessionMeta, bool) {
+	f, err := os.Open(path)
+	if err != nil {
+		return agentlog.SessionMeta{}, false
+	}
+	defer f.Close()
+
+	info, err := f.Stat()
+	if err != nil {
+		return agentlog.SessionMeta{}, false
+	}
+
+	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, initialBuf), maxLineSize)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue
+		}
+		meta, ok := parseMeta(line)
+		if !ok || meta.sessionID == "" {
+			return agentlog.SessionMeta{}, false
+		}
+		return agentlog.SessionMeta{
+			Session: agentlog.Session{
+				ID:        meta.sessionID,
+				Agent:     agentName,
+				Project:   meta.project,
+				Title:     meta.title,
+				StartedAt: meta.startedAt,
+				EndedAt:   meta.endedAt,
+				SizeBytes: info.Size(),
+			},
+		}, true
+	}
+	return agentlog.SessionMeta{}, false
+}
+
 func (a *Adapter) Entries(s agentlog.Session, iter func(agentlog.Entry) error) error {
 	return a.entriesFor(s, nil, iter)
 }

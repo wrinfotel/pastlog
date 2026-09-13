@@ -65,10 +65,15 @@ func newSearchCmd(stdout, stderr io.Writer) *cobra.Command {
 				return err
 			}
 
+			// FastListing on the human path: search listing reads only the
+			// first record line per file (spec §7 budget). --json keeps the
+			// exact full-parse listing, because its schema carries fields
+			// that live beyond line 1 (ended_at, message counts).
 			results := search.Run(adapters, m, search.EngineOptions{
-				Filter:   filter,
-				Sessions: limit,
-				MaxHits:  maxHit,
+				Filter:      filter,
+				Sessions:    limit,
+				MaxHits:     maxHit,
+				FastListing: !jsonOut,
 				Note: func(note string) {
 					fmt.Fprintln(stderr, note)
 				},

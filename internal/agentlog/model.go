@@ -53,6 +53,21 @@ type MetaSource interface {
 	SessionsMeta(iter func(SessionMeta) error) error
 }
 
+// FastMetaSource is optionally implemented by adapters whose storage allows a
+// cheap session listing (JSONL: the first record line of each file plus a
+// stat) for latency-sensitive flows like search. SessionsMetaFast reports
+// used=false when the adapter has no fast path, and the caller must fall back
+// to SessionsMeta for the full-fidelity pass.
+//
+// The fast listing keeps ids, projects, start timestamps and therefore
+// filters (--agent/--project/--since/--until) and sort order identical to
+// SessionsMeta; fields that live beyond the first record line (last
+// timestamps, message counts, summary titles) may be zero. Callers that need
+// those fields exactly (the --json machine output) must use SessionsMeta.
+type FastMetaSource interface {
+	SessionsMetaFast(iter func(SessionMeta) error) (used bool, err error)
+}
+
 // SkipCounter is optionally implemented by adapters that skip corrupt or
 // unknown records; the CLI summarizes the total on stderr (spec §8).
 type SkipCounter interface {

@@ -134,6 +134,66 @@ func TestSessionsRealisticFixture(t *testing.T) {
 // testdata/no-trailing-newline.jsonl fixture (M4-B10): a rollout file whose
 // last line has no trailing newline parses end to end — the session is listed
 // from its session_meta payload and the final message is not lost.
+// TestSessionsMetaFastMatchesFullListing pins the search-flow fast listing
+// contract (M4 fix round): ids, projects and start timestamps are identical
+// to the full listing. A rollout whose first line is the session_meta payload
+// is listed fast (beyond-line-1 fields zero); one whose first line is a later
+// record falls back to the full parse and stays identical.
+func TestSessionsMetaFastMatchesFullListing(t *testing.T) {
+	home := t.TempDir()
+	day := filepath.Join(home, ".codex", "sessions", "2026", "07", "01")
+	if err := os.MkdirAll(day, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fastContent := `{"timestamp":"2026-07-01T10:00:00Z","type":"session_meta","payload":{"id":"41414141-4141-4141-8141-414141414141","cwd":"/home/dev/app"}}` + "\n" +
+		`{"timestamp":"2026-07-01T10:00:05Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}}` + "\n"
+	fallbackContent := `{"timestamp":"2026-07-01T11:00:05Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"late meta"}]}}` + "\n" +
+		`{"timestamp":"2026-07-01T11:00:00Z","type":"session_meta","payload":{"id":"42424242-4242-4242-8242-424242424242","cwd":"/home/dev/app"}}` + "\n"
+	for name, content := range map[string]string{
+		"rollout-2026-07-01T10-00-00-41414141-4141-4141-8141-414141414141.jsonl": fastContent,     // sorted first
+		"rollout-2026-07-01T11-00-00-42424242-4242-4242-8242-424242424242.jsonl": fallbackContent, // line 1 is not the meta
+	} {
+		if err := os.WriteFile(filepath.Join(day, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	list := func(a *Adapter, fast bool) []agentlog.SessionMeta {
+		t.Helper()
+		var out []agentlog.SessionMeta
+		if fast {
+			used, err := a.SessionsMetaFast(func(m agentlog.SessionMeta) error { out = append(out, m); return nil })
+			if err != nil || !used {
+				t.Fatalf("SessionsMetaFast: used=%v err=%v", used, err)
+			}
+		} else {
+			if err := a.SessionsMeta(func(m agentlog.SessionMeta) error { out = append(out, m); return nil }); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return out
+	}
+
+	fast, full := list(New(home), true), list(New(home), false)
+	if len(fast) != 2 || len(full) != 2 {
+		t.Fatalf("fast=%d full=%d sessions, want 2 each", len(fast), len(full))
+	}
+	for i := range fast {
+		if fast[i].ID != full[i].ID || fast[i].Project != full[i].Project || !fast[i].StartedAt.Equal(full[i].StartedAt) {
+			t.Errorf("session[%d]: fast %+v differs from full %+v in id/project/startedAt", i, fast[i], full[i])
+		}
+	}
+	if fast[0].Messages != 0 || !fast[0].EndedAt.IsZero() || fast[0].Title != "" {
+		t.Errorf("fast meta for a meta-first rollout should carry no beyond-line-1 fields, got %+v", fast[0].Session)
+	}
+	if full[0].Messages != 1 || full[0].Title != "hello" {
+		t.Errorf("full meta = %+v, want 1 message and the first-user-message title", full[0].Session)
+	}
+	if fast[1].Messages != 1 || fast[1].Title != "late meta" || fast[1].EndedAt.IsZero() {
+		t.Errorf("fallback rollout must produce the full meta on the fast path too, got %+v", fast[1].Session)
+	}
+}
+
 func TestNoTrailingNewlineFixtureIsWired(t *testing.T) {
 	a := newTestAdapter(t, map[string]string{
 		"2026/07/01/rollout-2026-07-01T10-00-00-aaa2b3c4-0000-4000-8000-000000000002.jsonl": "no-trailing-newline.jsonl",
