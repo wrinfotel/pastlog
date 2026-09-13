@@ -87,10 +87,9 @@ func resolveSession(adapters []agentlog.Adapter, arg string) (agentlog.SessionMe
 	var all []found
 	var unreadable []string
 	for _, a := range adapters {
-		add := func(m agentlog.SessionMeta) error {
+		add := func(m agentlog.SessionMeta) {
 			m.Agent = a.Name()
 			all = append(all, found{m, a})
-			return nil
 		}
 		noted := false
 		noteOnce := func(err error) {
@@ -100,12 +99,16 @@ func resolveSession(adapters []agentlog.Adapter, arg string) (agentlog.SessionMe
 			}
 		}
 		if ms, ok := a.(agentlog.MetaSource); ok {
-			if err := ms.SessionsMeta(add); err != nil {
+			if err := ms.SessionsMeta(func(m agentlog.SessionMeta) error {
+				add(m)
+				return nil
+			}); err != nil {
 				noteOnce(err)
 			}
 		} else {
 			if err := a.Sessions(func(s agentlog.Session) error {
-				return add(agentlog.SessionMeta{Session: s})
+				add(agentlog.SessionMeta{Session: s})
+				return nil
 			}); err != nil {
 				noteOnce(err)
 			}

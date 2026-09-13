@@ -148,7 +148,7 @@ func processRecord(line []byte, skipped *int) (entries []agentlog.Entry, ok bool
 		return nil, false // unknown record shape (deletion records, …)
 	}
 	ts := parseTS(rec.Timestamp)
-	texts, extras, ok := contentEntries(rec.Content, role, ts)
+	texts, extras, ok := contentEntries(rec.Content, ts)
 	if !ok {
 		return nil, false // content present but unusable
 	}
@@ -171,8 +171,8 @@ func processRecord(line []byte, skipped *int) (entries []agentlog.Entry, ok bool
 // contentEntries flattens a PartListUnion content (string or part array).
 // Text parts become message texts; functionCall/functionResponse parts become
 // extra entries. ok=false marks the whole record unusable (content of the
-// wrong shape).
-func contentEntries(raw json.RawMessage, role string, ts time.Time) (texts []string, extras []agentlog.Entry, ok bool) {
+// wrong shape). The record's role is applied by the caller to the texts.
+func contentEntries(raw json.RawMessage, ts time.Time) (texts []string, extras []agentlog.Entry, ok bool) {
 	trimmed := bytes.TrimSpace(raw)
 	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
 		return nil, nil, true // readable record, nothing to record

@@ -1,0 +1,35 @@
+# golangci-lint configuration (v2 syntax). Spec §9: `golangci-lint run` must
+# exit 0 on every commit; the set is deliberately small and curated.
+version: "2"
+
+linters:
+  # default = the Go-standard set: errcheck, govet, ineffassign, staticcheck, unused
+  default: standard
+  enable:
+    - misspell   # catches misspellings in comments and strings (user-facing docs live in comments)
+    - unconvert  # flags redundant type conversions — keeps the hot search path honest
+    - unparam    # flags always-same / unused parameters — keeps the internal adapter APIs tight
+  settings:
+    errcheck:
+      # `_ = f()` must be a deliberate decision (spec §8 best-effort posture):
+      # every discarded error is either really handled (stderr note) or
+      # carries a //nolint:errcheck line with a justification.
+      check-blank: true
+  exclusions:
+    presets:
+      # std-error-handling: writes to stdout/stderr writers and Close/Flush
+      # calls cannot be meaningfully handled in this codebase (they are the
+      # output path itself); everything else is handled or justified.
+      - std-error-handling
+    rules:
+      # Test fixtures discard cleanup errors deliberately (ROLLBACK / Close of
+      # generated databases in t.TempDir()); failing a test for those would
+      # add noise without behavior value.
+      - path: _test\.go
+        linters:
+          - errcheck
+
+formatters:
+  enable:
+    # spec §9: the tree is gofumpt-formatted (`gofumpt -l .` empty)
+    - gofumpt

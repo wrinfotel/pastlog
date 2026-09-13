@@ -55,7 +55,11 @@ func newRootCmd(stdout, stderr io.Writer) *cobra.Command {
 	root.PersistentFlags().String("home", "", "user home directory holding the agent data (default: auto-detect)")
 	root.PersistentFlags().Bool("no-color", false, "disable colored output (also honors NO_COLOR and non-TTY)")
 	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		if noColor, _ := cmd.Flags().GetBool("no-color"); noColor {
+		noColor, err := cmd.Flags().GetBool("no-color")
+		if err != nil {
+			return err
+		}
+		if noColor {
 			color.NoColor = true
 		}
 		return nil
@@ -65,7 +69,7 @@ func newRootCmd(stdout, stderr io.Writer) *cobra.Command {
 	root.AddCommand(newSessionsCmd(stdout, stderr))
 	root.AddCommand(newSearchCmd(stdout, stderr))
 	root.AddCommand(newShowCmd(stdout, stderr))
-	root.AddCommand(newVersionCmd(stdout))
+	root.AddCommand(newVersionCmd())
 
 	return root
 }
@@ -108,7 +112,7 @@ func printAgentSummary(stdout, stderr io.Writer, reg *agentlog.Registry) {
 	noteStderr(stderr, adapters)
 }
 
-func newVersionCmd(stdout io.Writer) *cobra.Command {
+func newVersionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "print version, commit and build date",

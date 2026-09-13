@@ -87,7 +87,7 @@ func Run(adapters []agentlog.Adapter, m *Matcher, o EngineOptions) []Result {
 				return nil // nothing to match or show
 			}
 			if start, end, ok := m.Locate(e.Text); ok {
-				sn := buildSnippet(m, prev, e.Text, start, end)
+				sn := buildSnippet(prev, e.Text, start, end)
 				res.Hits = append(res.Hits, Hit{
 					Entry:      e,
 					Context:    sn.context,
@@ -128,26 +128,29 @@ func enumerate(adapters []agentlog.Adapter, f agentlog.SessionFilter, note func(
 			continue
 		}
 		noted := false
-		add := func(sm agentlog.SessionMeta) error {
-			sm.Agent = a.Name()
-			if f.Match(sm.Session) {
-				out = append(out, scoped{sm, a})
-			}
-			return nil
-		}
 		noteOnce := func(err error) {
 			if note != nil && !noted {
 				noted = true
 				note(agentlog.UnreadableNote(a.Name(), err))
 			}
 		}
+		add := func(sm agentlog.SessionMeta) {
+			sm.Agent = a.Name()
+			if f.Match(sm.Session) {
+				out = append(out, scoped{sm, a})
+			}
+		}
 		if ms, ok := a.(agentlog.MetaSource); ok {
-			if err := ms.SessionsMeta(add); err != nil {
+			if err := ms.SessionsMeta(func(sm agentlog.SessionMeta) error {
+				add(sm)
+				return nil
+			}); err != nil {
 				noteOnce(err)
 			}
 		} else {
 			if err := a.Sessions(func(s agentlog.Session) error {
-				return add(agentlog.SessionMeta{Session: s})
+				add(agentlog.SessionMeta{Session: s})
+				return nil
 			}); err != nil {
 				noteOnce(err)
 			}

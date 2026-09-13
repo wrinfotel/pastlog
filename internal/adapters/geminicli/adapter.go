@@ -101,8 +101,15 @@ func (a *Adapter) entriesFor(s agentlog.Session, keep func([]byte) bool, iter fu
 // walk streams every session, in sorted path order, through iter: main and
 // subagent JSONL files first, then the legacy monolithic chats.json files.
 func (a *Adapter) walk(iter func(agentlog.SessionMeta) error) error {
-	for _, path := range a.sessionFiles() {
-		sum, _ := a.scanFile(path, nil, nil)
+	files, err := a.sessionFiles()
+	if err != nil {
+		return fmt.Errorf("cannot list gemini-cli storage: %v", err)
+	}
+	for _, path := range files {
+		sum, err := a.scanFile(path, nil, nil)
+		if err != nil {
+			return err // with a nil emit this cannot fire today; propagation keeps listing honest if scanFile ever gains an error path
+		}
 		if !sum.sawLine {
 			continue // empty (or blank) file: not a session
 		}
@@ -110,7 +117,11 @@ func (a *Adapter) walk(iter func(agentlog.SessionMeta) error) error {
 			return err
 		}
 	}
-	for _, path := range a.legacyFiles() {
+	legacy, err := a.legacyFiles()
+	if err != nil {
+		return fmt.Errorf("cannot list gemini-cli storage: %v", err)
+	}
+	for _, path := range legacy {
 		if err := a.walkLegacy(path, "", iter, nil); err != nil {
 			return err
 		}
@@ -242,20 +253,31 @@ func (a *Adapter) forward(entries []agentlog.Entry, emit func(agentlog.Entry) er
 
 // sessionFiles lists all main and subagent JSONL paths, sorted for
 // determinism: session-*.jsonl directly under chats/, then any *.jsonl in
-// chats/<parent-session-id>/ subdirectories.
-func (a *Adapter) sessionFiles() []string {
-	main, _ := filepath.Glob(filepath.Join(a.tmpDir(), "*", "chats", "session-*.jsonl"))
-	sub, _ := filepath.Glob(filepath.Join(a.tmpDir(), "*", "chats", "*", "*.jsonl"))
+// chats/<parent-session-id>/ subdirectories. Glob only errors on a malformed
+// pattern (ErrBadPattern) — possible when the home path contains glob
+// metacharacters — and that error is surfaced, not silently swallowed.
+func (a *Adapter) sessionFiles() ([]string, error) {
+	main, err := filepath.Glob(filepath.Join(a.tmpDir(), "*", "chats", "session-*.jsonl"))
+	if err != nil {
+		return nil, err
+	}
+	sub, err := filepath.Glob(filepath.Join(a.tmpDir(), "*", "chats", "*", "*.jsonl"))
+	if err != nil {
+		return nil, err
+	}
 	sort.Strings(main)
 	sort.Strings(sub)
-	return append(main, sub...)
+	return append(main, sub...), nil
 }
 
 // legacyFiles lists the monolithic chats.json paths, one per project dir.
-func (a *Adapter) legacyFiles() []string {
-	files, _ := filepath.Glob(filepath.Join(a.tmpDir(), "*", legacyName))
+func (a *Adapter) legacyFiles() ([]string, error) {
+	files, err := filepath.Glob(filepath.Join(a.tmpDir(), "*", legacyName))
+	if err != nil {
+		return nil, err
+	}
 	sort.Strings(files)
-	return files
+	return files, nil
 }
 
 // sessionFor locates the backing store of a session id: by exact filename
@@ -275,14 +297,20 @@ func (a *Adapter) sessionFor(id string) (sessionRef, bool) {
 			return sessionRef{path: matches[0]}, true
 		}
 	}
-	for _, path := range a.sessionFiles() {
-		if a.fileHasMetaID(path, id) {
-			return sessionRef{path: path}, true
+	files, err := a.sessionFiles()
+	if err == nil {
+		for _, path := range files {
+			if a.fileHasMetaID(path, id) {
+				return sessionRef{path: path}, true
+			}
 		}
 	}
-	for _, path := range a.legacyFiles() {
-		if a.legacyHasSession(path, id) {
-			return sessionRef{path: path, legacy: true}, true
+	legacy, err := a.legacyFiles()
+	if err == nil {
+		for _, path := range legacy {
+			if a.legacyHasSession(path, id) {
+				return sessionRef{path: path, legacy: true}, true
+			}
 		}
 	}
 	return sessionRef{}, false

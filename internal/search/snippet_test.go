@@ -12,7 +12,7 @@ func TestSnippetShortText(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a match")
 	}
-	sn := buildSnippet(m, "previous entry", "the quick brown fox", start, end)
+	sn := buildSnippet("previous entry", "the quick brown fox", start, end)
 	if sn.context != "previous entry" {
 		t.Errorf("context = %q", sn.context)
 	}
@@ -27,7 +27,7 @@ func TestSnippetShortText(t *testing.T) {
 func TestSnippetNoContext(t *testing.T) {
 	m := mustMatcher(t, "quick", MatchOptions{})
 	start, end, _ := m.Locate("the quick fox")
-	sn := buildSnippet(m, "", "the quick fox", start, end)
+	sn := buildSnippet("", "the quick fox", start, end)
 	if sn.context != "" {
 		t.Errorf("context = %q, want empty", sn.context)
 	}
@@ -37,7 +37,7 @@ func TestSnippetWindowCentersOnMatch(t *testing.T) {
 	m := mustMatcher(t, "NEEDLE", MatchOptions{})
 	text := strings.Repeat("a", 300) + "NEEDLE" + strings.Repeat("b", 300)
 	start, end, _ := m.Locate(text)
-	sn := buildSnippet(m, "", text, start, end)
+	sn := buildSnippet("", text, start, end)
 	if got := sn.line[sn.matchStart:sn.matchEnd]; got != "NEEDLE" {
 		t.Errorf("highlight = %q, want NEEDLE", got)
 	}
@@ -53,7 +53,7 @@ func TestSnippetWindowUnicodeBoundaries(t *testing.T) {
 	m := mustMatcher(t, "JWT", MatchOptions{})
 	text := strings.Repeat("é", 150) + "JWT" + strings.Repeat("é", 150)
 	start, end, _ := m.Locate(text)
-	sn := buildSnippet(m, "", text, start, end)
+	sn := buildSnippet("", text, start, end)
 	if !utf8.ValidString(sn.line) {
 		t.Fatal("window cut through a rune")
 	}
@@ -65,7 +65,7 @@ func TestSnippetWindowUnicodeBoundaries(t *testing.T) {
 func TestSnippetContextTruncated(t *testing.T) {
 	m := mustMatcher(t, "jwt", MatchOptions{})
 	start, end, _ := m.Locate("jwt here")
-	sn := buildSnippet(m, strings.Repeat("w", 300), "jwt here", start, end)
+	sn := buildSnippet(strings.Repeat("w", 300), "jwt here", start, end)
 	want := strings.Repeat("w", snippetWidth) + "…"
 	if sn.context != want {
 		t.Errorf("context = %d runes, want %d runes + ellipsis", utf8.RuneCountInString(sn.context), snippetWidth)
@@ -75,7 +75,7 @@ func TestSnippetContextTruncated(t *testing.T) {
 func TestSnippetContextFirstLineOnly(t *testing.T) {
 	m := mustMatcher(t, "jwt", MatchOptions{})
 	start, end, _ := m.Locate("jwt here")
-	sn := buildSnippet(m, "first line\nsecond line", "jwt here", start, end)
+	sn := buildSnippet("first line\nsecond line", "jwt here", start, end)
 	if sn.context != "first line" {
 		t.Errorf("context = %q, want first line only", sn.context)
 	}
@@ -85,7 +85,7 @@ func TestSnippetTakesMatchingLineOfMultilineText(t *testing.T) {
 	m := mustMatcher(t, "jwt", MatchOptions{})
 	text := "line one\njwt line\nline three"
 	start, end, _ := m.Locate(text)
-	sn := buildSnippet(m, "", text, start, end)
+	sn := buildSnippet("", text, start, end)
 	if sn.line != "jwt line" {
 		t.Errorf("line = %q, want the line containing the match", sn.line)
 	}
@@ -103,7 +103,7 @@ func TestSnippetMultilineMatchCollapses(t *testing.T) {
 	if !ok {
 		t.Fatal("newline needle should match across the literal newline")
 	}
-	sn := buildSnippet(m, "", text, start, end)
+	sn := buildSnippet("", text, start, end)
 	if sn.line != "first second" {
 		t.Errorf("line = %q, want collapsed match", sn.line)
 	}
@@ -123,7 +123,7 @@ func TestSnippetRegexMatchLongerThanWindow(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a match")
 	}
-	sn := buildSnippet(m, "", text, start, end) // must not panic
+	sn := buildSnippet("", text, start, end) // must not panic
 	if sn.matchStart < 0 || sn.matchEnd > len(sn.line) || sn.matchStart > sn.matchEnd {
 		t.Fatalf("highlight outside the window: %d..%d of %d bytes", sn.matchStart, sn.matchEnd, len(sn.line))
 	}
@@ -141,7 +141,7 @@ func TestSnippetMultilineMatchLongerThanWindow(t *testing.T) {
 	if !ok {
 		t.Fatal("expected a match")
 	}
-	sn := buildSnippet(m, "", text, start, end) // must not panic
+	sn := buildSnippet("", text, start, end) // must not panic
 	if sn.matchStart < 0 || sn.matchEnd > len(sn.line) || sn.matchStart > sn.matchEnd {
 		t.Fatalf("highlight outside the window: %d..%d of %d bytes", sn.matchStart, sn.matchEnd, len(sn.line))
 	}

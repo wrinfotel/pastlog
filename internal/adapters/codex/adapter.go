@@ -90,7 +90,10 @@ func (a *Adapter) walk(iter func(agentlog.SessionMeta) error) error {
 		return fmt.Errorf("cannot list codex storage: %v", err)
 	}
 	for _, path := range files {
-		sum, _ := a.scanFile(path, nil, nil)
+		sum, err := a.scanFile(path, nil, nil)
+		if err != nil {
+			return err // with a nil emit this cannot fire today; propagation keeps listing honest if scanFile ever gains an error path
+		}
 		if !sum.sawLine {
 			continue // empty (or blank) file: not a session
 		}

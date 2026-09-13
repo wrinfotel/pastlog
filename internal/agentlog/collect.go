@@ -69,19 +69,19 @@ func CollectSessions(adapters []Adapter, f SessionFilter, note func(string)) []S
 				note(UnreadableNote(a.Name(), err))
 			}
 		}
-		collect := func(m SessionMeta) error {
-			m.Agent = a.Name()
-			if f.Match(m.Session) {
-				out = append(out, m)
-			}
-			return nil
-		}
 		if ms, ok := a.(MetaSource); ok {
-			if err := ms.SessionsMeta(collect); err != nil {
+			err := ms.SessionsMeta(func(m SessionMeta) error {
+				m.Agent = a.Name()
+				if f.Match(m.Session) {
+					out = append(out, m)
+				}
+				return nil
+			})
+			if err != nil {
 				noteOnce(err) // scan errors leave partial results; listing is best effort
 			}
 		} else {
-			if err := a.Sessions(func(s Session) error {
+			err := a.Sessions(func(s Session) error {
 				m := SessionMeta{Session: s}
 				n := 0
 				if err := a.Entries(s, func(e Entry) error {
@@ -93,8 +93,13 @@ func CollectSessions(adapters []Adapter, f SessionFilter, note func(string)) []S
 					noteOnce(err)
 				}
 				m.Messages = n
-				return collect(m)
-			}); err != nil {
+				m.Agent = a.Name()
+				if f.Match(m.Session) {
+					out = append(out, m)
+				}
+				return nil
+			})
+			if err != nil {
 				noteOnce(err)
 			}
 		}

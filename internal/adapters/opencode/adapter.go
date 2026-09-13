@@ -310,8 +310,7 @@ func (a *Adapter) Entries(s agentlog.Session, iter func(agentlog.Entry) error) e
 	defer rows.Close()
 
 	var lastMsgID string
-	role := ""
-	roleOK := true
+	var role string
 	seen := false
 	for rows.Next() {
 		var msgID string
@@ -321,8 +320,9 @@ func (a *Adapter) Entries(s agentlog.Session, iter func(agentlog.Entry) error) e
 			continue // unreadable row: skip
 		}
 		if !seen || msgID != lastMsgID {
-			role, roleOK = messageRole(msgData.String)
-			if !roleOK {
+			var ok bool
+			role, ok = messageRole(msgData.String)
+			if !ok {
 				// unparseable message.data: counts as skipped (spec §8
 				// letter, M4-B17); its parts still stream below, so no
 				// content is dropped — only the role degrades to ""

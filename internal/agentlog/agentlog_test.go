@@ -21,7 +21,6 @@ type fakeAdapter struct {
 	sessions []Session
 	entries  map[string][]Entry
 	scanErr  error
-	skipped  int
 }
 
 // metaFake adds SessionsMeta support on top of fakeAdapter.
@@ -162,13 +161,13 @@ func TestCollectSessionsFilters(t *testing.T) {
 func TestProjectFilterNormalizesSeparators(t *testing.T) {
 	sessions := []Session{
 		{ID: "win", Project: `C:\Users\dev\myapp`, StartedAt: t1},
-		{ID: "unix", Project: "/home/dev/other", StartedAt: t2},
+		{ID: "unix", Project: "/home/dev/elsewhere", StartedAt: t2},
 	}
 	a := &fakeAdapter{name: "claude-code", sessions: sessions}
 
 	tests := []struct{ filter, want string }{
 		{`dev/myapp`, "win"},       // needle with slashes, cwd with backslashes
-		{`dev\other`, "unix"},      // needle with backslashes, cwd with slashes
+		{`dev\elsewhere`, "unix"},  // needle with backslashes, cwd with slashes
 		{`users\dev\MYAPP`, "win"}, // mixed separators and case
 		{"myapp", "win"},           // plain substring still works
 	}

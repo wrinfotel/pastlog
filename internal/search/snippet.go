@@ -21,7 +21,7 @@ type snippet struct {
 
 // buildSnippet renders one hit. start/end are byte offsets of the match in
 // text, as returned by Matcher.Locate.
-func buildSnippet(m *Matcher, prev, text string, start, end int) snippet {
+func buildSnippet(prev, text string, start, end int) snippet {
 	lineStart, lineEnd := lineBounds(text, start)
 	if end <= lineEnd { // the match lies within one line of the entry text
 		line := text[lineStart:lineEnd]
