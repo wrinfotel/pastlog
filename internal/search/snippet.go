@@ -79,16 +79,18 @@ func window(line string, ms, me int) (string, int, int) {
 	matchRunes := utf8.RuneCountInString(line[:ms]) // rune index of the match
 	matchLen := utf8.RuneCountInString(line[ms:me])
 	startR := matchRunes - (snippetWidth-matchLen)/2
-	if startR < 0 {
-		startR = 0
-	}
-	if max := len(rs) - snippetWidth; startR > max {
-		startR = max
+	// A match can be longer than the window itself: never let the window
+	// start after the match begins (that would slice rs[high:low] and panic),
+	// and keep the highlighted span inside the window.
+	startR = min(max(startR, 0), matchRunes)
+	if maxStart := len(rs) - snippetWidth; startR > maxStart {
+		startR = maxStart
 	}
 	endR := startR + snippetWidth
 	core := string(rs[startR:endR])
 	newMS := len(string(rs[startR:matchRunes]))
-	newME := newMS + len(string(rs[matchRunes:matchRunes+matchLen]))
+	matchEndRunes := min(matchRunes+matchLen, endR)
+	newME := newMS + len(string(rs[matchRunes:matchEndRunes]))
 	prefix, suffix := "", ""
 	if startR > 0 {
 		prefix = "…"

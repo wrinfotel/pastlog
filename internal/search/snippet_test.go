@@ -111,3 +111,46 @@ func TestSnippetMultilineMatchCollapses(t *testing.T) {
 		t.Errorf("highlight = %q", got)
 	}
 }
+
+// Regression tests: a match longer than the snippet window used to slice
+// rs[high:low] inside window() and panic (the startR centering subtraction
+// goes negative when matchLen > snippetWidth).
+
+func TestSnippetRegexMatchLongerThanWindow(t *testing.T) {
+	m := mustMatcher(t, `x+`, MatchOptions{Regex: true})
+	text := strings.Repeat("a", 100) + strings.Repeat("x", 250) + strings.Repeat("b", 100)
+	start, end, ok := m.Locate(text)
+	if !ok {
+		t.Fatal("expected a match")
+	}
+	sn := buildSnippet(m, "", text, start, end) // must not panic
+	if sn.matchStart < 0 || sn.matchEnd > len(sn.line) || sn.matchStart > sn.matchEnd {
+		t.Fatalf("highlight outside the window: %d..%d of %d bytes", sn.matchStart, sn.matchEnd, len(sn.line))
+	}
+	// the 250-rune match overflows the window: the highlight is clipped to
+	// the first snippetWidth runes of the match, which fill the whole window
+	if got := sn.line[sn.matchStart:sn.matchEnd]; got != strings.Repeat("x", snippetWidth) {
+		t.Errorf("highlight = %d runes, want the %d window runes of the match", len([]rune(got)), snippetWidth)
+	}
+}
+
+func TestSnippetMultilineMatchLongerThanWindow(t *testing.T) {
+	m := mustMatcher(t, strings.Repeat("n", 120)+"\n"+strings.Repeat("n", 120), MatchOptions{})
+	text := "before " + m.literal + " after"
+	start, end, ok := m.Locate(text)
+	if !ok {
+		t.Fatal("expected a match")
+	}
+	sn := buildSnippet(m, "", text, start, end) // must not panic
+	if sn.matchStart < 0 || sn.matchEnd > len(sn.line) || sn.matchStart > sn.matchEnd {
+		t.Fatalf("highlight outside the window: %d..%d of %d bytes", sn.matchStart, sn.matchEnd, len(sn.line))
+	}
+	// the collapsed 241-rune match overflows the window: the highlight is
+	// clipped to its first snippetWidth runes (120 n, the collapsed newline,
+	// then 79 n)
+	want := strings.Repeat("n", 120) + " " + strings.Repeat("n", snippetWidth-121)
+	if got := sn.line[sn.matchStart:sn.matchEnd]; got != want {
+		t.Errorf("highlight = %d runes, want the first %d runes of the collapsed match",
+			len([]rune(got)), snippetWidth)
+	}
+}
