@@ -109,23 +109,43 @@ type sessionJSON struct {
 	SizeBytes int64      `json:"size_bytes"`
 }
 
+// newSessionJSON maps a SessionMeta to its stable JSON shape; shared by the
+// sessions list, search results and show.
+func newSessionJSON(m agentlog.SessionMeta) sessionJSON {
+	return sessionJSON{
+		ID:        m.ID,
+		Agent:     m.Agent,
+		Project:   m.Project,
+		Title:     m.Title,
+		StartedAt: timePtr(m.StartedAt),
+		EndedAt:   timePtr(m.EndedAt),
+		Messages:  m.Messages,
+		SizeBytes: m.SizeBytes,
+	}
+}
+
 // SessionsJSON writes the sessions data as JSON with a stable schema; absent
 // timestamps render as null.
 func SessionsJSON(w io.Writer, rows []agentlog.SessionMeta) error {
 	out := make([]sessionJSON, len(rows))
 	for i, r := range rows {
-		out[i] = sessionJSON{
-			ID:        r.ID,
-			Agent:     r.Agent,
-			Project:   r.Project,
-			Title:     r.Title,
-			StartedAt: timePtr(r.StartedAt),
-			EndedAt:   timePtr(r.EndedAt),
-			Messages:  r.Messages,
-			SizeBytes: r.SizeBytes,
-		}
+		out[i] = newSessionJSON(r)
 	}
 	return writeJSON(w, out)
+}
+
+// kindJSON maps an entry kind to its stable JSON label.
+func kindJSON(k agentlog.EntryKind) string {
+	switch k {
+	case agentlog.ToolCall:
+		return "tool_call"
+	case agentlog.ToolResult:
+		return "tool_result"
+	case agentlog.Summary:
+		return "summary"
+	default:
+		return "message"
+	}
 }
 
 // writeJSON emits indented JSON with a trailing newline.
