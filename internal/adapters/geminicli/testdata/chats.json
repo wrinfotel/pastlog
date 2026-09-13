@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "currentSessionId": "gold3333-3333-4333-8333-333333333333",
+  "sessions": [
+    {
+      "sessionId": "gold3333-3333-4333-8333-333333333333",
+      "projectHash": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0",
+      "startTime": "2026-07-01T09:00:00Z",
+      "lastUpdated": "2026-07-01T09:05:00Z",
+      "directories": ["/home/dev/legacy"],
+      "summary": "legacy monolithic session",
+      "messages": [
+        {"id": "l1", "timestamp": "2026-07-01T09:00:10Z", "type": "user", "content": "hello from the legacy format"},
+        {"id": "l2", "timestamp": "2026-07-01T09:00:30Z", "type": "gemini", "content": "Hi! How can I help?"}
+      ]
+    },
+    {
+      "sessionId": "gold4444-4444-4444-8444-444444444444",
+      "startTime": "2026-07-02T10:00:00Z",
+      "lastUpdated": "2026-07-02T10:01:00Z",
+      "messages": [
+        {"id": "l3", "timestamp": "2026-07-02T10:00:10Z", "type": "user", "content": "second legacy session"}
+      ]
+    }
+  ]
+}

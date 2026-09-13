@@ -1,0 +1,8 @@
+{"sessionId":"gabc1111-1111-4111-8111-111111111111","projectHash":"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0","startTime":"2026-08-02T14:03:20Z","lastUpdated":"2026-08-02T14:05:10Z","kind":"main","directories":["/home/dev/myapp/api"],"summary":"move refresh token to an httpOnly cookie"}
+{"id":"m1","timestamp":"2026-08-02T14:03:22Z","type":"user","content":"the refresh token is stored in localStorage, is that safe?"}
+{"id":"m2","timestamp":"2026-08-02T14:03:30Z","type":"gemini","content":"No — localStorage is readable by any script on the page.","thoughts":[{"subject":"Security review","description":"Consider where the refresh token is stored and how it rotates.","timestamp":"2026-08-02T14:03:25Z"}],"toolCalls":[{"id":"c1","name":"read_file","args":{"absolute_path":"/home/dev/myapp/api/src/auth.ts"},"status":"confirmed","timestamp":"2026-08-02T14:03:35Z","result":"export const store = (token) => localStorage.setItem('refresh', token)"},{"id":"c2","name":"replace","args":{"file_path":"/home/dev/myapp/api/src/auth.ts","old_string":"localStorage"},"status":"executed","timestamp":"2026-08-02T14:03:50Z","result":[{"text":"Replaced 1 occurrence."}]}]}
+{"id":"m3","timestamp":"2026-08-02T14:04:00Z","type":"info","content":"Using model gemini-2.5-pro"}
+{"id":"m4","timestamp":"2026-08-02T14:04:30Z","type":"gemini","content":[{"text":"we moved it to an httpOnly cookie"},{"text":"and rotate on every use"}]}
+{"id":"m5","timestamp":"2026-08-02T14:04:45Z","type":"error","content":"rate limit hit; retrying"}
+{"not-a-message":"unknown shape without type"}
+{"$set":{"messages":[{"id":"m6","timestamp":"2026-08-02T14:05:00Z","type":"user","content":"thanks, that fixed it"}]}}

@@ -1,0 +1,3 @@
+{"sessionId":"gtrc3333-3333-4333-8333-333333333333","startTime":"2026-07-02T11:00:00Z","lastUpdated":"2026-07-02T11:00:10Z","directories":["/home/dev/truncated"]}
+{"id":"t1","timestamp":"2026-07-02T11:00:01Z","type":"user","content":"valid line"}
+{"id":"t2","timestamp":"2026-07-02T11:00:05Z","type":"gemini","content":"truncat
