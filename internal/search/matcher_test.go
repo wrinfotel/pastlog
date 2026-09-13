@@ -174,3 +174,89 @@ func TestKeepRawRejectsNonMatchingLine(t *testing.T) {
 		t.Error("prefilter should reject lines without the needle")
 	}
 }
+
+// TestProbeIndexPicksRarestByte pins the probe heuristic: the byte with the
+// lowest frequency in the (lowered) needle wins, first on ties.
+func TestProbeIndexPicksRarestByte(t *testing.T) {
+	tests := []struct {
+		needle string
+		want   int
+	}{
+		{"jwt", 0},     // all unique: first byte
+		{"err err", 3}, // space is the rarest? no: counts are equal except r/e appear twice → first single byte at index 3 (' ')
+		{"aaab", 3},    // 'b' unique
+		{"~~", 0},      // non-letters fine
+	}
+	for _, tt := range tests {
+		if got := probeIndex([]byte(tt.needle)); got != tt.want {
+			t.Errorf("probeIndex(%q) = %d, want %d", tt.needle, got, tt.want)
+		}
+	}
+}
+
+// TestContainsASCIIFoldProbeEquivalence verifies the SIMD-probe scan agrees
+// with a naive per-byte reference on tricky boundaries (needle at line start
+// or end, probe near the edges, mixed case, non-letter probes) and on
+// deterministic pseudo-random inputs.
+func TestContainsASCIIFoldProbeEquivalence(t *testing.T) {
+	naive := func(line, needle []byte) bool {
+		for i := 0; i+len(needle) <= len(line); i++ {
+			ok := true
+			for j, w := range needle {
+				if lowerByte(line[i+j]) != w {
+					ok = false
+					break
+				}
+			}
+			if ok {
+				return true
+			}
+		}
+		return len(needle) == 0
+	}
+
+	needles := []string{"jwt", "jwt refresh", "refresh token", "0 k", "e", "x", "~~", "aBc"}
+	lines := []string{
+		"",
+		"j",
+		"jwt",
+		"jwtjwt",
+		"JWT refresh",
+		"the jwt refresh token",
+		"xjwt",
+		"jw",
+		"wt",
+		"jwtx",
+		"tjwtjwtj",
+		"REFRESH TOKEN",
+		"…®jwt†",
+		"0 K",
+		"abcabcabc",
+	}
+	rng := uint32(1)
+	nextByte := func() byte { // deterministic xorshift, printable-ish bytes
+		rng ^= rng << 13
+		rng ^= rng >> 17
+		rng ^= rng << 5
+		return byte(rng%95) + 32
+	}
+	for i := 0; i < 200; i++ {
+		b := make([]byte, int(nextByte())+int(nextByte()%32))
+		for j := range b {
+			b[j] = nextByte()
+		}
+		lines = append(lines, string(b))
+	}
+
+	for _, n := range needles {
+		needle := []byte(asciiFold(n))
+		probe := probeIndex(needle)
+		for _, l := range lines {
+			line := []byte(l)
+			want := naive(line, needle)
+			if got := containsASCIIFold(line, needle, probe); got != want {
+				t.Errorf("containsASCIIFold(%q, %q) = %v, want %v", l, n, got, want)
+			}
+		}
+	}
+}

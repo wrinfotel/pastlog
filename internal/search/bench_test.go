@@ -3,9 +3,11 @@ package search
 import (
 	"bufio"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
@@ -185,6 +187,50 @@ func benchAdapters(b *testing.B) ([]agentlog.Adapter, int64) {
 	b.Helper()
 	home, size := benchHome(b)
 	return []agentlog.Adapter{claudecode.New(home), codex.New(home)}, size
+}
+
+// BenchmarkPrefilterRaw isolates the raw-line scan: the ASCII case-insensitive
+// prefilter predicate applied to every line of the corpus (spec §7 hot path).
+// SetBytes reports the scan throughput in MB/s (÷1000 for GB/s).
+func BenchmarkPrefilterRaw(b *testing.B) {
+	home, size := benchHome(b)
+	m, err := NewMatcher(benchNeedle, MatchOptions{})
+	if err != nil {
+		b.Fatal(err)
+	}
+	keep := m.KeepRaw()
+	var files []string
+	err = filepath.WalkDir(home, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() && strings.HasSuffix(d.Name(), ".jsonl") {
+			files = append(files, p)
+		}
+		return nil
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+	if len(files) == 0 {
+		b.Fatal("corpus has no jsonl files")
+	}
+	b.SetBytes(size)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for _, p := range files {
+			f, err := os.Open(p)
+			if err != nil {
+				b.Fatal(err)
+			}
+			sc := bufio.NewScanner(f)
+			sc.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
+			for sc.Scan() {
+				keep(sc.Bytes())
+			}
+			f.Close()
+		}
+	}
 }
 
 // BenchmarkSearchLiteral is the spec §7 hot path: default case-insensitive

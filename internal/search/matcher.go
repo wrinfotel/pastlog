@@ -114,7 +114,8 @@ func (m *Matcher) KeepRaw() func(rawLine []byte) bool {
 		return func(line []byte) bool { return bytes.Contains(line, needle) }
 	}
 	folded := []byte(m.folded)
-	return func(line []byte) bool { return containsASCIIFold(line, folded) }
+	probe := probeIndex(folded)
+	return func(line []byte) bool { return containsASCIIFold(line, folded, probe) }
 }
 
 // prefilterEligible reports whether the query is ASCII with no JSON-escaped
@@ -148,10 +149,33 @@ func asciiFold(s string) string {
 	return string(b)
 }
 
+// probeIndex returns the index of the rarest byte in the (ASCII-lowered)
+// needle — the cheapest first probe for the line scan: the fewer lines a
+// probe byte matches, the fewer windows get verified. Ties keep the first.
+func probeIndex(needle []byte) int {
+	if len(needle) == 0 {
+		return 0
+	}
+	var freq [256]int
+	for _, c := range needle {
+		freq[c]++
+	}
+	best := 0
+	for i, c := range needle {
+		if freq[c] < freq[needle[best]] {
+			best = i
+		}
+	}
+	return best
+}
+
 // containsASCIIFold reports whether line contains needle, comparing ASCII
-// letters case-insensitively (needle must already be ASCII-lowered). It never
-// allocates: this is the search hot path (spec §7).
-func containsASCIIFold(line, needle []byte) bool {
+// letters case-insensitively (needle must already be ASCII-lowered; probe is
+// probeIndex(needle)). Instead of a per-byte Go loop over the whole line, the
+// scan jumps between candidate positions with bytes.IndexByte (SIMD-backed)
+// on both cases of the probe byte and verifies only the candidate windows
+// byte-wise. It never allocates: this is the search hot path (spec §7).
+func containsASCIIFold(line, needle []byte, probe int) bool {
 	n := len(needle)
 	if n == 0 {
 		return true
@@ -159,20 +183,55 @@ func containsASCIIFold(line, needle []byte) bool {
 	if len(line) < n {
 		return false
 	}
-	first := lowerByte(needle[0])
-	for i := 0; i+n <= len(line); i++ {
-		if lowerByte(line[i]) != first {
-			continue
+	p := needle[probe]
+	lo, hi := p, byte(0)
+	if p >= 'a' && p <= 'z' {
+		hi = p - ('a' - 'A')
+	}
+	// A candidate is a probe hit at pos; the needle must align so that
+	// needle[probe] sits on pos: start = pos - probe.
+	for idx := 0; idx+n-probe <= len(line); {
+		var pos int
+		if hi == 0 { // probe has a single case (non-letter)
+			a := bytes.IndexByte(line[idx:], lo)
+			if a < 0 {
+				return false
+			}
+			pos = idx + a
+		} else {
+			a := bytes.IndexByte(line[idx:], lo)
+			b := bytes.IndexByte(line[idx:], hi)
+			switch {
+			case a < 0 && b < 0:
+				return false
+			case a < 0:
+				pos = idx + b
+			case b < 0:
+				pos = idx + a
+			default:
+				pos = idx + min(a, b)
+			}
 		}
-		j := 1
-		for j < n && lowerByte(line[i+j]) == needle[j] {
-			j++
+		if pos+n-probe > len(line) {
+			return false // this and every later probe hit fall outside a full window
 		}
-		if j == n {
+		if start := pos - probe; start >= 0 && foldWindowEqual(line[start:start+n], needle) {
 			return true
 		}
+		idx = pos + 1
 	}
 	return false
+}
+
+// foldWindowEqual compares two equal-length byte windows ASCII
+// case-insensitively (want is pre-lowered).
+func foldWindowEqual(a, want []byte) bool {
+	for i, w := range want {
+		if lowerByte(a[i]) != w {
+			return false
+		}
+	}
+	return true
 }
 
 func lowerByte(c byte) byte {
