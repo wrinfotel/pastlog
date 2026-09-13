@@ -41,6 +41,7 @@ const (
 // searchShowHome builds the combined two-adapter fixture home.
 func searchShowHome(t *testing.T) string {
 	t.Helper()
+	isolateDataHome(t)
 	home := t.TempDir()
 	write := func(rel, content string) {
 		p := filepath.Join(home, rel)
@@ -320,11 +321,11 @@ func TestSearchErrorsExit2(t *testing.T) {
 		}
 	})
 	t.Run("unknown agent", func(t *testing.T) {
-		code, _, errOut := run(t, "--home", home, "search", "jwt", "--agent", "gemini-cli")
+		code, _, errOut := run(t, "--home", home, "search", "jwt", "--agent", "not-an-agent")
 		if code != 2 {
 			t.Errorf("exit = %d, want 2", code)
 		}
-		if !strings.Contains(errOut, `unknown agent "gemini-cli"`) {
+		if !strings.Contains(errOut, `unknown agent "not-an-agent"`) {
 			t.Errorf("stderr should name the unknown agent, got %q", errOut)
 		}
 	})

@@ -61,7 +61,7 @@ func newShowCmd(stdout, stderr io.Writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			noteSkipped(stderr, adapters)
+			noteStderr(stderr, adapters)
 			return nil
 		},
 	}

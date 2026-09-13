@@ -3,6 +3,7 @@ package opencode
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	// the generator builds fixture databases with the same pure-Go driver the
@@ -14,8 +15,11 @@ import (
 // <dir>/opencode.db using the schema observed on a real database (see
 // SCHEMA.md) and anonymized fixture data. It is a test helper (spec §9: no
 // binary .db is committed, and no real user data ever enters fixtures). It
-// returns the created database path.
+// creates <dir> when needed and returns the created database path.
 func GenerateTestDB(dir string) (string, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
 	path := filepath.Join(dir, "opencode.db")
 	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path))
 	if err != nil {
@@ -30,9 +34,6 @@ func GenerateTestDB(dir string) (string, error) {
 	}
 	return path, nil
 }
-
-// GenerateTestDBAt is GenerateTestDB for tests: it fails the test on error.
-// (kept minimal so non-test packages can reuse the generator)
 
 // schema replicates the observed OpenCode tables pastlog reads, with the
 // observed column names and the observed indexes on session_id.

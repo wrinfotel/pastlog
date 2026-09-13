@@ -79,7 +79,7 @@ func newSearchCmd(stdout, stderr io.Writer) *cobra.Command {
 			} else {
 				render.SearchHuman(stdout, results)
 			}
-			noteSkipped(stderr, adapters)
+			noteStderr(stderr, adapters)
 			if totalHits(results) == 0 {
 				return errNoMatches
 			}

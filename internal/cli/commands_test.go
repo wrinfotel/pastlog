@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -27,9 +28,22 @@ const sessionAContent = `{"type":"summary","summary":"Fix jwt refresh token rota
 const sessionBContent = `{"type":"user","sessionId":"bbbb2222-2222-4222-8222-222222222222","cwd":"/home/dev/other","timestamp":"2026-07-01T10:00:00Z","message":{"role":"user","content":"second project session"}}
 `
 
+// isolateDataHome points the per-OS XDG data-dir override at a neutral temp
+// dir so host OpenCode data cannot leak into the goldens (M3: the opencode
+// adapter resolves its storage root via LOCALAPPDATA / XDG_DATA_HOME).
+func isolateDataHome(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Setenv("LOCALAPPDATA", t.TempDir())
+	} else {
+		t.Setenv("XDG_DATA_HOME", t.TempDir())
+	}
+}
+
 // fixtureHome builds a synthetic home: two projects, two sessions.
 func fixtureHome(t *testing.T) string {
 	t.Helper()
+	isolateDataHome(t)
 	home := t.TempDir()
 	write := func(rel, content string) {
 		p := filepath.Join(home, ".claude", "projects", rel)
@@ -71,7 +85,9 @@ func TestAgentsHumanGolden(t *testing.T) {
 		t.Fatalf("agents exit = %d, stderr: %s", code, errOut)
 	}
 	want := fmt.Sprintf("claude-code  2 sessions  %s  ~/.claude/projects\n"+
-		"codex        0 sessions  (not found)\n",
+		"codex        0 sessions  (not found)\n"+
+		"gemini-cli   0 sessions  (not found)\n"+
+		"opencode     0 sessions  (not found)\n",
 		render.HumanBytes(sizeA+sizeB))
 	if out != want {
 		t.Errorf("agents output:\n%q\nwant:\n%q", out, want)
@@ -79,6 +95,7 @@ func TestAgentsHumanGolden(t *testing.T) {
 }
 
 func TestAgentsNotFound(t *testing.T) {
+	isolateDataHome(t)
 	home := t.TempDir() // no agent data at all
 	code, out, errOut := run(t, "--home", home, "agents")
 	if code != 0 {
@@ -86,6 +103,8 @@ func TestAgentsNotFound(t *testing.T) {
 	}
 	want := "claude-code  0 sessions  (not found)\n" +
 		"codex        0 sessions  (not found)\n" +
+		"gemini-cli   0 sessions  (not found)\n" +
+		"opencode     0 sessions  (not found)\n" +
 		"nothing found — install an agent or pass --home <dir>\n"
 	if out != want {
 		t.Errorf("agents output:\n%q\nwant:\n%q", out, want)
@@ -111,6 +130,20 @@ func TestAgentsJSONGolden(t *testing.T) {
   },
   {
     "name": "codex",
+    "detected": false,
+    "path": null,
+    "sessions": 0,
+    "bytes": 0
+  },
+  {
+    "name": "gemini-cli",
+    "detected": false,
+    "path": null,
+    "sessions": 0,
+    "bytes": 0
+  },
+  {
+    "name": "opencode",
     "detected": false,
     "path": null,
     "sessions": 0,
@@ -241,11 +274,11 @@ func TestSessionsFilterErrors(t *testing.T) {
 		}
 	})
 	t.Run("unknown agent", func(t *testing.T) {
-		code, _, errOut := run(t, "--home", home, "sessions", "--agent", "gemini-cli")
+		code, _, errOut := run(t, "--home", home, "sessions", "--agent", "not-an-agent")
 		if code != 2 {
 			t.Errorf("exit = %d, want 2", code)
 		}
-		if !strings.Contains(errOut, "unknown agent \"gemini-cli\"") {
+		if !strings.Contains(errOut, `unknown agent "not-an-agent"`) {
 			t.Errorf("stderr should name the unknown agent, got %q", errOut)
 		}
 	})
@@ -275,6 +308,7 @@ func TestBareInvocationShowsHelpAndSummary(t *testing.T) {
 }
 
 func TestBareInvocationNothingFound(t *testing.T) {
+	isolateDataHome(t)
 	code, out, _ := run(t, "--home", t.TempDir())
 	if code != 0 {
 		t.Fatalf("bare exit = %d", code)

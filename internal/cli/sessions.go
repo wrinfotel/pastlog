@@ -59,7 +59,7 @@ func newSessionsCmd(stdout, stderr io.Writer) *cobra.Command {
 			} else {
 				render.SessionsHuman(stdout, home, rows)
 			}
-			noteSkipped(stderr, adapters)
+			noteStderr(stderr, adapters)
 			return nil
 		},
 	}

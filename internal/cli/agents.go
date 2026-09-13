@@ -35,6 +35,12 @@ func newAgentsCmd(stdout, stderr io.Writer) *cobra.Command {
 						row.Bytes += s.SizeBytes
 						return nil
 					})
+					// adapters backed by one shared file (e.g. the opencode
+					// database) report their on-disk footprint instead of
+					// the per-session sum
+					if ts, ok := a.(agentlog.TotalSizer); ok {
+						row.Bytes = ts.TotalBytes()
+					}
 				}
 				rows[i] = row
 			}
@@ -49,7 +55,7 @@ func newAgentsCmd(stdout, stderr io.Writer) *cobra.Command {
 					fmt.Fprintln(stdout, "nothing found — install an agent or pass --home <dir>")
 				}
 			}
-			noteSkipped(stderr, adapters)
+			noteStderr(stderr, adapters)
 			return nil
 		},
 	}
@@ -67,8 +73,17 @@ func detectedCount(rows []render.AgentRow) int {
 	return n
 }
 
-// noteSkipped summarizes unreadable lines on stderr (spec §8).
-func noteSkipped(stderr io.Writer, adapters []agentlog.Adapter) {
+// noteStderr summarizes adapter conditions on stderr (spec §4, §8): one
+// warning line per unavailable storage (locked databases), then the total of
+// unreadable records.
+func noteStderr(stderr io.Writer, adapters []agentlog.Adapter) {
+	for _, a := range adapters {
+		if ws, ok := a.(agentlog.WarningSource); ok {
+			if msg := ws.Warning(); msg != "" {
+				fmt.Fprintln(stderr, msg)
+			}
+		}
+	}
 	if n := agentlog.TotalSkipped(adapters); n > 0 {
 		fmt.Fprintf(stderr, "%d unreadable lines skipped\n", n)
 	}
