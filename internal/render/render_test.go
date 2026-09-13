@@ -212,7 +212,7 @@ func TestHumanBytes(t *testing.T) {
 		{1099511627776, "1.0 TB"},
 	}
 	for _, tt := range tests {
-		if got := humanBytes(tt.n); got != tt.want {
+		if got := HumanBytes(tt.n); got != tt.want {
 			t.Errorf("humanBytes(%d) = %q, want %q", tt.n, got, tt.want)
 		}
 	}

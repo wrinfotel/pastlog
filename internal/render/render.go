@@ -46,7 +46,7 @@ func AgentsHuman(w io.Writer, home string, rows []AgentRow) {
 			fmt.Fprintln(w, "(not found)")
 			continue
 		}
-		fmt.Fprintf(w, "%s  %s\n", humanBytes(r.Bytes), tildePath(home, r.Path))
+		fmt.Fprintf(w, "%s  %s\n", HumanBytes(r.Bytes), tildePath(home, r.Path))
 	}
 }
 
@@ -82,7 +82,7 @@ func SessionsHuman(w io.Writer, home string, rows []agentlog.SessionMeta) {
 			project:  displayProject(home, r.Project),
 			date:     displayDate(r.StartedAt),
 			messages: fmt.Sprint(r.Messages),
-			size:     humanBytes(r.SizeBytes),
+			size:     HumanBytes(r.SizeBytes),
 			id:       idPrefix(r.ID),
 		}
 		projW = max(projW, len(views[i].project))
@@ -168,8 +168,8 @@ func idPrefix(id string) string {
 	return id[:idPrefixLen]
 }
 
-// humanBytes renders byte counts like "512 B" / "2.4 KB" / "1.4 GB".
-func humanBytes(n int64) string {
+// HumanBytes renders byte counts like "512 B" / "2.4 KB" / "1.4 GB".
+func HumanBytes(n int64) string {
 	const unit = 1024
 	if n < unit {
 		return fmt.Sprintf("%d B", n)

@@ -41,6 +41,10 @@ func (a *Adapter) Detect() bool {
 // SkippedLines implements agentlog.SkipCounter (spec §8 stderr summary).
 func (a *Adapter) SkippedLines() int { return a.skipped }
 
+// StoragePath implements agentlog.PathSource: the directory scanned for
+// sessions, for display in `agents`.
+func (a *Adapter) StoragePath() string { return a.projectsDir() }
+
 func (a *Adapter) projectsDir() string {
 	return filepath.Join(a.home, ".claude", "projects")
 }

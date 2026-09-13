@@ -58,3 +58,9 @@ type MetaSource interface {
 type SkipCounter interface {
 	SkippedLines() int
 }
+
+// PathSource is optionally implemented by adapters that can report their
+// storage location for display in `agents`.
+type PathSource interface {
+	StoragePath() string
+}
