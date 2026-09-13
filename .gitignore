@@ -1,0 +1,12 @@
+# Build artifacts
+/pastlog
+/pastlog.exe
+dist/
+
+# Go
+*.test
+*.out
+coverage.txt
+
+# SDD scratch workspaces (self-ignoring, but keep it explicit)
+.superpowers/
