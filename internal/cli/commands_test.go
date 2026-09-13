@@ -193,6 +193,33 @@ func TestSessionsJSONGolden(t *testing.T) {
 	}
 }
 
+// TestSessionsHumanGolden pins the command→render composition for the human
+// `sessions` output at the CLI layer (M4-B12): column alignment, pluralization,
+// date rendering and the id prefix must stay stable end to end, not only in
+// the render unit test.
+func TestSessionsHumanGolden(t *testing.T) {
+	home := fixtureHome(t)
+	sizeA := fixtureSize(t, home, "C--Users-dev-myapp/aaaa1111-1111-4111-8111-111111111111.jsonl")
+	sizeB := fixtureSize(t, home, "-home-dev-other/bbbb2222-2222-4222-8222-222222222222.jsonl")
+
+	code, out, errOut := run(t, "--home", home, "sessions")
+	if code != 0 {
+		t.Fatalf("sessions exit = %d, stderr: %s", code, errOut)
+	}
+	startA := mustUTC(t, "2026-08-02T14:03:22Z")
+	startB := mustUTC(t, "2026-07-01T10:00:00Z")
+	want := fmt.Sprintf("claude-code  /home/dev/myapp  %s  2 messages  %s  aaaa1111\n"+
+		"claude-code  /home/dev/other  %s  1 message   %s  bbbb2222\n",
+		startA.Local().Format("2006-01-02 15:04"), render.HumanBytes(sizeA),
+		startB.Local().Format("2006-01-02 15:04"), render.HumanBytes(sizeB))
+	if out != want {
+		t.Errorf("sessions output:\n%q\nwant:\n%q", out, want)
+	}
+	if errOut != "" {
+		t.Errorf("stderr should stay empty, got %q", errOut)
+	}
+}
+
 func TestSessionsFilters(t *testing.T) {
 	home := fixtureHome(t)
 
