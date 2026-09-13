@@ -1,0 +1,2 @@
+{"type":"user","sessionId":"44444444-4444-4444-8444-444444444444","cwd":"/home/dev/app","timestamp":"2026-07-02T11:00:00Z","uuid":"u-1","parentUuid":null,"message":{"role":"user","content":"before truncation"}}
+{"type":"assistant","sessionId":"44444444-4444-4444-8444-444444444444","cwd":"/home/dev/app","timest

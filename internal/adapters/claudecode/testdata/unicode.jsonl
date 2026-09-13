@@ -1,0 +1,2 @@
+{"type":"user","sessionId":"66666666-6666-4666-8666-666666666666","cwd":"/home/dev/app","timestamp":"2026-07-03T09:15:00Z","uuid":"u-1","parentUuid":null,"message":{"role":"user","content":"こんにちは world 🌍 café naïve"}}
+{"type":"assistant","sessionId":"66666666-6666-4666-8666-666666666666","cwd":"/home/dev/app","timestamp":"2026-07-03T09:15:10Z","uuid":"u-2","parentUuid":"u-1","message":{"role":"assistant","content":"журнал отладки готов"}}

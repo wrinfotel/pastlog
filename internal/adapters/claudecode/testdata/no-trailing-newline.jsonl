@@ -1,0 +1,2 @@
+{"type":"user","sessionId":"aaa2b3c4-0000-4000-8000-000000000002","cwd":"/home/dev/app","timestamp":"2026-07-01T10:00:00Z","uuid":"u-1","parentUuid":null,"message":{"role":"user","content":"hello without newline"}}
+{"type":"assistant","sessionId":"aaa2b3c4-0000-4000-8000-000000000002","cwd":"/home/dev/app","timestamp":"2026-07-01T10:00:05Z","uuid":"u-2","parentUuid":"u-1","message":{"role":"assistant","content":"hi there"}}
