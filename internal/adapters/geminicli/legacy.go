@@ -68,6 +68,7 @@ func (a *Adapter) walkLegacy(path, wantID string, iter func(agentlog.SessionMeta
 				a.skipped++
 				continue
 			}
+			a.registerIDs(path, meta.ID, true) // feed the id→store index (idempotent)
 			if wantID != "" && meta.ID != wantID {
 				continue
 			}
@@ -146,47 +147,49 @@ func countMessages(entries []agentlog.Entry) int {
 	return n
 }
 
-// legacyHasSession reports whether the monolithic file contains a session
-// with the given id, stopping at the first match.
-func (a *Adapter) legacyHasSession(path, id string) bool {
+// legacySessionIDs lists the session ids inside one monolithic chats.json,
+// in stored order (used to fill the id→store index in one pass). Unreadable
+// wrappers or elements yield whatever was decoded before the failure.
+func (a *Adapter) legacySessionIDs(path string) []string {
 	f, err := os.Open(path)
 	if err != nil {
-		return false
+		return nil
 	}
 	defer f.Close()
 
+	var ids []string
 	dec := json.NewDecoder(bufio.NewReaderSize(f, initialBuf))
 	if !delim(dec, '{') {
-		return false
+		return nil
 	}
 	for dec.More() {
 		keyTok, err := dec.Token()
 		if err != nil {
-			return false
+			return ids
 		}
 		key, _ := keyTok.(string)
 		if key != "sessions" {
 			var skip json.RawMessage
 			if err := dec.Decode(&skip); err != nil {
-				return false
+				return ids
 			}
 			continue
 		}
 		if !delim(dec, '[') {
-			return false
+			return ids
 		}
 		for dec.More() {
 			var rec legacyRaw
 			if err := dec.Decode(&rec); err != nil {
-				return false
+				return ids
 			}
-			if rec.SessionID == id {
-				return true
+			if rec.SessionID != "" {
+				ids = append(ids, rec.SessionID)
 			}
 		}
 		if !delim(dec, ']') {
-			return false
+			return ids
 		}
 	}
-	return false
+	return ids
 }

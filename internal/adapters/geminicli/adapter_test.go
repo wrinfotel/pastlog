@@ -549,3 +549,51 @@ func TestEntriesFilteredPrefilter(t *testing.T) {
 		t.Error("entries from prefilter-rejected lines must not be parsed")
 	}
 }
+
+// TestSessionForIndexResolvesColdAndWarm pins the M4 fix-round id→store
+// index (same treatment as codex/claudecode): Entries resolves sessions O(1)
+// through the index, both cold (built in one storage pass by buildIndex) and
+// warm (already filled by a listing pass) — by filename-fallback id, by
+// metadata sessionId whose filename differs, by subagent filename, and into
+// the legacy monolithic chats.json.
+func TestSessionForIndexResolvesColdAndWarm(t *testing.T) {
+	files := map[string]string{
+		realisticRel: "realistic.jsonl",
+		"chats/gparent9999-9999-4999-8999-999999999999/subagent.jsonl": "subagent.jsonl",
+		"chats.json": "chats.json",
+	}
+	ids := []string{
+		"session-2026-08-02T14-03-gabc1111", // filename-fallback style id
+		realisticID,                         // metadata sessionId (filename differs)
+		subagentID,                          // subagent file's metadata sessionId
+		legacyID1,                           // inside the legacy monolith
+		legacyID2,
+	}
+	count := func(t *testing.T, a *Adapter, id string) int {
+		t.Helper()
+		n := 0
+		err := a.Entries(agentlog.Session{ID: id}, func(agentlog.Entry) error { n++; return nil })
+		if err != nil {
+			t.Fatalf("Entries(%s): %v", id, err)
+		}
+		return n
+	}
+
+	t.Run("cold", func(t *testing.T) {
+		a := newTestAdapter(t, files)
+		for _, id := range ids {
+			if n := count(t, a, id); n == 0 {
+				t.Errorf("cold resolution failed for %s", id)
+			}
+		}
+	})
+	t.Run("warm", func(t *testing.T) {
+		a := newTestAdapter(t, files)
+		_ = listSessions(t, a) // listing fills the index
+		for _, id := range ids {
+			if n := count(t, a, id); n == 0 {
+				t.Errorf("warm resolution failed for %s", id)
+			}
+		}
+	})
+}

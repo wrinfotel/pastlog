@@ -26,9 +26,15 @@ const (
 )
 
 // Adapter reads Gemini CLI session logs from <home>/.gemini/tmp.
+//
+// Like the skipped counter (which accumulates across scans and is never
+// reset), the session id→store index built by sessionFor is cached on the
+// adapter: an Adapter is NOT safe for concurrent use — one Adapter per
+// goroutine, and resolve sessions through a single instance per run.
 type Adapter struct {
 	home    string
-	skipped int // unreadable/unknown records, counted across scans
+	skipped int                   // unreadable/unknown records, counted across scans
+	index   map[string]sessionRef // session id -> backing store, built lazily (see sessionFor)
 }
 
 // New builds an adapter rooted at the given user home directory.
@@ -70,7 +76,9 @@ func (a *Adapter) SessionsMeta(iter func(agentlog.SessionMeta) error) error {
 // both timestamps (SCHEMA.md) — instead of parsing every line (spec §7).
 // When line 1 is not a metadata record with a sessionId, the file falls back
 // to the full parse so ids, projects, filters and sort order stay identical
-// to SessionsMeta. Message counts are zero on this path.
+// to SessionsMeta. Message counts are zero on this path. Legacy chats.json
+// stores keep their full listing (they are rare and monolithic); every
+// listed session feeds the id→store index that Entries resolves through.
 func (a *Adapter) SessionsMetaFast(iter func(agentlog.SessionMeta) error) (bool, error) {
 	files, err := a.sessionFiles()
 	if err != nil {
@@ -86,9 +94,21 @@ func (a *Adapter) SessionsMetaFast(iter func(agentlog.SessionMeta) error) (bool,
 			if !sum.sawLine {
 				continue // empty (or blank) file: not a session
 			}
+			a.registerIDs(path, sum.sessionID, false)
 			m = sum.meta(path)
+		} else {
+			a.registerIDs(path, m.ID, false)
 		}
 		if err := iter(m); err != nil {
+			return true, err
+		}
+	}
+	legacy, err := a.legacyFiles()
+	if err != nil {
+		return true, fmt.Errorf("cannot list gemini-cli storage: %v", err)
+	}
+	for _, path := range legacy {
+		if err := a.walkLegacy(path, "", iter, nil); err != nil {
 			return true, err
 		}
 	}
@@ -185,6 +205,7 @@ func (a *Adapter) walk(iter func(agentlog.SessionMeta) error) error {
 		if !sum.sawLine {
 			continue // empty (or blank) file: not a session
 		}
+		a.registerIDs(path, sum.sessionID, false)
 		if err := iter(sum.meta(path)); err != nil {
 			return err
 		}
@@ -352,48 +373,74 @@ func (a *Adapter) legacyFiles() ([]string, error) {
 	return files, nil
 }
 
-// sessionFor locates the backing store of a session id: by exact filename
-// first (subagent files and filename-fallback ids), then by scanning the
-// metadata record of every JSONL file, then inside the legacy chats.json
-// files.
+// sessionFor locates the backing store of a session id through the lazily
+// built id→store index: JSONL files register their filename-fallback id and
+// metadata sessionId, legacy chats.json files register their session ids.
+// The index is filled as a side effect of listing (walk / SessionsMetaFast)
+// and built in one storage pass when Entries is called first (see
+// registerIDs) — per-session rescans of every file were quadratic in the
+// session count and missed the spec §7 budget. Files are visited in sorted
+// order and the first registration of an id wins; JSONL ids are registered
+// before legacy ids, matching the resolution order this method had before
+// the index.
 func (a *Adapter) sessionFor(id string) (sessionRef, bool) {
 	if id == "" {
 		return sessionRef{}, false
 	}
-	for _, pattern := range []string{
-		filepath.Join(a.tmpDir(), "*", "chats", id+".jsonl"),      // main fallback id / stray file
-		filepath.Join(a.tmpDir(), "*", "chats", "*", id+".jsonl"), // subagent file
-	} {
-		if matches, err := filepath.Glob(pattern); err == nil && len(matches) > 0 {
-			sort.Strings(matches)
-			return sessionRef{path: matches[0]}, true
-		}
+	if a.index == nil {
+		a.buildIndex()
 	}
-	files, err := a.sessionFiles()
-	if err == nil {
-		for _, path := range files {
-			if a.fileHasMetaID(path, id) {
-				return sessionRef{path: path}, true
-			}
-		}
-	}
-	legacy, err := a.legacyFiles()
-	if err == nil {
-		for _, path := range legacy {
-			if a.legacyHasSession(path, id) {
-				return sessionRef{path: path, legacy: true}, true
-			}
-		}
-	}
-	return sessionRef{}, false
+	ref, ok := a.index[id]
+	return ref, ok
 }
 
-// fileHasMetaID reports whether the file's metadata line (first non-empty
-// line) carries sessionId == id.
-func (a *Adapter) fileHasMetaID(path, id string) bool {
+// registerIDs records one store's id spellings in the index.
+func (a *Adapter) registerIDs(path, recordID string, legacy bool) {
+	if a.index == nil {
+		a.index = map[string]sessionRef{}
+	}
+	ref := sessionRef{path: path, legacy: legacy}
+	if !legacy {
+		base := strings.TrimSuffix(filepath.Base(path), ".jsonl")
+		if _, ok := a.index[base]; !ok {
+			a.index[base] = ref
+		}
+	}
+	if recordID != "" {
+		if _, ok := a.index[recordID]; !ok {
+			a.index[recordID] = ref
+		}
+	}
+}
+
+// buildIndex fills the id→store index when Entries is called without a
+// preceding listing pass.
+func (a *Adapter) buildIndex() {
+	a.index = map[string]sessionRef{}
+	files, err := a.sessionFiles()
+	if err != nil {
+		return
+	}
+	for _, path := range files {
+		a.registerIDs(path, a.fileMetaID(path), false)
+	}
+	legacy, err := a.legacyFiles()
+	if err != nil {
+		return
+	}
+	for _, path := range legacy {
+		for _, id := range a.legacySessionIDs(path) {
+			a.registerIDs(path, id, true)
+		}
+	}
+}
+
+// fileMetaID returns the metadata record's sessionId (the first non-empty
+// line), "" when the file opens with something else (defensive parse).
+func (a *Adapter) fileMetaID(path string) string {
 	f, err := os.Open(path)
 	if err != nil {
-		return false
+		return ""
 	}
 	defer f.Close()
 
@@ -405,10 +452,10 @@ func (a *Adapter) fileHasMetaID(path, id string) bool {
 			continue
 		}
 		meta, ok := parseMeta(line)
-		if ok && meta.sessionID == id {
-			return true
+		if ok && meta.sessionID != "" {
+			return meta.sessionID
 		}
-		return false // only the first non-empty line can be the metadata record
+		return "" // only the first non-empty line can be the metadata record
 	}
-	return false
+	return ""
 }
