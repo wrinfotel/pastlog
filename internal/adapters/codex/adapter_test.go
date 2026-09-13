@@ -130,6 +130,34 @@ func TestSessionsRealisticFixture(t *testing.T) {
 	}
 }
 
+// TestNoTrailingNewlineFixtureIsWired pins the committed
+// testdata/no-trailing-newline.jsonl fixture (M4-B10): a rollout file whose
+// last line has no trailing newline parses end to end — the session is listed
+// from its session_meta payload and the final message is not lost.
+func TestNoTrailingNewlineFixtureIsWired(t *testing.T) {
+	a := newTestAdapter(t, map[string]string{
+		"2026/07/01/rollout-2026-07-01T10-00-00-aaa2b3c4-0000-4000-8000-000000000002.jsonl": "no-trailing-newline.jsonl",
+	})
+	metas := listMetas(t, a)
+	if len(metas) != 1 {
+		t.Fatalf("got %d sessions, want 1", len(metas))
+	}
+	if metas[0].ID != "aaa2b3c4-0000-4000-8000-000000000002" {
+		t.Errorf("ID = %q, want the session_meta payload id", metas[0].ID)
+	}
+	if metas[0].Messages != 1 {
+		t.Errorf("Messages = %d, want 1", metas[0].Messages)
+	}
+	var texts []string
+	err := a.Entries(metas[0].Session, func(e agentlog.Entry) error { texts = append(texts, e.Text); return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(texts) != 1 || texts[0] != "hello without newline" {
+		t.Errorf("entries = %v, want the last line's message (no trailing newline)", texts)
+	}
+}
+
 func TestSessionsIDFallbackFromFilename(t *testing.T) {
 	// no session_meta record: the ID must fall back to the rollout filename
 	a := newTestAdapter(t, map[string]string{

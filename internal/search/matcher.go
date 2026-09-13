@@ -55,9 +55,11 @@ func NewMatcher(query string, o MatchOptions) (*Matcher, error) {
 	//     can hide raw-line occurrences; such needles still match whenever
 	//     the raw line contains them verbatim, but the prefilter may skip
 	//     the line unparsed;
-	//   - case-insensitive matching folds ASCII letters only on this path;
-	//     exotic Unicode case pairs (e.g. KELVIN SIGN vs "k") match only via
-	//     the fold path below, which never prefilters.
+	//   - case-insensitivity differs per path: a prefilter-eligible needle is
+	//     pure ASCII and matches via ASCII folding only (so exotic Unicode
+	//     case pairs like KELVIN SIGN in the text never match an ASCII
+	//     needle); a needle that is not prefilter-eligible is matched with
+	//     full Unicode case-folding instead, where such pairs do match.
 	m.prefilter = prefilterEligible(query)
 	if m.prefilter && !o.CaseSensitive {
 		m.folded = asciiFold(query)

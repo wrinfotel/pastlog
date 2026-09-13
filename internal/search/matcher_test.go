@@ -76,6 +76,22 @@ func TestNonASCIIQueryFolds(t *testing.T) {
 	}
 }
 
+// TestKelvinSignKnownSemantics documents the known asymmetry between the two
+// case-insensitive paths (M4-B13): an ASCII needle ("k", prefilter-eligible)
+// folds ASCII only, so a KELVIN SIGN in the text never matches it; a KELVIN
+// needle is not prefilter-eligible and goes through full Unicode folding,
+// where KELVIN SIGN and "k" share a fold orbit and do match.
+func TestKelvinSignKnownSemantics(t *testing.T) {
+	asciiNeedle := mustMatcher(t, "0 k", MatchOptions{}) // pure ASCII: prefilter path
+	if asciiNeedle.Match("0 \u212a") {
+		t.Error("ASCII needle must not match a KELVIN SIGN (ASCII folding only)")
+	}
+	kelvinNeedle := mustMatcher(t, "0 \u212a", MatchOptions{}) // non-ASCII: fold path
+	if !kelvinNeedle.Match("0 k") {
+		t.Error("KELVIN SIGN needle should match plain k via Unicode case folding")
+	}
+}
+
 func TestPrefilterEligibility(t *testing.T) {
 	tests := []struct {
 		query string
