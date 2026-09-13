@@ -1,6 +1,8 @@
 package search
 
 import (
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -27,6 +29,8 @@ type fakeAdapter struct {
 	parsed    int
 	scanned   []string
 	usedPlain bool
+	metaErr   error // returned by SessionsMeta/Sessions (listing failure)
+	entryErr  error // returned by Entries/EntriesFiltered (scan failure)
 }
 
 func (f *fakeAdapter) Name() string      { return f.name }
@@ -39,7 +43,7 @@ func (f *fakeAdapter) SessionsMeta(iter func(agentlog.SessionMeta) error) error 
 			return err
 		}
 	}
-	return nil
+	return f.metaErr
 }
 
 func (f *fakeAdapter) Sessions(iter func(agentlog.Session) error) error {
@@ -48,12 +52,15 @@ func (f *fakeAdapter) Sessions(iter func(agentlog.Session) error) error {
 			return err
 		}
 	}
-	return nil
+	return f.metaErr
 }
 
 func (f *fakeAdapter) Entries(s agentlog.Session, iter func(agentlog.Entry) error) error {
 	f.usedPlain = true
 	f.scanned = append(f.scanned, s.ID)
+	if f.entryErr != nil {
+		return f.entryErr
+	}
 	for _, e := range f.entries[s.ID] {
 		if err := iter(e); err != nil {
 			return err
@@ -64,6 +71,9 @@ func (f *fakeAdapter) Entries(s agentlog.Session, iter func(agentlog.Entry) erro
 
 func (f *fakeAdapter) EntriesFiltered(s agentlog.Session, keep func([]byte) bool, iter func(agentlog.Entry) error) error {
 	f.scanned = append(f.scanned, s.ID)
+	if f.entryErr != nil {
+		return f.entryErr
+	}
 	for _, e := range f.entries[s.ID] {
 		line := []byte("raw:" + e.Text)
 		f.keepCalls++
@@ -76,6 +86,42 @@ func (f *fakeAdapter) EntriesFiltered(s agentlog.Session, keep func([]byte) bool
 		}
 	}
 	return nil
+}
+
+// TestRunNotesFailingAdapter pins the M4-B2 plumbing: a listing failure and
+// a scan failure each produce exactly one note naming the adapter, while
+// hits from healthy adapters are unaffected.
+func TestRunNotesFailingAdapter(t *testing.T) {
+	brokenList := &fakeAdapter{name: "broken-list", metaErr: errors.New("permission denied")}
+	brokenScan := &fakeAdapter{
+		name:     "broken-scan",
+		metas:    []agentlog.SessionMeta{{Session: agentlog.Session{ID: "s1", StartedAt: tNew}}},
+		entryErr: errors.New("read error"),
+	}
+	healthy := &fakeAdapter{
+		name: "claude-code",
+		metas: []agentlog.SessionMeta{
+			{Session: agentlog.Session{ID: "a1", StartedAt: tOld}, Messages: 1},
+		},
+		entries: map[string][]agentlog.Entry{
+			"a1": {{Kind: agentlog.Message, Role: "user", Text: "the jwt secret"}},
+		},
+	}
+
+	var notes []string
+	results := Run([]agentlog.Adapter{brokenList, brokenScan, healthy},
+		mustMatcher(t, "jwt", MatchOptions{}),
+		EngineOptions{Note: func(n string) { notes = append(notes, n) }})
+	if len(results) != 1 || results[0].Session.ID != "a1" {
+		t.Fatalf("healthy adapter's hits must survive, got %+v", results)
+	}
+	if len(notes) != 2 {
+		t.Fatalf("got %d notes (%v), want 2 — one per failing adapter", len(notes), notes)
+	}
+	if !strings.Contains(notes[0], "broken-list: storage unreadable") ||
+		!strings.Contains(notes[1], "broken-scan: storage unreadable") {
+		t.Errorf("notes should name each failing adapter, got %v", notes)
+	}
 }
 
 func TestRealAdaptersImplementLineFiltered(t *testing.T) {

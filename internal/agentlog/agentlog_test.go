@@ -3,6 +3,7 @@ package agentlog
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -107,7 +108,7 @@ func TestCollectSessionsSortsNewestFirst(t *testing.T) {
 		{ID: "c", Agent: "claude-code", StartedAt: t3},
 		{ID: "a", Agent: "claude-code", StartedAt: t1},
 	}}
-	got := CollectSessions([]Adapter{a}, SessionFilter{})
+	got := CollectSessions([]Adapter{a}, SessionFilter{}, nil)
 	want := []string{"c", "a", "b"}
 	if len(got) != len(want) {
 		t.Fatalf("got %d sessions, want %d", len(got), len(want))
@@ -143,7 +144,7 @@ func TestCollectSessionsFilters(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := CollectSessions([]Adapter{a, b}, tt.filter)
+			got := CollectSessions([]Adapter{a, b}, tt.filter, nil)
 			ids := make([]string, len(got))
 			for i, m := range got {
 				ids[i] = m.ID
@@ -172,7 +173,7 @@ func TestProjectFilterNormalizesSeparators(t *testing.T) {
 		{"myapp", "win"},           // plain substring still works
 	}
 	for _, tt := range tests {
-		got := CollectSessions([]Adapter{a}, SessionFilter{Project: tt.filter})
+		got := CollectSessions([]Adapter{a}, SessionFilter{Project: tt.filter}, nil)
 		if len(got) != 1 || got[0].ID != tt.want {
 			t.Errorf("project filter %q = %v, want [%s]", tt.filter, ids(got), tt.want)
 		}
@@ -191,7 +192,7 @@ func TestCollectSessionsUsesAdapterMeta(t *testing.T) {
 	a := &metaFake{fakeAdapter: fakeAdapter{name: "claude-code"}, metas: []SessionMeta{
 		{Session: Session{ID: "x", StartedAt: t1}, Messages: 7},
 	}}
-	got := CollectSessions([]Adapter{a}, SessionFilter{})
+	got := CollectSessions([]Adapter{a}, SessionFilter{}, nil)
 	if len(got) != 1 || got[0].Messages != 7 {
 		t.Errorf("meta messages = %+v, want 7", got)
 	}
@@ -212,7 +213,7 @@ func TestCollectSessionsFallbackCountsMessageEntries(t *testing.T) {
 			},
 		},
 	}
-	got := CollectSessions([]Adapter{a}, SessionFilter{})
+	got := CollectSessions([]Adapter{a}, SessionFilter{}, nil)
 	if len(got) != 1 || got[0].Messages != 3 {
 		t.Errorf("fallback message count = %d, want 3", got[0].Messages)
 	}
@@ -223,7 +224,7 @@ func TestCollectSessionsStopsOnAdapterError(t *testing.T) {
 		name:    "claude-code",
 		scanErr: errors.New("disk gone"),
 	}
-	got := CollectSessions([]Adapter{a}, SessionFilter{})
+	got := CollectSessions([]Adapter{a}, SessionFilter{}, nil)
 	if len(got) != 0 {
 		t.Errorf("expected no sessions on error, got %d", len(got))
 	}
@@ -232,9 +233,45 @@ func TestCollectSessionsStopsOnAdapterError(t *testing.T) {
 func TestAgentFilterSkipsOtherAdaptersWithoutScanning(t *testing.T) {
 	a := &fakeAdapter{name: "claude-code", sessions: []Session{{ID: "x", StartedAt: t1}}}
 	b := &fakeAdapter{name: "codex", sessions: []Session{{ID: "y", StartedAt: t2}}}
-	got := CollectSessions([]Adapter{a, b}, SessionFilter{Agent: "codex"})
+	got := CollectSessions([]Adapter{a, b}, SessionFilter{Agent: "codex"}, nil)
 	if len(got) != 1 || got[0].ID != "y" {
 		t.Errorf("agent filter should select only codex, got %v", got)
+	}
+}
+
+// TestCollectSessionsNotesUnreadableStorage pins the M4-B1 plumbing: a
+// failing adapter produces exactly one note naming the adapter and the
+// cause, while healthy adapters' sessions are unaffected.
+func TestCollectSessionsNotesUnreadableStorage(t *testing.T) {
+	healthy := &metaFake{fakeAdapter: fakeAdapter{name: "codex"}, metas: []SessionMeta{
+		{Session: Session{ID: "c", StartedAt: t1}, Messages: 2},
+	}}
+	broken := &metaFake{fakeAdapter: fakeAdapter{name: "claude-code", scanErr: errors.New("permission denied")}}
+
+	var notes []string
+	got := CollectSessions([]Adapter{broken, healthy}, SessionFilter{}, func(n string) { notes = append(notes, n) })
+	if len(got) != 1 || got[0].ID != "c" {
+		t.Errorf("healthy adapter's sessions must survive, got %v", ids(got))
+	}
+	if len(notes) != 1 {
+		t.Fatalf("got %d notes, want 1: %v", len(notes), notes)
+	}
+	if !strings.Contains(notes[0], "claude-code: storage unreadable") ||
+		!strings.Contains(notes[0], "permission denied") {
+		t.Errorf("note should name the adapter and the cause, got %q", notes[0])
+	}
+	if notes[0][:1] == strings.ToUpper(notes[0][:1]) {
+		t.Errorf("note should be lowercase, got %q", notes[0])
+	}
+}
+
+// TestCollectSessionsNoteNilIsLegal pins that a nil note callback is allowed
+// (best-effort listing stays silent when nobody listens).
+func TestCollectSessionsNoteNilIsLegal(t *testing.T) {
+	broken := &metaFake{fakeAdapter: fakeAdapter{name: "claude-code", scanErr: errors.New("permission denied")}}
+	got := CollectSessions([]Adapter{broken}, SessionFilter{}, nil)
+	if len(got) != 0 {
+		t.Errorf("expected no sessions, got %v", ids(got))
 	}
 }
 

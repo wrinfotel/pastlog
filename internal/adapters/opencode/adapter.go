@@ -159,6 +159,9 @@ func (a *Adapter) SessionsMeta(iter func(agentlog.SessionMeta) error) error {
 // time_created order through iter, with per-session sizes and message counts
 // from grouped aggregate cursors.
 func (a *Adapter) walk(iter func(agentlog.SessionMeta) error) error {
+	if a.dir == "" {
+		return nil // storage root absent: no sessions, not an error (spec §8)
+	}
 	db, err := a.open()
 	if err != nil {
 		if a.markLocked(err) {
@@ -271,6 +274,9 @@ func scanGroups(db *sql.DB, query string, into map[string]int64) error {
 // (part.time_created, part.id) within each message (SCHEMA.md). The cursor
 // is closed on every path, including early callback errors.
 func (a *Adapter) Entries(s agentlog.Session, iter func(agentlog.Entry) error) error {
+	if a.dir == "" {
+		return nil // storage root absent: nothing to read, not an error
+	}
 	db, err := a.open()
 	if err != nil {
 		if a.markLocked(err) {

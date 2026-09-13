@@ -51,7 +51,9 @@ func newSessionsCmd(stdout, stderr io.Writer) *cobra.Command {
 				}
 			}
 
-			rows := agentlog.CollectSessions(adapters, filter)
+			rows := agentlog.CollectSessions(adapters, filter, func(note string) {
+				fmt.Fprintln(stderr, note)
+			})
 			if jsonOut {
 				if err := render.SessionsJSON(stdout, rows); err != nil {
 					return err

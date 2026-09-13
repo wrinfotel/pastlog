@@ -69,6 +69,9 @@ func newSearchCmd(stdout, stderr io.Writer) *cobra.Command {
 				Filter:   filter,
 				Sessions: limit,
 				MaxHits:  maxHit,
+				Note: func(note string) {
+					fmt.Fprintln(stderr, note)
+				},
 			})
 			// human output prints nothing without matches; --json still
 			// prints a valid (empty) document

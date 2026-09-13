@@ -39,6 +39,10 @@ func newShowCmd(stdout, stderr io.Writer) *cobra.Command {
 
 			meta, adapter, err := resolveSession(adapters, args[0])
 			if err != nil {
+				// adapter conditions (locked databases, skipped lines) are
+				// also reported on the failure path (M4): a locked opencode
+				// DB must not read as a plain "no session" without context
+				noteStderr(stderr, adapters)
 				return err
 			}
 
@@ -47,6 +51,7 @@ func newShowCmd(stdout, stderr io.Writer) *cobra.Command {
 				entries = append(entries, e)
 				return nil
 			}); err != nil {
+				noteStderr(stderr, adapters)
 				return fmt.Errorf("cannot read session %s: %v", meta.ID, err)
 			}
 
@@ -72,25 +77,38 @@ func newShowCmd(stdout, stderr io.Writer) *cobra.Command {
 
 // resolveSession finds a session by exact id or unambiguous prefix across all
 // adapters. Misses and ambiguity are user-facing errors (spec §3, §8): the
-// ambiguity error lists the candidates.
+// ambiguity error lists the candidates, and a miss distinguishes "no match"
+// from "some agent storage could not be read" (M4-B3). Exit codes stay 2.
 func resolveSession(adapters []agentlog.Adapter, arg string) (agentlog.SessionMeta, agentlog.Adapter, error) {
 	type found struct {
 		meta    agentlog.SessionMeta
 		adapter agentlog.Adapter
 	}
 	var all []found
+	var unreadable []string
 	for _, a := range adapters {
 		add := func(m agentlog.SessionMeta) error {
 			m.Agent = a.Name()
 			all = append(all, found{m, a})
 			return nil
 		}
+		noted := false
+		noteOnce := func(err error) {
+			if !noted {
+				noted = true
+				unreadable = append(unreadable, a.Name()+": "+err.Error())
+			}
+		}
 		if ms, ok := a.(agentlog.MetaSource); ok {
-			_ = ms.SessionsMeta(add)
+			if err := ms.SessionsMeta(add); err != nil {
+				noteOnce(err)
+			}
 		} else {
-			_ = a.Sessions(func(s agentlog.Session) error {
+			if err := a.Sessions(func(s agentlog.Session) error {
 				return add(agentlog.SessionMeta{Session: s})
-			})
+			}); err != nil {
+				noteOnce(err)
+			}
 		}
 	}
 	sort.SliceStable(all, func(i, j int) bool {
@@ -115,6 +133,11 @@ func resolveSession(adapters []agentlog.Adapter, arg string) (agentlog.SessionMe
 	case 1:
 		return cands[0].meta, cands[0].adapter, nil
 	case 0:
+		if len(unreadable) > 0 {
+			return agentlog.SessionMeta{}, nil, fmt.Errorf(
+				"no session matches id prefix %q (some agent storage was unreadable: %s)",
+				arg, strings.Join(unreadable, "; "))
+		}
 		return agentlog.SessionMeta{}, nil, fmt.Errorf("no session matches id prefix %q", arg)
 	default:
 		var b strings.Builder

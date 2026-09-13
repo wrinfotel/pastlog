@@ -244,7 +244,10 @@ func (a *Adapter) sessionFiles() ([]string, error) {
 	var files []string
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return err // unreadable subtree: surfaced, not silently truncated
+			if path == root && os.IsNotExist(err) {
+				return fs.SkipAll // storage absent: no sessions, not an error (spec §8)
+			}
+			return err // unreadable storage: surfaced, not silently truncated
 		}
 		if d.IsDir() {
 			if path != root && filepath.Dir(path) != root {

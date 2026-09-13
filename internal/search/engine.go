@@ -40,6 +40,11 @@ type EngineOptions struct {
 	Filter   agentlog.SessionFilter
 	Sessions int // max sessions scanned, 0 = unlimited
 	MaxHits  int // total hits cap across all sessions, 0 = unlimited
+	// Note (optional) receives at most one lowercase line per adapter whose
+	// storage could not be read, whether while listing sessions or while
+	// scanning one (spec §8): search stays best effort — partial results are
+	// still returned and the exit code is unchanged.
+	Note func(string)
 }
 
 var errStop = errors.New("pastlog/search: stop scan")
@@ -56,7 +61,7 @@ type scoped struct {
 // hits are collected in total. Scan errors are ignored — search is best
 // effort, like listing.
 func Run(adapters []agentlog.Adapter, m *Matcher, o EngineOptions) []Result {
-	scoped := enumerate(adapters, o.Filter)
+	scoped := enumerate(adapters, o.Filter, o.Note)
 	sort.SliceStable(scoped, func(i, j int) bool {
 		if !scoped[i].meta.StartedAt.Equal(scoped[j].meta.StartedAt) {
 			return scoped[i].meta.StartedAt.After(scoped[j].meta.StartedAt)
@@ -69,6 +74,7 @@ func Run(adapters []agentlog.Adapter, m *Matcher, o EngineOptions) []Result {
 
 	keep := m.KeepRaw()
 	total := 0
+	notedAdapters := map[string]bool{}
 	var results []Result
 	for _, sc := range scoped {
 		if o.MaxHits > 0 && total >= o.MaxHits {
@@ -97,8 +103,14 @@ func Run(adapters []agentlog.Adapter, m *Matcher, o EngineOptions) []Result {
 			prev = e.Text
 			return nil
 		}
-		// scan errors leave partial results behind: search is best effort
-		_ = scanSession(sc.adapter, sc.meta.Session, keep, iter)
+		// scan errors leave partial results behind: search is best effort,
+		// but the user learns about it (one note per failing adapter)
+		if err := scanSession(sc.adapter, sc.meta.Session, keep, iter); err != nil {
+			if o.Note != nil && !notedAdapters[sc.adapter.Name()] {
+				notedAdapters[sc.adapter.Name()] = true
+				o.Note(agentlog.UnreadableNote(sc.adapter.Name(), err))
+			}
+		}
 		if len(res.Hits) > 0 {
 			results = append(results, res)
 		}
@@ -107,12 +119,15 @@ func Run(adapters []agentlog.Adapter, m *Matcher, o EngineOptions) []Result {
 }
 
 // enumerate streams session metadata from every adapter, applying the filter.
-func enumerate(adapters []agentlog.Adapter, f agentlog.SessionFilter) []scoped {
+// A failing adapter yields whatever it managed to stream (best effort) and,
+// when note is non-nil, one UnreadableNote line on the first failure.
+func enumerate(adapters []agentlog.Adapter, f agentlog.SessionFilter, note func(string)) []scoped {
 	var out []scoped
 	for _, a := range adapters {
 		if f.Agent != "" && a.Name() != f.Agent {
 			continue
 		}
+		noted := false
 		add := func(sm agentlog.SessionMeta) error {
 			sm.Agent = a.Name()
 			if f.Match(sm.Session) {
@@ -120,12 +135,22 @@ func enumerate(adapters []agentlog.Adapter, f agentlog.SessionFilter) []scoped {
 			}
 			return nil
 		}
+		noteOnce := func(err error) {
+			if note != nil && !noted {
+				noted = true
+				note(agentlog.UnreadableNote(a.Name(), err))
+			}
+		}
 		if ms, ok := a.(agentlog.MetaSource); ok {
-			_ = ms.SessionsMeta(add)
+			if err := ms.SessionsMeta(add); err != nil {
+				noteOnce(err)
+			}
 		} else {
-			_ = a.Sessions(func(s agentlog.Session) error {
+			if err := a.Sessions(func(s agentlog.Session) error {
 				return add(agentlog.SessionMeta{Session: s})
-			})
+			}); err != nil {
+				noteOnce(err)
+			}
 		}
 	}
 	return out

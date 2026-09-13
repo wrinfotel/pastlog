@@ -1,6 +1,7 @@
 package agentlog
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -39,15 +40,34 @@ func normalizePath(p string) string {
 	return strings.ReplaceAll(strings.ToLower(p), `\`, "/")
 }
 
+// UnreadableNote renders the one-line stderr note for an adapter whose
+// storage could not be read (spec §8 best effort): lowercase, one line,
+// distinguishing "storage unreadable" from "no sessions". Callers keep the
+// exit code unchanged — the note is informational.
+func UnreadableNote(name string, err error) string {
+	return fmt.Sprintf("%s: storage unreadable (%v) — its sessions are missing or partial in this run", name, err)
+}
+
 // CollectSessions streams sessions from the adapters, applies the filter,
 // sorts newest first (ties broken by ID for determinism) and applies the
 // limit. Adapters implementing MetaSource provide message counts in one
 // pass; the others are counted via a second streaming pass over Entries.
-func CollectSessions(adapters []Adapter, f SessionFilter) []SessionMeta {
+//
+// note (optional) receives at most one UnreadableNote line per adapter whose
+// scan failed: listing stays best effort (spec §8) — partial results are
+// still returned and the exit code is unchanged.
+func CollectSessions(adapters []Adapter, f SessionFilter, note func(string)) []SessionMeta {
 	var out []SessionMeta
 	for _, a := range adapters {
 		if f.Agent != "" && a.Name() != f.Agent {
 			continue
+		}
+		noted := false
+		noteOnce := func(err error) {
+			if note != nil && !noted {
+				noted = true
+				note(UnreadableNote(a.Name(), err))
+			}
 		}
 		collect := func(m SessionMeta) error {
 			m.Agent = a.Name()
@@ -57,21 +77,26 @@ func CollectSessions(adapters []Adapter, f SessionFilter) []SessionMeta {
 			return nil
 		}
 		if ms, ok := a.(MetaSource); ok {
-			_ = ms.SessionsMeta(collect) // scan errors leave partial results; listing is best effort
+			if err := ms.SessionsMeta(collect); err != nil {
+				noteOnce(err) // scan errors leave partial results; listing is best effort
+			}
 		} else {
-			_ = a.Sessions(func(s Session) error {
+			if err := a.Sessions(func(s Session) error {
 				m := SessionMeta{Session: s}
 				n := 0
-				_ = a.Entries(s, func(e Entry) error {
+				if err := a.Entries(s, func(e Entry) error {
 					if e.Kind == Message {
 						n++
 					}
 					return nil
-				})
+				}); err != nil {
+					noteOnce(err)
+				}
 				m.Messages = n
-				_ = collect(m)
-				return nil
-			})
+				return collect(m)
+			}); err != nil {
+				noteOnce(err)
+			}
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool {

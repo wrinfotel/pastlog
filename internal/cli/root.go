@@ -45,7 +45,7 @@ func newRootCmd(stdout, stderr io.Writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printAgentSummary(cmd.OutOrStdout(), newRegistry(home))
+			printAgentSummary(cmd.OutOrStdout(), stderr, newRegistry(home))
 			return nil
 		},
 	}
@@ -80,15 +80,20 @@ func homeDir(cmd *cobra.Command) (string, error) {
 }
 
 // printAgentSummary writes the one-line detected-agents summary shown by a
-// bare `pastlog` invocation (spec §3).
-func printAgentSummary(w io.Writer, reg *agentlog.Registry) {
+// bare `pastlog` invocation (spec §3). Adapter conditions — unreadable
+// storage, locked databases, skipped lines — go to stderr through the same
+// summarizer the other commands use (M4-B4).
+func printAgentSummary(stdout, stderr io.Writer, reg *agentlog.Registry) {
+	adapters := reg.Adapters()
 	var parts []string
-	for _, a := range reg.Adapters() {
+	for _, a := range adapters {
 		if !a.Detect() {
 			continue
 		}
 		n := 0
-		_ = a.Sessions(func(agentlog.Session) error { n++; return nil })
+		if err := a.Sessions(func(agentlog.Session) error { n++; return nil }); err != nil {
+			fmt.Fprintln(stderr, agentlog.UnreadableNote(a.Name(), err))
+		}
 		plural := "sessions"
 		if n == 1 {
 			plural = "session"
@@ -96,10 +101,11 @@ func printAgentSummary(w io.Writer, reg *agentlog.Registry) {
 		parts = append(parts, fmt.Sprintf("%s: %d %s", a.Name(), n, plural))
 	}
 	if len(parts) == 0 {
-		fmt.Fprintln(w, "no agent data found — install an agent or pass --home <dir>")
+		fmt.Fprintln(stdout, "no agent data found — install an agent or pass --home <dir>")
 		return
 	}
-	fmt.Fprintln(w, strings.Join(parts, ", "))
+	fmt.Fprintln(stdout, strings.Join(parts, ", "))
+	noteStderr(stderr, adapters)
 }
 
 func newVersionCmd(stdout io.Writer) *cobra.Command {

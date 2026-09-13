@@ -30,11 +30,15 @@ func newAgentsCmd(stdout, stderr io.Writer) *cobra.Command {
 				}
 				if a.Detect() {
 					row.Detected = true
-					_ = a.Sessions(func(s agentlog.Session) error {
+					if err := a.Sessions(func(s agentlog.Session) error {
 						row.Sessions++
 						row.Bytes += s.SizeBytes
 						return nil
-					})
+					}); err != nil {
+						// best effort (spec §8): keep the row, explain the
+						// empty count on stderr
+						fmt.Fprintln(stderr, agentlog.UnreadableNote(a.Name(), err))
+					}
 					// adapters backed by one shared file (e.g. the opencode
 					// database) report their on-disk footprint instead of
 					// the per-session sum
