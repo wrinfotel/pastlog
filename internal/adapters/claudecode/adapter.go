@@ -62,11 +62,23 @@ func (a *Adapter) SessionsMeta(iter func(agentlog.SessionMeta) error) error {
 }
 
 func (a *Adapter) Entries(s agentlog.Session, iter func(agentlog.Entry) error) error {
+	return a.entriesFor(s, nil, iter)
+}
+
+// EntriesFiltered serves the search engine's raw-line prefilter hook
+// (internal/search.LineFilteredAdapter): when keep is non-nil, lines failing
+// the predicate are skipped before any JSON parsing (spec §7 hot path).
+// Rejected lines are not counted as skipped — they are merely unsearched.
+func (a *Adapter) EntriesFiltered(s agentlog.Session, keep func(rawLine []byte) bool, iter func(agentlog.Entry) error) error {
+	return a.entriesFor(s, keep, iter)
+}
+
+func (a *Adapter) entriesFor(s agentlog.Session, keep func([]byte) bool, iter func(agentlog.Entry) error) error {
 	path, found := a.fileForSession(s.ID)
 	if !found {
 		return fmt.Errorf("session %s not found in claude-code storage", s.ID)
 	}
-	_, err := a.scanFile(path, iter)
+	_, err := a.scanFile(path, keep, iter)
 	return err
 }
 
@@ -77,7 +89,7 @@ func (a *Adapter) walk(iter func(agentlog.SessionMeta) error) error {
 		return fmt.Errorf("cannot list claude-code storage: %v", err)
 	}
 	for _, path := range files {
-		sum, _ := a.scanFile(path, nil)
+		sum, _ := a.scanFile(path, nil, nil)
 		if !sum.sawLine {
 			continue // empty (or blank) file: not a session
 		}
@@ -122,11 +134,13 @@ func (f fileSummary) id(path string) string {
 	return strings.TrimSuffix(filepath.Base(path), ".jsonl")
 }
 
-// scanFile streams one JSONL file. emit may be nil (listing mode); when set,
-// every classified entry is forwarded and a non-nil error aborts the scan
-// (early cutoff). Unreadable lines increment the adapter-wide skipped
-// counter. Never panics on malformed input.
-func (a *Adapter) scanFile(path string, emit func(agentlog.Entry) error) (fileSummary, error) {
+// scanFile streams one JSONL file. keep may be nil (keep every line); when
+// set, lines failing it are skipped before parsing (search prefilter).
+// emit may be nil (listing mode); when set, every classified entry is
+// forwarded and a non-nil error aborts the scan (early cutoff). Unreadable
+// lines increment the adapter-wide skipped counter. Never panics on
+// malformed input.
+func (a *Adapter) scanFile(path string, keep func([]byte) bool, emit func(agentlog.Entry) error) (fileSummary, error) {
 	var sum fileSummary
 
 	f, err := os.Open(path)
@@ -147,6 +161,9 @@ func (a *Adapter) scanFile(path string, emit func(agentlog.Entry) error) (fileSu
 			continue
 		}
 		sum.sawLine = true
+		if keep != nil && !keep(line) {
+			continue // prefilter: not a candidate, not an error
+		}
 		info, entries, ok := processLine(line)
 		if !ok {
 			a.skipped++
