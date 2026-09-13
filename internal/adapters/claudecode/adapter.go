@@ -176,11 +176,18 @@ func (a *Adapter) scanFile(path string, keep func([]byte) bool, emit func(agentl
 		if keep != nil && !keep(line) {
 			continue // prefilter: not a candidate, not an error
 		}
-		info, entries, ok := processLine(line)
-		if !ok {
+		res := processLine(line)
+		if !res.ok {
 			a.skipped++
 			continue
 		}
+		if res.skip {
+			// hybrid: the line was readable, but a malformed element
+			// truncated its content array — emit what parsed, count the line
+			// (SCHEMA.md "hybrid semantics")
+			a.skipped++
+		}
+		info, entries := res.info, res.entries
 		if info.sessionID != "" && sum.sessionID == "" {
 			sum.sessionID = info.sessionID
 		}
@@ -298,8 +305,8 @@ func (a *Adapter) fileHasSessionID(path, id string) bool {
 		if len(bytes.TrimSpace(line)) == 0 {
 			continue
 		}
-		info, _, ok := processLine(line)
-		if ok && info.sessionID == id {
+		res := processLine(line)
+		if res.ok && res.info.sessionID == id {
 			return true
 		}
 	}

@@ -64,6 +64,14 @@ results are always role `tool`.
   tool-use-only assistant turn adds a `ToolCall` but no message.
 - A file yields a session if it contains at least one non-empty line.
 
+### usable content
+
+On `user`/`assistant`/`system` records, `message.content` must be a string or
+an array of blocks. Any other JSON shape (number, boolean, object) means the
+record has no usable message: the line is skipped and counted, like an
+unknown record type. An empty string or an empty array is a usable (if
+empty) message: the line is readable and not counted.
+
 ## Defensive behavior
 
 - Corrupt / truncated / non-object lines → skipped, counted
@@ -72,6 +80,11 @@ results are always role `tool`.
   are skipped and counted.
 - Unknown block types inside a recognized record are ignored silently (the
   line itself was readable).
+- A shape-mismatched element inside an otherwise readable content array
+  (e.g. `{"type":42}` where a block object is expected) stops parsing that
+  array: entries parsed before it are still emitted, and the line is
+  additionally counted as skipped — hybrid semantics: the readable prefix is
+  kept (never dropped), and the corrupt part is counted per spec §8.
 - Lines longer than 16 MiB exceed the scanner buffer: the rest of that file
   is skipped and counted (1 per oversized file). Real-world lines are well
   under 1 MiB; the enlarged buffer (64 KiB initial, 16 MiB max) handles all

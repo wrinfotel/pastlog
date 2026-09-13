@@ -284,6 +284,77 @@ func TestScanFileIOErrorNotCountedAsSkipped(t *testing.T) {
 	}
 }
 
+// writeHomeLine appends one raw line to a session file inside a fresh home.
+func writeHomeLine(t *testing.T, lines ...string) *Adapter {
+	t.Helper()
+	home := t.TempDir()
+	dir := filepath.Join(home, ".claude", "projects", "proj")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "12121212-1212-4212-8212-121212121212.jsonl"),
+		[]byte(strings.Join(lines, "\n")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return New(home)
+}
+
+// TestKnownTypeUnusableContentCountsSkipped pins M4-B8: a user/assistant/
+// system record whose message.content is neither a string nor an array (e.g.
+// a number) is skipped AND counted, per SCHEMA.md ("known types without a
+// usable message are skipped and counted") — previously it was counted as
+// neither. Empty string/array content stays readable-with-nothing-to-record.
+func TestKnownTypeUnusableContentCountsSkipped(t *testing.T) {
+	a := writeHomeLine(t,
+		`{"type":"user","sessionId":"12121212-1212-4212-8212-121212121212","cwd":"/home/dev/app","timestamp":"2026-07-01T10:00:00Z","message":{"role":"user","content":42}}`,
+		`{"type":"user","sessionId":"12121212-1212-4212-8212-121212121212","cwd":"/home/dev/app","timestamp":"2026-07-01T10:00:05Z","message":{"role":"user","content":"usable text"}}`,
+	)
+	metas := listMetas(t, a)
+	if len(metas) != 1 {
+		t.Fatalf("got %d sessions, want 1", len(metas))
+	}
+	if metas[0].Messages != 1 {
+		t.Errorf("Messages = %d, want 1 (only the usable text)", metas[0].Messages)
+	}
+	if a.SkippedLines() != 1 {
+		t.Errorf("SkippedLines = %d, want 1 (number content is a skipped record)", a.SkippedLines())
+	}
+}
+
+// TestMalformedBlockKeepsEarlierEntriesAndCountsSkipped pins M4-B9's hybrid
+// semantics: a shape-mismatched block mid-array stops parsing that array, but
+// the entries parsed before it are still emitted and the line is additionally
+// counted as skipped (spec §8: corrupt/unknown → skip, count).
+func TestMalformedBlockKeepsEarlierEntriesAndCountsSkipped(t *testing.T) {
+	a := writeHomeLine(t,
+		`{"type":"user","sessionId":"12121212-1212-4212-8212-121212121212","cwd":"/home/dev/app","timestamp":"2026-07-01T10:00:00Z","message":{"role":"user","content":[{"type":"text","text":"good before"},{"type":42},{"type":"text","text":"never reached"}]}}`,
+		`{"type":"user","sessionId":"12121212-1212-4212-8212-121212121212","cwd":"/home/dev/app","timestamp":"2026-07-01T10:00:05Z","message":{"role":"user","content":"after"}}`,
+	)
+	metas := listMetas(t, a)
+	if len(metas) != 1 {
+		t.Fatalf("got %d sessions, want 1", len(metas))
+	}
+	if metas[0].Messages != 2 {
+		t.Errorf("Messages = %d, want 2 (good-before + after)", metas[0].Messages)
+	}
+	if a.SkippedLines() != 1 {
+		t.Errorf("SkippedLines = %d, want 1 (the malformed-block line counts as skipped)", a.SkippedLines())
+	}
+	// the Entries scan is a second pass: the counter accumulates across scans
+	// (see the Adapter doc), so the same line counts once more
+	var texts []string
+	err := a.Entries(metas[0].Session, func(e agentlog.Entry) error { texts = append(texts, e.Text); return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(texts) != 2 || texts[0] != "good before" || texts[1] != "after" {
+		t.Errorf("entries = %v, want [good before after] (earlier entries survive)", texts)
+	}
+	if a.SkippedLines() != 2 {
+		t.Errorf("SkippedLines = %d, want 2 after the second scan (counter accumulates)", a.SkippedLines())
+	}
+}
+
 func TestDefensiveParsingCountsSkipped(t *testing.T) {
 	a := newTestAdapter(t, map[string]string{
 		"proj/44444444-4444-4444-8444-444444444444.jsonl": "truncated.jsonl",

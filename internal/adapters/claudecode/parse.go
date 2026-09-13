@@ -42,22 +42,35 @@ type lineInfo struct {
 	ts        time.Time
 }
 
+// lineResult is the outcome of classifying one non-empty JSONL line.
+type lineResult struct {
+	info    lineInfo
+	entries []agentlog.Entry
+	ok      bool // false: the line was unreadable or an unknown shape — skipped and counted, no entries
+	skip    bool // true (with ok): a readable line that also counts as skipped — hybrid semantics, see yieldContent
+}
+
 // processLine classifies one non-empty JSONL line into at most a handful of
 // entries (a record is one line, so this stays small and streaming holds at
 // the file level). ok=false means the line was unreadable or an unknown shape
-// and must be counted as skipped. A nil timestamp means the record had none.
-func processLine(line []byte) (info lineInfo, entries []agentlog.Entry, ok bool) {
+// and must be counted as skipped. skip=true (with ok=true) marks a readable
+// line that still counts as skipped: a shape-mismatched element inside an
+// otherwise readable content array truncates that array, but entries parsed
+// before it are kept (SCHEMA.md "hybrid semantics").
+func processLine(line []byte) lineResult {
 	var rec record
 	if err := json.Unmarshal(line, &rec); err != nil {
-		return info, nil, false
+		return lineResult{} // corrupt line: skipped and counted
 	}
 	if rec.Type == "" && rec.SessionID == "" && rec.Cwd == "" && rec.Summary == "" && rec.Message == nil {
-		return info, nil, false // null or an object with none of the known fields
+		return lineResult{} // null or an object with none of the known fields
 	}
 
-	info.sessionID = rec.SessionID
-	info.cwd = rec.Cwd
-	info.summary = rec.Summary
+	info := lineInfo{
+		sessionID: rec.SessionID,
+		cwd:       rec.Cwd,
+		summary:   rec.Summary,
+	}
 	if rec.Timestamp != "" {
 		if ts, err := time.Parse(time.RFC3339, rec.Timestamp); err == nil {
 			info.ts = ts
@@ -66,43 +79,54 @@ func processLine(line []byte) (info lineInfo, entries []agentlog.Entry, ok bool)
 
 	switch rec.Type {
 	case "summary":
+		var entries []agentlog.Entry
 		if rec.Summary != "" {
 			entries = append(entries, agentlog.Entry{Kind: agentlog.Summary, Text: rec.Summary})
 		}
-		return info, entries, true
+		return lineResult{info: info, entries: entries, ok: true}
 	case "user", "assistant", "system":
 		if rec.Message == nil {
-			return info, nil, false // known type, unusable shape
+			return lineResult{info: info} // known type, no message: skipped and counted
 		}
 		role := rec.Message.Role
 		if role == "" {
 			role = rec.Type
 		}
-		entries = yieldContent(rec.Message.Content, role, info.ts, entries)
-		return info, entries, true
+		entries, usable, malformed := yieldContent(rec.Message.Content, role, info.ts, nil)
+		if !usable {
+			// known type, but content is neither a string nor an array (e.g.
+			// a number): no usable message — skipped and counted (SCHEMA.md)
+			return lineResult{info: info}
+		}
+		return lineResult{info: info, entries: entries, ok: true, skip: malformed}
 	default:
-		return info, nil, false // unknown record type: skip and count
+		return lineResult{info: info} // unknown record type: skip and count
 	}
 }
 
 // yieldContent walks message content (string or block array), appending
-// entries. An unusable content shape returns nil, marking the line skipped.
-func yieldContent(content json.RawMessage, role string, ts time.Time, acc []agentlog.Entry) []agentlog.Entry {
+// entries. usable=false marks content of an unusable shape — neither a string
+// nor an array — making the whole line skipped and counted (M4). malformed=
+// true marks a shape-mismatched element inside an otherwise readable array:
+// parsing of the array stops there, the entries parsed before it are still
+// returned, and the line is additionally counted as skipped (hybrid
+// semantics, SCHEMA.md).
+func yieldContent(content json.RawMessage, role string, ts time.Time, acc []agentlog.Entry) (entries []agentlog.Entry, usable bool, malformed bool) {
 	trimmed := bytes.TrimSpace(content)
 	if len(trimmed) == 0 {
-		return nil
+		return acc, true, false
 	}
 	switch trimmed[0] {
 	case '"':
 		var s string
 		if err := json.Unmarshal(trimmed, &s); err != nil {
-			return nil
+			return nil, false, false // defensive: content comes from a parsed line
 		}
-		return append(acc, agentlog.Entry{Kind: agentlog.Message, Role: role, Text: s, Timestamp: ts})
+		return append(acc, agentlog.Entry{Kind: agentlog.Message, Role: role, Text: s, Timestamp: ts}), true, false
 	case '[':
 		var raws []json.RawMessage
 		if err := json.Unmarshal(trimmed, &raws); err != nil {
-			return nil
+			return nil, false, false // defensive
 		}
 		for _, raw := range raws {
 			b := bytes.TrimSpace(raw)
@@ -112,20 +136,20 @@ func yieldContent(content json.RawMessage, role string, ts time.Time, acc []agen
 			if b[0] == '"' { // bare string inside the array: treat as text
 				var s string
 				if err := json.Unmarshal(b, &s); err != nil {
-					return nil
+					return acc, true, true // malformed element: keep acc, count the line
 				}
 				acc = append(acc, agentlog.Entry{Kind: agentlog.Message, Role: role, Text: s, Timestamp: ts})
 				continue
 			}
 			var blk block
 			if err := json.Unmarshal(b, &blk); err != nil {
-				return nil // malformed block poisons the line
+				return acc, true, true // malformed block mid-array: keep acc, count the line
 			}
 			acc = yieldBlock(blk, role, ts, acc)
 		}
-		return acc
+		return acc, true, false
 	default:
-		return nil // neither string nor array
+		return nil, false, false // number/bool/object content: unusable shape
 	}
 }
 
