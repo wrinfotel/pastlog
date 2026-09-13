@@ -1,0 +1,2 @@
+{"timestamp":"2026-07-03T09:15:00Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"こんにちは world 🌍 café naïve"}]}}
+{"timestamp":"2026-07-03T09:15:10Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"журнал отладки готов"}]}}

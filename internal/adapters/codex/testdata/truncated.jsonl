@@ -1,0 +1,2 @@
+{"timestamp":"2026-07-02T11:00:00Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"before truncation"}]}}
+{"timestamp":"2026-07-02T11:00:05Z","type":"response_item","payload":{"type":"message","role":"assistant","cont

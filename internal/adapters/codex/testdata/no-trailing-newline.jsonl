@@ -1,0 +1,2 @@
+{"timestamp":"2026-07-01T10:00:00Z","type":"session_meta","payload":{"id":"aaa2b3c4-0000-4000-8000-000000000002","cwd":"/home/dev/app"}}
+{"timestamp":"2026-07-01T10:00:05Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"hello without newline"}]}}
