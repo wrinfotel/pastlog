@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -13,11 +14,14 @@ import (
 )
 
 // Execute runs the pastlog CLI and returns the process exit code:
-// 0 ok, 1 reserved for search no-matches (not used yet), 2 real error.
+// 0 ok, 1 search found no matches (grep-style), 2 real error.
 func Execute(args []string, stdout, stderr io.Writer) int {
 	root := newRootCmd(stdout, stderr)
 	root.SetArgs(args)
 	if err := root.Execute(); err != nil {
+		if errors.Is(err, errNoMatches) {
+			return 1
+		}
 		fmt.Fprintf(stderr, "pastlog: %v\n", err)
 		return 2
 	}
@@ -59,6 +63,8 @@ func newRootCmd(stdout, stderr io.Writer) *cobra.Command {
 
 	root.AddCommand(newAgentsCmd(stdout, stderr))
 	root.AddCommand(newSessionsCmd(stdout, stderr))
+	root.AddCommand(newSearchCmd(stdout, stderr))
+	root.AddCommand(newShowCmd(stdout, stderr))
 	root.AddCommand(newVersionCmd(stdout))
 
 	return root

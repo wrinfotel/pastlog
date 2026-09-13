@@ -70,7 +70,8 @@ func TestAgentsHumanGolden(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("agents exit = %d, stderr: %s", code, errOut)
 	}
-	want := fmt.Sprintf("claude-code  2 sessions  %s  ~/.claude/projects\n",
+	want := fmt.Sprintf("claude-code  2 sessions  %s  ~/.claude/projects\n"+
+		"codex        0 sessions  (not found)\n",
 		render.HumanBytes(sizeA+sizeB))
 	if out != want {
 		t.Errorf("agents output:\n%q\nwant:\n%q", out, want)
@@ -78,12 +79,13 @@ func TestAgentsHumanGolden(t *testing.T) {
 }
 
 func TestAgentsNotFound(t *testing.T) {
-	home := t.TempDir() // no .claude at all
+	home := t.TempDir() // no agent data at all
 	code, out, errOut := run(t, "--home", home, "agents")
 	if code != 0 {
 		t.Fatalf("agents exit = %d, stderr: %s", code, errOut)
 	}
 	want := "claude-code  0 sessions  (not found)\n" +
+		"codex        0 sessions  (not found)\n" +
 		"nothing found — install an agent or pass --home <dir>\n"
 	if out != want {
 		t.Errorf("agents output:\n%q\nwant:\n%q", out, want)
@@ -106,6 +108,13 @@ func TestAgentsJSONGolden(t *testing.T) {
     "path": %q,
     "sessions": 2,
     "bytes": %d
+  },
+  {
+    "name": "codex",
+    "detected": false,
+    "path": null,
+    "sessions": 0,
+    "bytes": 0
   }
 ]
 `, filepath.Join(home, ".claude", "projects"), sizeA+sizeB)
@@ -232,11 +241,11 @@ func TestSessionsFilterErrors(t *testing.T) {
 		}
 	})
 	t.Run("unknown agent", func(t *testing.T) {
-		code, _, errOut := run(t, "--home", home, "sessions", "--agent", "codex")
+		code, _, errOut := run(t, "--home", home, "sessions", "--agent", "gemini-cli")
 		if code != 2 {
 			t.Errorf("exit = %d, want 2", code)
 		}
-		if !strings.Contains(errOut, "unknown agent \"codex\"") {
+		if !strings.Contains(errOut, "unknown agent \"gemini-cli\"") {
 			t.Errorf("stderr should name the unknown agent, got %q", errOut)
 		}
 	})
