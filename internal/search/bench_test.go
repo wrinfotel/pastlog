@@ -117,6 +117,9 @@ func writeBenchClaudeSession(home string, i int) (int64, error) {
 	stamp := func(sec int) string {
 		return fmt.Sprintf("2026-08-%02dT%02d:%02d:%02d.150Z", 1+i%27, sec/3600%24, sec/60%60, sec%60)
 	}
+	// line 1 carries the fields the search flow's fast listing reads
+	// (sessionId, cwd, timestamp), like real Claude Code logs
+	fmt.Fprintf(w, `{"type":"user","sessionId":%q,"cwd":"C:\\Users\\dev\\proj%03d","timestamp":%q,"message":{"role":"user","content":"session %d opens on the widget flux review"}}`+"\n", id, i%17, stamp(0), i)
 	fmt.Fprintf(w, `{"type":"summary","summary":"session %d about the widget flux","sessionId":%q}`+"\n", i, id)
 	for m := 0; m < 24; m++ {
 		base := m * 90
@@ -233,10 +236,31 @@ func BenchmarkPrefilterRaw(b *testing.B) {
 	}
 }
 
-// BenchmarkSearchLiteral is the spec §7 hot path: default case-insensitive
-// literal search over the whole corpus (claude-code + codex), with the
-// ASCII raw-line prefilter active.
+// BenchmarkSearchLiteral is the spec §7 hot path as the CLI runs it: default
+// case-insensitive literal search over the whole corpus (claude-code + codex)
+// with the ASCII raw-line prefilter active and the fast metadata listing
+// (EngineOptions.FastListing, the human search path). The full-listing
+// variant below isolates what the fast path saves.
 func BenchmarkSearchLiteral(b *testing.B) {
+	adapters, size := benchAdapters(b)
+	m, err := NewMatcher(benchNeedle, MatchOptions{})
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.SetBytes(size)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		results := Run(adapters, m, EngineOptions{FastListing: true})
+		if len(results) == 0 {
+			b.Fatal("benchmark corpus must produce hits")
+		}
+	}
+}
+
+// BenchmarkSearchLiteralFullListing is the same search with the exact
+// full-parse listing (the --json path): the delta to BenchmarkSearchLiteral
+// is the cost of full-parsing every line during listing.
+func BenchmarkSearchLiteralFullListing(b *testing.B) {
 	adapters, size := benchAdapters(b)
 	m, err := NewMatcher(benchNeedle, MatchOptions{})
 	if err != nil {
@@ -252,9 +276,9 @@ func BenchmarkSearchLiteral(b *testing.B) {
 	}
 }
 
-// BenchmarkSearchRegex runs the same corpus in regex mode: the prefilter is
-// disabled and every entry is parsed (spec §7 keeps regex opt-in for exactly
-// this reason).
+// BenchmarkSearchRegex runs the same corpus in regex mode with the fast
+// listing: the prefilter is disabled and every entry is parsed (spec §7
+// keeps regex opt-in for exactly this reason).
 func BenchmarkSearchRegex(b *testing.B) {
 	adapters, size := benchAdapters(b)
 	m, err := NewMatcher("calibrat(e|ion)", MatchOptions{Regex: true})
@@ -264,7 +288,7 @@ func BenchmarkSearchRegex(b *testing.B) {
 	b.SetBytes(size)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		results := Run(adapters, m, EngineOptions{})
+		results := Run(adapters, m, EngineOptions{FastListing: true})
 		if len(results) == 0 {
 			b.Fatal("benchmark corpus must produce hits")
 		}
