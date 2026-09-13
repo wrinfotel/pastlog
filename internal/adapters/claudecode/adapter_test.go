@@ -385,3 +385,40 @@ func TestNeverPanicsOnGarbage(t *testing.T) {
 		t.Errorf("got %+v, want 1 session with 1 message", metas)
 	}
 }
+
+// TestEntriesFilteredPrefilter verifies the search hot-path hook: lines the
+// prefilter rejects are never parsed (a garbage line rejected by keep must
+// not increment the skipped counter) and matching lines still yield entries.
+func TestEntriesFilteredPrefilter(t *testing.T) {
+	a := newTestAdapter(t, map[string]string{
+		"proj/3f9c81a2-1111-4222-8333-cccccccccccc.jsonl": "realistic.jsonl",
+	})
+	s := agentlog.Session{ID: "3f9c81a2-1111-4222-8333-cccccccccccc"}
+
+	keepNone := func(line []byte) bool { return false }
+	n := 0
+	err := a.EntriesFiltered(s, keepNone, func(e agentlog.Entry) error { n++; return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Errorf("keep=false should yield no entries, got %d", n)
+	}
+	if a.SkippedLines() != 0 {
+		t.Errorf("prefilter-rejected lines must not count as skipped, got %d", a.SkippedLines())
+	}
+
+	keepToken := func(line []byte) bool { return strings.Contains(string(line), "localStorage") }
+	var texts []string
+	err = a.EntriesFiltered(s, keepToken, func(e agentlog.Entry) error { texts = append(texts, e.Text); return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(texts, "\n")
+	if !strings.Contains(joined, "the refresh token is stored in localStorage") {
+		t.Error("kept line's entries are missing from the result")
+	}
+	if strings.Contains(joined, "rotate on every use") {
+		t.Error("entries from prefilter-rejected lines must not be parsed")
+	}
+}
