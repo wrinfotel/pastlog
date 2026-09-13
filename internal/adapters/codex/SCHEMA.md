@@ -55,8 +55,10 @@ the whole line skipped.
 ## Mapping to pastlog's model
 
 - `Session.ID` = first `session_meta.payload.id`; fallback: rollout filename
-  minus `.jsonl`. The two may differ; `Entries` resolves the file by exact
-  filename first, then by scanning `session_meta` payload ids.
+  minus `.jsonl`. The two may differ; `Entries` resolves the file through a
+  lazily built id→path index covering both spellings (built during listing,
+  or on demand in one storage pass — per-session tree walks were quadratic
+  and missed the spec §7 budget).
 - `Session.Project` = first `session_meta.payload.cwd`.
 - `Session.Title` = first user message text, best effort: whitespace runs
   collapsed to single spaces, truncated to 80 runes with an ellipsis.
