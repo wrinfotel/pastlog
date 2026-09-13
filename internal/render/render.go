@@ -79,28 +79,22 @@ func AgentsJSON(w io.Writer, rows []AgentRow) error {
 // SessionsHuman writes the sessions table, newest first (already sorted by
 // the caller): agent, project, local date, messages, size, id prefix.
 func SessionsHuman(w io.Writer, home string, rows []agentlog.SessionMeta) {
-	projW, countW, sizeW := 0, 0, 0
-	views := make([]sessionView, len(rows))
-	for i, r := range rows {
+	agentW, projW, countW, sizeW := 0, 0, 0, 0
+	for _, r := range rows { // column widths first, so every row pads alike
+		agentW = max(agentW, len(r.Agent))
+		projW = max(projW, len(displayProject(home, r.Project)))
+		countW = max(countW, len(fmt.Sprint(r.Messages)))
+		sizeW = max(sizeW, len(HumanBytes(r.SizeBytes)))
+	}
+	for _, r := range rows {
 		plural := "messages"
 		if r.Messages == 1 {
 			plural = "message"
 		}
-		views[i] = sessionView{
-			agent:    r.Agent,
-			project:  displayProject(home, r.Project),
-			date:     displayDate(r.StartedAt),
-			messages: fmt.Sprintf("%*d %-8s", countW, r.Messages, plural),
-			size:     HumanBytes(r.SizeBytes),
-			id:       idPrefix(r.ID),
-		}
-		projW = max(projW, len(views[i].project))
-		sizeW = max(sizeW, len(views[i].size))
-	}
-	for _, v := range views {
-		nameColor.Fprintf(w, "%s", v.agent)
-		fmt.Fprintf(w, "  %-*s  %s  %s  %*s  %s\n",
-			projW, v.project, v.date, v.messages, sizeW, v.size, v.id)
+		nameColor.Fprintf(w, "%-*s", agentW, r.Agent)
+		fmt.Fprintf(w, "  %-*s  %s  %*d %-8s  %*s  %s\n",
+			projW, displayProject(home, r.Project), displayDate(r.StartedAt),
+			countW, r.Messages, plural, sizeW, HumanBytes(r.SizeBytes), idPrefix(r.ID))
 	}
 }
 
@@ -146,11 +140,6 @@ func timePtr(t time.Time) *time.Time {
 		return nil
 	}
 	return &t
-}
-
-// sessionView holds precomputed columns for width alignment.
-type sessionView struct {
-	agent, project, date, messages, size, id string
 }
 
 func displayProject(home, project string) string {

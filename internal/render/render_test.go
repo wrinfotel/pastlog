@@ -51,7 +51,8 @@ func sampleSessions(t *testing.T) []agentlog.SessionMeta {
 				StartedAt: mustTime(t, "2026-07-01 10:00:00", loc),
 				SizeBytes: 427,
 			},
-			Messages: 2,
+			// double-digit count guards the messages-column width (regression)
+			Messages: 12,
 		},
 	}
 }
@@ -156,8 +157,8 @@ func TestAgentsJSON(t *testing.T) {
 func TestSessionsHuman(t *testing.T) {
 	out := &bytes.Buffer{}
 	SessionsHuman(out, "/home/dev", sampleSessions(t))
-	want := `claude-code  ~/myapp  2026-08-02 14:03  4 messages  2.4 KB  3f9c81a2
-claude-code  ~/app    2026-07-01 10:00  2 messages   427 B  aaa2b3c4
+	want := `claude-code  ~/myapp  2026-08-02 14:03   4 messages  2.4 KB  3f9c81a2
+claude-code  ~/app    2026-07-01 10:00  12 messages   427 B  aaa2b3c4
 `
 	if got := out.String(); got != want {
 		t.Errorf("sessions human output:\n%q\nwant:\n%q", got, want)
