@@ -20,7 +20,7 @@ func (f SessionFilter) Match(s Session) bool {
 	if f.Agent != "" && s.Agent != f.Agent {
 		return false
 	}
-	if f.Project != "" && !strings.Contains(strings.ToLower(s.Project), strings.ToLower(f.Project)) {
+	if f.Project != "" && !strings.Contains(normalizePath(s.Project), normalizePath(f.Project)) {
 		return false
 	}
 	if !f.Since.IsZero() && s.StartedAt.Before(f.Since) {
@@ -30,6 +30,13 @@ func (f SessionFilter) Match(s Session) bool {
 		return false
 	}
 	return true
+}
+
+// normalizePath lowercases a path and folds backslashes to forward slashes,
+// so `--project dev/myapp` matches a recorded cwd of `dev\myapp` on Windows
+// (and vice versa). Matching stays a case-insensitive substring test.
+func normalizePath(p string) string {
+	return strings.ReplaceAll(strings.ToLower(p), `\`, "/")
 }
 
 // CollectSessions streams sessions from the adapters, applies the filter,

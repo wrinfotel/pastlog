@@ -155,6 +155,38 @@ func TestCollectSessionsFilters(t *testing.T) {
 	}
 }
 
+// TestProjectFilterNormalizesSeparators pins the Windows path-separator
+// normalization (M4): `--project dev/myapp` must hit a session whose recorded
+// cwd uses backslashes, and vice versa. Matching stays case-insensitive.
+func TestProjectFilterNormalizesSeparators(t *testing.T) {
+	sessions := []Session{
+		{ID: "win", Project: `C:\Users\dev\myapp`, StartedAt: t1},
+		{ID: "unix", Project: "/home/dev/other", StartedAt: t2},
+	}
+	a := &fakeAdapter{name: "claude-code", sessions: sessions}
+
+	tests := []struct{ filter, want string }{
+		{`dev/myapp`, "win"},       // needle with slashes, cwd with backslashes
+		{`dev\other`, "unix"},      // needle with backslashes, cwd with slashes
+		{`users\dev\MYAPP`, "win"}, // mixed separators and case
+		{"myapp", "win"},           // plain substring still works
+	}
+	for _, tt := range tests {
+		got := CollectSessions([]Adapter{a}, SessionFilter{Project: tt.filter})
+		if len(got) != 1 || got[0].ID != tt.want {
+			t.Errorf("project filter %q = %v, want [%s]", tt.filter, ids(got), tt.want)
+		}
+	}
+}
+
+func ids(metas []SessionMeta) []string {
+	out := make([]string, len(metas))
+	for i, m := range metas {
+		out[i] = m.ID
+	}
+	return out
+}
+
 func TestCollectSessionsUsesAdapterMeta(t *testing.T) {
 	a := &metaFake{fakeAdapter: fakeAdapter{name: "claude-code"}, metas: []SessionMeta{
 		{Session: Session{ID: "x", StartedAt: t1}, Messages: 7},
