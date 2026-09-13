@@ -102,6 +102,18 @@ codex        0 sessions  (not found)
 	}
 }
 
+func TestAgentsHumanSingular(t *testing.T) {
+	rows := []AgentRow{
+		{Name: "claude-code", Detected: true, Path: "/h/.claude/projects", Sessions: 1, Bytes: 42},
+	}
+	out := &bytes.Buffer{}
+	AgentsHuman(out, "/h", rows)
+	want := "claude-code  1 session   42 B  ~/.claude/projects\n"
+	if got := out.String(); got != want {
+		t.Errorf("singular output:\n%q\nwant:\n%q", got, want)
+	}
+}
+
 func TestAgentsHumanEmpty(t *testing.T) {
 	out := &bytes.Buffer{}
 	AgentsHuman(out, "", nil)

@@ -41,7 +41,12 @@ func AgentsHuman(w io.Writer, home string, rows []AgentRow) {
 	}
 	for _, r := range rows {
 		nameColor.Fprintf(w, "%-*s", nameW, r.Name)
-		fmt.Fprintf(w, "  %*d sessions  ", countW, r.Sessions)
+		plural := "sessions"
+		if r.Sessions == 1 {
+			plural = "session"
+		}
+		// %-8s keeps following columns aligned for the singular form
+		fmt.Fprintf(w, "  %*d %-8s  ", countW, r.Sessions, plural)
 		if !r.Detected {
 			fmt.Fprintln(w, "(not found)")
 			continue
@@ -77,22 +82,25 @@ func SessionsHuman(w io.Writer, home string, rows []agentlog.SessionMeta) {
 	projW, countW, sizeW := 0, 0, 0
 	views := make([]sessionView, len(rows))
 	for i, r := range rows {
+		plural := "messages"
+		if r.Messages == 1 {
+			plural = "message"
+		}
 		views[i] = sessionView{
 			agent:    r.Agent,
 			project:  displayProject(home, r.Project),
 			date:     displayDate(r.StartedAt),
-			messages: fmt.Sprint(r.Messages),
+			messages: fmt.Sprintf("%*d %-8s", countW, r.Messages, plural),
 			size:     HumanBytes(r.SizeBytes),
 			id:       idPrefix(r.ID),
 		}
 		projW = max(projW, len(views[i].project))
-		countW = max(countW, len(views[i].messages))
 		sizeW = max(sizeW, len(views[i].size))
 	}
 	for _, v := range views {
 		nameColor.Fprintf(w, "%s", v.agent)
-		fmt.Fprintf(w, "  %-*s  %s  %*s messages  %*s  %s\n",
-			projW, v.project, v.date, countW, v.messages, sizeW, v.size, v.id)
+		fmt.Fprintf(w, "  %-*s  %s  %s  %*s  %s\n",
+			projW, v.project, v.date, v.messages, sizeW, v.size, v.id)
 	}
 }
 
