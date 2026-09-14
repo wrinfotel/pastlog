@@ -1,0 +1,119 @@
+# CI (spec §10): lint, race tests, bench smoke. Read-only posture extends to
+# CI — nothing is published or uploaded from this workflow (spec §2).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref — keeps total CI time sane.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          # Go stable. If a release ever needs a pinned toolchain, replace
+          # with the pinned minor, e.g. go-version: '1.27'.
+          go-version: stable
+          cache: true
+          cache-dependency-path: go.sum
+      - name: golangci-lint (uses the committed .golangci.yml, v2 syntax)
+        uses: golangci/golangci-lint-action@v6
+        with:
+          # Keep in sync with the locally verified v2.18.1 (.golangci.yml is
+          # v2 config and fails on golangci-lint v1).
+          version: v2.18.1
+          args: --timeout=5m
+
+  test:
+    name: test (${{ matrix.os }} / ${{ matrix.arch }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        # ubuntu/macos/windows × amd64/arm64 (spec §10; arm64 mac mandatory).
+        include:
+          - os: ubuntu-latest
+            arch: amd64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+          - os: macos-15-intel
+            arch: amd64
+          - os: macos-latest # arm64 mac (M-series) — the mandatory leg
+            arch: arm64
+          - os: windows-latest
+            arch: amd64
+          # GitHub hosts no windows/arm64 runner that can run the race
+          # detector, so this leg is compile-only: it cross-builds and vets
+          # windows/arm64 (CGO off, exactly like the release build in
+          # .goreleaser.yaml). Flip it to a full test leg when hosted
+          # windows/arm64 runners gain race support.
+          - os: windows-latest
+            arch: arm64
+            build-only: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Verify gcc resolves (race tests need CGO)
+        # windows-latest runners ship mingw-w64; fail loudly if that changes
+        # instead of dying later inside the race detector build.
+        if: matrix.os == 'windows-latest' && !matrix.build-only
+        shell: bash
+        run: |
+          if ! command -v gcc >/dev/null 2>&1; then
+            echo "::error::gcc not found on PATH — the race detector needs CGO (mingw-w64 should ship with windows-latest)"
+            exit 1
+          fi
+          gcc --version | head -n 1
+
+      - name: go test -race -count=1 ./...
+        if: ${{ !matrix.build-only }}
+        env:
+          CGO_ENABLED: '1' # race tests need cgo on every OS
+        run: go test -race -count=1 ./...
+
+      - name: Cross-compile smoke (windows/arm64, CGO off — mirrors release)
+        if: matrix.build-only
+        shell: bash
+        env:
+          CGO_ENABLED: '0'
+          GOARCH: arm64
+          GOOS: windows
+        run: |
+          go build ./...
+          go vet ./...
+
+  bench-smoke:
+    name: bench smoke (linux/amd64)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+          cache-dependency-path: go.sum
+      - name: Run every benchmark once over a 5 MB fixture
+        # Proves the benchmark path executes; no assertions on numbers.
+        env:
+          PASTLOG_BENCH_MB: '5'
+        run: go test -bench . -benchtime 1x -run '^$' -timeout 15m ./internal/search/...
