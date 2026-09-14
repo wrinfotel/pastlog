@@ -10,3 +10,4 @@ coverage.txt
 
 # SDD scratch workspaces (self-ignoring, but keep it explicit)
 .superpowers/
+/demo/demo.gif

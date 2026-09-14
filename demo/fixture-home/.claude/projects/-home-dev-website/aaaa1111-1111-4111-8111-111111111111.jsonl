@@ -1,0 +1,2 @@
+{"type":"user","sessionId":"aaaa1111-1111-4111-8111-111111111111","cwd":"/home/dev/website","timestamp":"2026-08-01T18:22:10.000Z","uuid":"u-1","parentUuid":null,"message":{"role":"user","content":"why does the contact form drop umlauts?"}}
+{"type":"assistant","sessionId":"aaaa1111-1111-4111-8111-111111111111","cwd":"/home/dev/website","timestamp":"2026-08-01T18:22:14.000Z","uuid":"u-2","parentUuid":"u-1","message":{"role":"assistant","content":"the mail template is missing the UTF-8 header; set charset=utf-8 on the message and the form transport."}}

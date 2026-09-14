@@ -1,0 +1,3 @@
+{"sessionId":"e4a7f2b3-3333-4333-8333-333333333333","projectHash":"a1b2c3d4e5f6","startTime":"2026-08-02T14:03:20Z","lastUpdated":"2026-08-02T14:04:00Z","kind":"main","directories":["/home/dev/myapp"],"summary":""}
+{"id":"m-1","timestamp":"2026-08-02T14:03:22Z","type":"user","content":"can you add a jwt refresh regression test?"}
+{"id":"m-2","timestamp":"2026-08-02T14:03:40Z","type":"gemini","content":"added TestRefreshRotationExpiry to the auth suite — it fails before the fix and passes after."}
