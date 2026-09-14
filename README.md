@@ -268,6 +268,49 @@ the jwt refresh kept failing because the old token was still accepted — moving
 tests pass: 12 ok, 0 failed
 ```
 
+`--json` prints the same session as the stable machine-readable schema
+(`entries[].kind` is one of `summary`, `message`, `tool_call`, `tool_result`):
+
+```console
+$ pastlog show 3f9c81a2 --json
+{
+  "id": "3f9c81a2-1111-4222-8333-cccccccccccc",
+  "agent": "claude-code",
+  "project": "/home/dev/myapp",
+  "title": "Fix jwt refresh token rotation",
+  "started_at": "2026-08-02T14:03:22.15Z",
+  "ended_at": "2026-08-02T14:03:26.24Z",
+  "messages": 2,
+  "size_bytes": 1001,
+  "entries": [
+    {
+      "kind": "summary",
+      "role": "",
+      "text": "Fix jwt refresh token rotation",
+      "timestamp": null
+    },
+    {
+      "kind": "message",
+      "role": "user",
+      "text": "the refresh token is stored in localStorage, is that safe?",
+      "timestamp": "2026-08-02T14:03:22.15Z"
+    },
+    {
+      "kind": "message",
+      "role": "assistant",
+      "text": "the jwt refresh kept failing because the old token was still accepted — moving it to an httpOnly cookie and rotating on every use.",
+      "timestamp": "2026-08-02T14:03:25.001Z"
+    },
+    {
+      "kind": "tool_result",
+      "role": "tool",
+      "text": "tests pass: 12 ok, 0 failed",
+      "timestamp": "2026-08-02T14:03:26.24Z"
+    }
+  ]
+}
+```
+
 `pastlog version` — semantic version, commit and build date, injected at
 link time. A release binary reports the tagged build:
 
