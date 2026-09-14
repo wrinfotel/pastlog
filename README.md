@@ -312,7 +312,7 @@ the OpenCode database with SQLite's `mode=ro` (see the
 | claude-code | `~/.claude/projects/<escaped-cwd>/<session-uuid>.jsonl` | one JSONL file per session; the project comes from each record's `cwd` field (directory names are ambiguous and never decoded) |
 | codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | one rollout JSONL per session (`session_meta` + `response_item` records) |
 | gemini-cli | `~/.gemini/tmp/<project-hash>/chats/session-*.jsonl` (+ `chats.json` for legacy stores) | `<project-hash>` is not decodable; the project comes from the records' `directories[]` |
-| opencode | `~/.local/share/opencode/opencode.db`; on Windows `%LOCALAPPDATA%\opencode\opencode.db` first, falling back to `~/.local/share/opencode/opencode.db` (first existing wins) | SQLite database, opened strictly read-only (`?mode=ro`); if it is locked by a running OpenCode instance, pastlog warns once and continues with the other agents |
+| opencode | `~/.local/share/opencode/opencode.db`; on Windows `%LOCALAPPDATA%\opencode\opencode.db` first, falling back to `~/.local/share/opencode/opencode.db`; on macOS/Linux `$XDG_DATA_HOME/opencode/opencode.db` (when the variable is set) first, falling back to `~/.local/share/opencode/opencode.db` (first existing wins) | SQLite database, opened strictly read-only (`?mode=ro`); if it is locked by a running OpenCode instance, pastlog warns once and continues with the other agents |
 
 Schema details per agent, including exactly what is parsed, skipped, and
 counted: [`internal/adapters/claudecode/SCHEMA.md`](internal/adapters/claudecode/SCHEMA.md),
