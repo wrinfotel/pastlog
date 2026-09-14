@@ -1,0 +1,420 @@
+# pastlog
+
+**Search the full history of your AI coding agents — 100% local, one binary.**
+
+pastlog indexes nothing, uploads nothing, and configures nothing: it streams
+the session logs that Claude Code, Codex CLI, Gemini CLI and OpenCode already
+wrote under your home directory and makes them searchable across all your
+projects — user/assistant messages, tool calls and tool outputs included.
+One static binary, zero servers, zero accounts, zero telemetry, strictly
+read-only.
+
+Supported agents: **Claude Code** · **Codex CLI** · **Gemini CLI** · **OpenCode**
+
+<!-- TODO: render demo.gif from demo/demo.tape -->
+<!-- <p align="center"><img src="demo/demo.gif" alt="pastlog demo"></p> -->
+
+## Contents
+
+- [Install](#install)
+- [Quickstart](#quickstart)
+- [Exit codes](#exit-codes)
+- [How it finds your data](#how-it-finds-your-data)
+- [Performance](#performance)
+- [How pastlog compares](#how-pastlog-compares)
+- [FAQ](#faq)
+- [Roadmap](#roadmap)
+- [License](#license)
+
+## Install
+
+**Go (any platform):**
+
+```sh
+go install github.com/pastlog/pastlog/cmd/pastlog@latest
+```
+
+Requires Go 1.27 or newer. The binary is static and fully self-contained.
+
+**Homebrew** (macOS/Linux) — coming with v0.1.0; the tap repository is not
+set up yet:
+
+```sh
+brew install pastlog/tap/pastlog   # placeholder — coming with v0.1.0
+```
+
+**Scoop** (Windows) — coming with v0.1.0; the bucket repository is not set
+up yet:
+
+```sh
+scoop bucket add pastlog https://github.com/pastlog/scoop-bucket   # placeholder — coming with v0.1.0
+scoop install pastlog
+```
+
+**Direct download:** grab the archive for your platform from the
+[Releases page](https://github.com/pastlog/pastlog/releases) (`.zip` for
+Windows, `.tar.gz` elsewhere), unpack it and put `pastlog` on your `PATH`.
+Every release ships a `checksums.txt` with SHA256 sums.
+
+> **macOS Gatekeeper:** release binaries are not notarized (out of scope for
+> v0.1), so macOS may refuse to run a downloaded binary with "cannot be
+> opened because the developer cannot be verified". Either allow it under
+> *System Settings → Privacy & Security*, or remove the quarantine flag:
+>
+> ```sh
+> xattr -d com.apple.quarantine ./pastlog
+> ```
+
+## Quickstart
+
+No arguments: short help plus a one-line summary of detected agents. On a
+machine without any agent data you get `no agent data found — install an
+agent or pass --home <dir>` and exit code 0.
+
+```console
+$ pastlog
+pastlog searches the full history of your AI coding-agent sessions across all projects on this machine.
+100% local, read-only, zero config.
+
+Usage:
+  pastlog [flags]
+  pastlog [command]
+
+Available Commands:
+  agents      list detected agent sources with session counts
+  completion  Generate the autocompletion script for the specified shell
+  help        Help about any command
+  search      search all session entries across agents
+  sessions    list sessions, newest first
+  show        print one session as a readable transcript
+  version     print version, commit and build date
+
+Flags:
+  -h, --help          help for pastlog
+      --home string   user home directory holding the agent data (default: auto-detect)
+      --no-color      disable colored output (also honors NO_COLOR and non-TTY)
+
+Use "pastlog [command] --help" for more information about a command.
+claude-code: 2 sessions, codex: 1 session, gemini-cli: 1 session, opencode: 2 sessions
+```
+
+`pastlog agents` — detected agent sources with session counts and on-disk
+footprints (paths shown relative to your home directory):
+
+```console
+$ pastlog agents
+claude-code  2 sessions  1.7 KB  ~/.claude/projects
+codex        1 session   664 B  ~/.codex/sessions
+gemini-cli   1 session   548 B  ~/.gemini/tmp
+opencode     2 sessions  28.0 KB  ~/.local/share/opencode
+```
+
+The same data as JSON (`--json` works on every command):
+
+```console
+$ pastlog agents --json
+[
+  {
+    "name": "claude-code",
+    "detected": true,
+    "path": "/home/dev/.claude/projects",
+    "sessions": 2,
+    "bytes": 1778
+  },
+  {
+    "name": "codex",
+    "detected": true,
+    "path": "/home/dev/.codex/sessions",
+    "sessions": 1,
+    "bytes": 664
+  },
+  {
+    "name": "gemini-cli",
+    "detected": true,
+    "path": "/home/dev/.gemini/tmp",
+    "sessions": 1,
+    "bytes": 548
+  },
+  {
+    "name": "opencode",
+    "detected": true,
+    "path": "/home/dev/.local/share/opencode",
+    "sessions": 2,
+    "bytes": 28672
+  }
+]
+```
+
+`pastlog sessions` — every session, newest first: agent, project, local
+date, message count, size, ID prefix. Filter with `--agent <name>`,
+`--project <substring>`, `--since <2w|7d|2026-01-01>`, `--until`, and cap
+with `--limit N`:
+
+```console
+$ pastlog sessions --limit 5
+codex        ~/dev/myapp    2026-08-02 17:10  2 messages   664 B  9b2d4c1e
+claude-code  ~/dev/myapp    2026-08-02 17:03  2 messages  1.1 KB  3f9c81a2
+gemini-cli   ~/dev/myapp    2026-08-02 17:03  2 messages   548 B  e4a7f2b3
+claude-code  ~/dev/website  2026-08-01 21:22  2 messages   645 B  aaaa1111
+opencode     ~/dev/api      2026-07-29 19:48  2 messages   251 B  7c1e9a0f
+```
+
+```console
+$ pastlog sessions --project myapp --since 60d
+codex        ~/dev/myapp  2026-08-02 17:10  2 messages   664 B  9b2d4c1e
+claude-code  ~/dev/myapp  2026-08-02 17:03  2 messages  1.1 KB  3f9c81a2
+gemini-cli   ~/dev/myapp  2026-08-02 17:03  2 messages   548 B  e4a7f2b3
+opencode     ~/dev/myapp  2026-07-28 19:35  1 message     98 B  2f8d6b3a
+```
+
+`pastlog search <query>` — case-insensitive literal search across user and
+assistant messages, tool-call inputs and tool outputs of all agents, with
+the match highlighted and one line of context. `--regex` interprets the
+query as a regular expression, `--case-sensitive` disables the default
+folding, `--limit N` caps sessions scanned and `--max-hits N` caps total
+hits printed (200 by default):
+
+```console
+$ pastlog search "jwt refresh"
+codex · dev/myapp · 2026-08-02 · sess 9b2d4c1e
+  → the jwt refresh endpoint returns 401 after an hour
+
+claude-code · dev/myapp · 2026-08-02 · sess 3f9c81a2
+  → Fix jwt refresh token rotation
+  → the jwt refresh kept failing because the old token was still accepted — moving it to an httpOnly cookie and rotating on every use.
+
+gemini-cli · dev/myapp · 2026-08-02 · sess e4a7f2b3
+  → can you add a jwt refresh regression test?
+```
+
+`--json` emits the stable machine-readable schema (match offsets are rune
+offsets into `line`); the example below truncates to one session with
+`--limit 1`:
+
+```console
+$ pastlog search "jwt refresh" --json --limit 1
+[
+  {
+    "session": {
+      "id": "9b2d4c1e-2222-4222-8222-222222222222",
+      "agent": "codex",
+      "project": "/home/dev/myapp",
+      "title": "the jwt refresh endpoint returns 401 after an hour",
+      "started_at": "2026-08-02T14:10:00Z",
+      "ended_at": "2026-08-02T14:10:12Z",
+      "messages": 2,
+      "size_bytes": 664
+    },
+    "hits": [
+      {
+        "kind": "message",
+        "role": "user",
+        "timestamp": "2026-08-02T14:10:05Z",
+        "context": "",
+        "line": "the jwt refresh endpoint returns 401 after an hour",
+        "match_start": 4,
+        "match_end": 15
+      }
+    ]
+  }
+]
+```
+
+`pastlog show <session-id-or-prefix>` — one session as a readable
+transcript. Accepts an unambiguous ID prefix; on ambiguity it lists the
+candidates and exits 2:
+
+```console
+$ pastlog show 3f9c81a2
+# Fix jwt refresh token rotation
+claude-code · 3f9c81a2-1111-4222-8333-cccccccccccc · ~/dev/myapp · 2026-08-02 17:03:22 → 2026-08-02 17:03:26 · 2 messages · 1.1 KB
+
+       -  summary      Fix jwt refresh token rotation
+17:03:22  user         the refresh token is stored in localStorage, is that safe?
+17:03:25  assistant    the jwt refresh kept failing because the old token was still accepted — moving it to an httpOnly cookie and rotating on every use.
+17:03:26  tool result  tests pass: 12 ok, 0 failed
+```
+
+`--export md` prints the session as markdown for redirecting into a file;
+`--json` prints the stable JSON schema:
+
+```console
+$ pastlog show 3f9c81a2 --export md > jwt-session.md
+$ cat jwt-session.md
+# Fix jwt refresh token rotation
+
+- **agent:** claude-code
+- **session:** 3f9c81a2-1111-4222-8333-cccccccccccc
+- **project:** /home/dev/myapp
+- **started:** 2026-08-02 17:03:22
+- **ended:** 2026-08-02 17:03:26
+- **messages:** 2
+- **size:** 1.1 KB
+
+## summary
+
+Fix jwt refresh token rotation
+
+## user · 2026-08-02 17:03:22
+
+the refresh token is stored in localStorage, is that safe?
+
+## assistant · 2026-08-02 17:03:25
+
+the jwt refresh kept failing because the old token was still accepted — moving it to an httpOnly cookie and rotating on every use.
+
+## tool result · 2026-08-02 17:03:26
+
+tests pass: 12 ok, 0 failed
+```
+
+`pastlog version` — semantic version, commit and build date, injected at
+link time. A release binary reports the tagged build:
+
+```console
+$ pastlog version
+pastlog v0.1.0 (commit 15f543aef6a3d48aee44f42077459bf364083b4c, date 2026-09-13T10:00:00Z)
+```
+
+(a plain `go install` build without ldflags reports `pastlog 0.0.0-dev
+(commit none, date unknown)`.)
+
+Colors: matches and agent names are highlighted on a TTY; `--no-color`,
+`NO_COLOR`, and non-TTY output (pipes, redirects) disable color. Non-standard
+setups: `--home <dir>` points pastlog at any home directory.
+
+## Exit codes
+
+grep-style, on every command:
+
+| Code | Meaning |
+|---|---|
+| `0` | ok — including "nothing found" (`agents`/`sessions` list nothing, `show` prints an empty session) |
+| `1` | `search` found no matches (nothing is printed) |
+| `2` | real error — bad flag value, unknown agent, unreadable `--home`, ambiguous session-ID prefix, unusable storage |
+
+```console
+$ pastlog search "kubernetes"
+$ echo $?
+1
+```
+
+## How it finds your data
+
+Everything is read from under a single home directory: `--home <dir>` wins,
+then `USERPROFILE`/`HOME`, then the OS default. pastlog never writes to any
+of these locations — the guarantee is enforced by tests, including opening
+the OpenCode database with SQLite's `mode=ro` (see the
+[read-only FAQ](#does-it-modify-my-logs)).
+
+| Agent | Storage location (home-relative) | Notes |
+|---|---|---|
+| claude-code | `~/.claude/projects/<escaped-cwd>/<session-uuid>.jsonl` | one JSONL file per session; the project comes from each record's `cwd` field (directory names are ambiguous and never decoded) |
+| codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | one rollout JSONL per session (`session_meta` + `response_item` records) |
+| gemini-cli | `~/.gemini/tmp/<project-hash>/chats/session-*.jsonl` (+ `chats.json` for legacy stores) | `<project-hash>` is not decodable; the project comes from the records' `directories[]` |
+| opencode | `~/.local/share/opencode/opencode.db`; on Windows `%LOCALAPPDATA%\opencode\opencode.db` first, falling back to `~/.local/share/opencode/opencode.db` (first existing wins) | SQLite database, opened strictly read-only (`?mode=ro`); if it is locked by a running OpenCode instance, pastlog warns once and continues with the other agents |
+
+Schema details per agent, including exactly what is parsed, skipped, and
+counted: [`internal/adapters/claudecode/SCHEMA.md`](internal/adapters/claudecode/SCHEMA.md),
+[`internal/adapters/codex/SCHEMA.md`](internal/adapters/codex/SCHEMA.md),
+[`internal/adapters/geminicli/SCHEMA.md`](internal/adapters/geminicli/SCHEMA.md),
+[`internal/adapters/opencode/SCHEMA.md`](internal/adapters/opencode/SCHEMA.md).
+
+## Performance
+
+No index in v0.1 — pure streaming over whatever the agents wrote. Measured
+end to end (listing + scan) on a synthetic 500 MB corpus with the benchmark
+suite from [`internal/search/bench_test.go`](internal/search/bench_test.go):
+
+| Benchmark | Corpus | Result |
+|---|---|---|
+| literal search (the human `search` flow, fast listing) | 500 MB | 2.81–2.82 s ≈ **177.6–178.1 MB/s** |
+| literal search (the `--json` path, full-parse listing) | 500 MB | 7.15 s ≈ 69.9 MB/s |
+| regex search | 500 MB | 6.95–6.99 s ≈ 71.5–72.0 MB/s |
+| raw prefilter scan incl. file reads | 500 MB | 1.27–1.36 s ≈ 368–395 MB/s |
+
+Hardware disclaimer: these are dev-machine numbers (windows/amd64, Intel
+i5-12400F, warm file-system cache) — expect variation with CPU, storage and
+the shape of your agent data. Two caveats worth knowing before comparing:
+
+1. Real-world corpora are mixed: files whose first record line does not
+   classify (e.g. sessions opening with a summary line) fall back to a full
+   parse, so real-world runs land **between** the full-parse and fast-path
+   numbers above.
+2. On Windows, per-file open overhead under antivirus interception dominates:
+   expect **seconds** where Linux/macOS land near the spec's 300 ms/500 MB
+   budget. The CPU-side pipeline alone is far faster than that (the
+   in-memory prefilter scans at ~4.6 GB/s — 500 MB in ~0.11 s).
+
+## How pastlog compares
+
+As of 2026-09:
+
+| Tool | Gap pastlog fills |
+|---|---|
+| `agentlogs/agentlogs` | Team analytics / collaboration focus (capture pipeline) — not a personal instant-search CLI |
+| chatgrep.com | Closed-source, focuses on browser AI chats (ChatGPT web etc.), not CLI agent logs |
+| `cc-sessions`, `claude-history` | Claude Code only; no Codex/Gemini/OpenCode; no export |
+| `claude-code-history-viewer` | GUI desktop app, Claude Code + Gemini only |
+| Built-in `/resume` | Current session picker only — no cross-project, cross-agent search |
+
+pastlog's wedge: **universal (4 agents) + fast + 100% local + first-class
+Windows support.**
+
+## FAQ
+
+### Is anything uploaded?
+
+No. There is no network code in the binary at all — no HTTP client, no TLS,
+no telemetry, no update checks.
+[`TestNoNetworkDeps`](internal/agentlog/nonetwork_test.go) fails the build
+if `net/http`, `crypto/tls` or any third-party HTTP package ever appears in
+the module's dependency graph.
+
+### Is Windows supported?
+
+Yes, first-class — it is a development platform here, not an afterthought:
+CI runs the race-enabled test suite on Windows, the release build produces
+`windows/amd64` and `windows/arm64` binaries, and path handling is
+normalized (`--project` matches forward and back slashes alike).
+
+### Does it modify my logs?
+
+No — read-only by design and enforced by tests. Adapters only open files
+for reading, and the OpenCode adapter opens its database with SQLite's
+`?mode=ro`; a write attempt is refused by the driver
+([`TestNoWritesToDatabase`](internal/adapters/opencode/adapter_test.go)).
+
+### A scan says "N unreadable lines skipped" — what does that mean?
+
+Agent formats are undocumented and version-dependent, so every adapter
+parses defensively: lines it cannot classify (truncated JSON, unknown record
+shapes, unexpected field types) are skipped, counted, and summarized on
+stderr as one lowercase line — the run itself never fails because one record
+is unusable. The count is exact for `pastlog sessions`; `pastlog search`
+uses a fast listing that reads only the first record line of each file, so
+its count is a lower bound.
+
+### Where do I report a broken schema?
+
+Per-agent schema notes live next to the adapters —
+[claude-code](internal/adapters/claudecode/SCHEMA.md),
+[codex](internal/adapters/codex/SCHEMA.md),
+[gemini-cli](internal/adapters/geminicli/SCHEMA.md),
+[opencode](internal/adapters/opencode/SCHEMA.md) — including what is parsed,
+skipped, and counted. If a format change makes pastlog miss or misread your
+sessions, open an issue at
+<https://github.com/pastlog/pastlog/issues> with the agent name and version
+(please never attach real session data — a synthetic record that reproduces
+the shape is enough).
+
+## Roadmap
+
+- **MCP server** (`pastlog mcp`) — let your coding agent search its own history
+- **TUI** — interactive browsing on top of the same engine
+- **Token/project stats** — where your time and tokens go
+- **Optional index** — for corpora where streaming is not enough
+
+## License
+
+[MIT](LICENSE) — © 2026 pastlog contributors
