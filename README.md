@@ -386,8 +386,11 @@ the shape of your agent data. Two caveats worth knowing before comparing:
    numbers above.
 2. On Windows, per-file open overhead under antivirus interception dominates:
    expect **seconds** where Linux/macOS land near the spec's 300 ms/500 MB
-   budget. The CPU-side pipeline alone is far faster than that (the
-   in-memory prefilter scans at ~4.6 GB/s — 500 MB in ~0.11 s).
+   budget. The CPU-side pipeline alone is far faster than that: a one-off
+   scratch harness measured the in-memory prefilter at ~4.6 GB/s (500 MB in
+   ~0.11 s) — that figure is **not** reproducible via `go test -bench`, which
+   reports the file-read-inclusive 368–395 MB/s `BenchmarkPrefilterRaw` row
+   above.
 
 ## How pastlog compares
 
