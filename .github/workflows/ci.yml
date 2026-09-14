@@ -4,7 +4,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # main plus feature branches, so a branch gets CI before its merge PR
+    # (final review finding 6); PRs keep their own trigger below.
+    branches: [main, 'feature/**']
   pull_request:
 
 # Cancel superseded runs on the same ref — keeps total CI time sane.
