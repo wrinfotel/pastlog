@@ -74,11 +74,14 @@ func (a *Adapter) SessionsMeta(iter func(agentlog.SessionMeta) error) error {
 // sessions from the FIRST line of each JSONL file plus a stat — gemini-cli
 // files open with a metadata record carrying sessionId, project, title and
 // both timestamps (SCHEMA.md) — instead of parsing every line (spec §7).
-// When line 1 is not a metadata record with a sessionId, the file falls back
-// to the full parse so ids, projects, filters and sort order stay identical
-// to SessionsMeta. Message counts are zero on this path. Legacy chats.json
-// stores keep their full listing (they are rare and monolithic); every
-// listed session feeds the id→store index that Entries resolves through.
+// When line 1 is not a metadata record with a sessionId and a startTime, the
+// file falls back to the full parse so ids, projects, start timestamps,
+// filters and sort order stay identical to SessionsMeta (a metadata record
+// without startTime would yield a zero StartedAt on the fast path while the
+// full parse backfills it from the record timestamps). Message counts are
+// zero on this path. Legacy chats.json stores keep their full listing (they
+// are rare and monolithic); every listed session feeds the id→store index
+// that Entries resolves through.
 func (a *Adapter) SessionsMetaFast(iter func(agentlog.SessionMeta) error) (bool, error) {
 	files, err := a.sessionFiles()
 	if err != nil {
@@ -116,8 +119,10 @@ func (a *Adapter) SessionsMetaFast(iter func(agentlog.SessionMeta) error) (bool,
 }
 
 // fastMeta builds session metadata from the file's first line plus a stat.
-// fast=false when that line is not a metadata record carrying a sessionId —
-// the caller then does a full parse.
+// fast=false when that line is not a metadata record carrying a sessionId
+// and a startTime — the caller then does a full parse, which backfills the
+// start timestamp from the record timestamps and keeps listing parity with
+// SessionsMeta (FastMetaSource contract).
 func (a *Adapter) fastMeta(path string) (agentlog.SessionMeta, bool) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -138,7 +143,7 @@ func (a *Adapter) fastMeta(path string) (agentlog.SessionMeta, bool) {
 			continue
 		}
 		meta, ok := parseMeta(line)
-		if !ok || meta.sessionID == "" {
+		if !ok || meta.sessionID == "" || meta.startedAt.IsZero() {
 			return agentlog.SessionMeta{}, false
 		}
 		return agentlog.SessionMeta{

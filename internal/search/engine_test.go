@@ -11,6 +11,7 @@ import (
 
 	"github.com/pastlog/pastlog/internal/adapters/claudecode"
 	"github.com/pastlog/pastlog/internal/adapters/codex"
+	"github.com/pastlog/pastlog/internal/adapters/geminicli"
 	"github.com/pastlog/pastlog/internal/agentlog"
 )
 
@@ -185,8 +186,19 @@ func TestRunFastListingHitsMatchFullListing(t *testing.T) {
 	write(filepath.Join(".codex", "sessions", "2026", "08", "02", "rollout-2026-08-02T15-00-00-63636363-6363-4363-8363-636363636363.jsonl"),
 		`{"timestamp":"2026-08-02T15:00:00Z","type":"session_meta","payload":{"id":"63636363-6363-4363-8363-636363636363","cwd":"/home/dev/api"}}`+"\n"+
 			`{"timestamp":"2026-08-02T15:00:10Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"zephyr calibration drifted"}]}}`+"\n")
+	// gemini-cli sessions over the same flow: one metadata-first file and one
+	// whose metadata record carries a sessionId but no startTime — the fast
+	// path cannot know the start timestamp the full parse backfills from the
+	// records, so that file must drop to the full parse (FastMetaSource
+	// filters/sort parity; final review finding 2)
+	write(filepath.Join(".gemini", "tmp", "ca11bad5gme", "chats", "session-2026-08-02T16-00-64646464.jsonl"),
+		`{"sessionId":"64646464-6464-4644-8464-646464646464","startTime":"2026-08-02T16:00:00Z","lastUpdated":"2026-08-02T16:01:00Z","kind":"main","directories":["/home/dev/app"],"summary":"zephyr notes"}`+"\n"+
+			`{"id":"m1","timestamp":"2026-08-02T16:00:30Z","type":"user","content":"zephyr sealant spec reviewed"}`+"\n")
+	write(filepath.Join(".gemini", "tmp", "ca11bad5gme", "chats", "session-2026-08-02T16-30-65656565.jsonl"),
+		`{"sessionId":"65656565-6565-4655-8565-656565656565","directories":["/home/dev/api"]}`+"\n"+
+			`{"id":"m1","timestamp":"2026-08-02T16:30:00Z","type":"user","content":"zephyr valve torque spec"}`+"\n")
 
-	adapters := []agentlog.Adapter{claudecode.New(home), codex.New(home)}
+	adapters := []agentlog.Adapter{claudecode.New(home), codex.New(home), geminicli.New(home)}
 	run := func(fast bool, filter agentlog.SessionFilter) []string {
 		t.Helper()
 		results := Run(adapters, mustMatcher(t, "zephyr", MatchOptions{}), EngineOptions{Filter: filter, FastListing: fast})
@@ -210,8 +222,8 @@ func TestRunFastListingHitsMatchFullListing(t *testing.T) {
 			t.Errorf("filter #%d: fast listing changed the results:\nfull:\n%s\nfast:\n%s", i, strings.Join(full, "\n"), strings.Join(fast, "\n"))
 		}
 	}
-	if n := len(run(false, agentlog.SessionFilter{})); n != 5 {
-		t.Errorf("fixture should produce 5 hits, got %d", n)
+	if n := len(run(false, agentlog.SessionFilter{})); n != 7 {
+		t.Errorf("fixture should produce 7 hits, got %d", n)
 	}
 }
 

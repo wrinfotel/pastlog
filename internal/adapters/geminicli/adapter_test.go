@@ -422,9 +422,16 @@ func TestSessionsMetaFastMatchesFullListing(t *testing.T) {
 	fastContent := `{"sessionId":"51515151-5151-5151-8151-515151515151","startTime":"2026-07-01T10:00:00Z","lastUpdated":"2026-07-01T10:05:00Z","kind":"main","directories":["/home/dev/app"],"summary":"widget review"}` + "\n" +
 		`{"id":"m1","timestamp":"2026-07-01T10:01:00Z","type":"user","content":"hello"}` + "\n"
 	fallbackContent := `{"id":"m1","timestamp":"2026-07-01T11:00:00Z","type":"user","content":"no metadata first"}` + "\n"
+	// metadata record with a sessionId but NO startTime: the fast path cannot
+	// know the start timestamp the full parse backfills from the record
+	// timestamps, so the file must drop to the full parse (FastMetaSource
+	// contract: filters and sort order stay identical to SessionsMeta)
+	tslessMetaContent := `{"sessionId":"53535353-5353-5353-8535-535353535353","kind":"main","directories":["/home/dev/app"],"summary":"no start time"}` + "\n" +
+		`{"id":"m1","timestamp":"2026-07-01T12:00:00Z","type":"user","content":"timestamp backfill"}` + "\n"
 	for name, content := range map[string]string{
 		"session-2026-07-01T10-00-51515151.jsonl": fastContent,     // sorted first
 		"session-2026-07-01T11-00-52525252.jsonl": fallbackContent, // line 1 is not a metadata record
+		"session-2026-07-01T12-00-53535353.jsonl": tslessMetaContent,
 	} {
 		if err := os.WriteFile(filepath.Join(chats, name), []byte(content), 0o644); err != nil {
 			t.Fatal(err)
@@ -448,8 +455,8 @@ func TestSessionsMetaFastMatchesFullListing(t *testing.T) {
 	}
 
 	fast, full := list(New(home), true), list(New(home), false)
-	if len(fast) != 2 || len(full) != 2 {
-		t.Fatalf("fast=%d full=%d sessions, want 2 each", len(fast), len(full))
+	if len(fast) != 3 || len(full) != 3 {
+		t.Fatalf("fast=%d full=%d sessions, want 3 each", len(fast), len(full))
 	}
 	for i := range fast {
 		if fast[i].ID != full[i].ID || fast[i].Project != full[i].Project || fast[i].Title != full[i].Title ||
@@ -469,6 +476,12 @@ func TestSessionsMetaFastMatchesFullListing(t *testing.T) {
 	// paths, including its filename-fallback id
 	if fast[1].ID != "session-2026-07-01T11-00-52525252" || fast[1].Messages != full[1].Messages {
 		t.Errorf("fallback file must produce the full meta on the fast path too, got %+v vs %+v", fast[1], full[1])
+	}
+	// the timestamp-less metadata record must fall back to the full parse so
+	// the record-backfilled start timestamp (and message count) is identical
+	// on both paths — the FastMetaSource filters/sort parity
+	if fast[2].ID != "53535353-5353-5353-8535-535353535353" || fast[2].StartedAt.IsZero() || fast[2].Messages != 1 {
+		t.Errorf("timestamp-less metadata must drop to the full parse, got %+v", fast[2].Session)
 	}
 }
 
