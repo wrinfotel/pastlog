@@ -89,6 +89,9 @@ the whole line skipped.
   Unreadable storage during listing is surfaced as a whole-adapter error
   (the CLI notes the agent as storage-unreadable), never silently truncated;
   absent storage simply lists zero sessions.
+- Other read failures mid-file (I/O errors) make the file unreadable: the
+  file is skipped silently and NOT counted — nothing was parsed wrong, the
+  storage itself became unreadable (same class as an unopenable file).
 - Unreadable files (permission errors) are skipped silently.
 - Iteration callbacks may abort the stream by returning an error; the error
   is propagated unchanged.

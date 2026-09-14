@@ -251,6 +251,31 @@ func TestSessionsGlobMetacharacterHome(t *testing.T) {
 	}
 }
 
+// TestScanFileIOErrorNotCountedAsSkipped pins the I/O branch of
+// scanner.Err() (aligned with claudecode; final review finding 3): a read
+// failure makes the file unreadable (skipped silently, like any unreadable
+// file) — it must not inflate the unreadable-content counter, and it must
+// never be fatal. Only bufio.ErrTooLong (an oversized line) counts.
+func TestScanFileIOErrorNotCountedAsSkipped(t *testing.T) {
+	a := newTestAdapter(t, nil)
+	// a directory named rollout-*.jsonl: os.Open succeeds, reading fails with
+	// an I/O error that is not bufio.ErrTooLong
+	dirFile := filepath.Join(a.home, ".codex", "sessions", "2026", "07", "01", "rollout-iam-a-directory.jsonl")
+	if err := os.MkdirAll(dirFile, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	sum, err := a.scanFile(dirFile, nil, nil)
+	if err != nil {
+		t.Fatalf("I/O failures stay non-fatal, got %v", err)
+	}
+	if sum.sawLine {
+		t.Error("no line can be read from a directory")
+	}
+	if a.SkippedLines() != 0 {
+		t.Errorf("SkippedLines = %d, want 0 (I/O errors are unreadable files, not unreadable lines)", a.SkippedLines())
+	}
+}
+
 func TestSessionsIDFallbackFromFilename(t *testing.T) {
 	// no session_meta record: the ID must fall back to the rollout filename
 	a := newTestAdapter(t, map[string]string{

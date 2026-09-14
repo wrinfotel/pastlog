@@ -8,6 +8,7 @@ package codex
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -283,9 +284,18 @@ func (a *Adapter) scanFile(path string, keep func([]byte) bool, emit func(agentl
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		// A line beyond maxLineSize exhausts the buffer; the rest of this
-		// file is unreadable to us. Count it and move on — never fatal.
-		a.skipped++
+		// Two distinct failure kinds leave the rest of this file unreadable;
+		// never fatal (spec §8 best effort):
+		//   - bufio.ErrTooLong: a line beyond maxLineSize exhausted the
+		//     buffer. The line itself is unreadable content — count exactly
+		//     one skipped line per oversized file (SCHEMA.md).
+		//   - anything else is an I/O read error: the file became unreadable
+		//     mid-scan. Its lines are not corrupt — this is the "unreadable
+		//     file" class, skipped silently like an unopenable file and not
+		//     counted (SCHEMA.md).
+		if errors.Is(err, bufio.ErrTooLong) {
+			a.skipped++
+		}
 	}
 	return sum, nil
 }
