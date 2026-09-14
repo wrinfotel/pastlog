@@ -9,9 +9,9 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -344,33 +344,82 @@ func (a *Adapter) forward(entries []agentlog.Entry, emit func(agentlog.Entry) er
 	return nil
 }
 
-// sessionFiles lists all main and subagent JSONL paths, sorted for
-// determinism: session-*.jsonl directly under chats/, then any *.jsonl in
-// chats/<parent-session-id>/ subdirectories. Glob only errors on a malformed
-// pattern (ErrBadPattern) — possible when the home path contains glob
-// metacharacters — and that error is surfaced, not silently swallowed.
+// sessionFiles lists all main and subagent JSONL paths in sorted order,
+// main sessions first (session-*.jsonl directly under chats/), then any
+// *.jsonl in chats/<parent-session-id>/ subdirectories — exactly the split
+// order the lister had before the metacharacter fix (M4). It deliberately
+// uses WalkDir instead of filepath.Glob: Glob silently matches nothing when
+// the home path contains glob metacharacters ([, *, ?) — it does NOT error
+// on them — while a directory walk is immune.
 func (a *Adapter) sessionFiles() ([]string, error) {
-	main, err := filepath.Glob(filepath.Join(a.tmpDir(), "*", "chats", "session-*.jsonl"))
+	root := a.tmpDir()
+	var main, sub []string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			if path == root && os.IsNotExist(err) {
+				return fs.SkipAll // storage absent: no sessions, not an error (spec §8)
+			}
+			return err // unreadable storage: surfaced, not silently truncated
+		}
+		depth := relDepth(root, path)
+		if d.IsDir() {
+			if depth >= 4 {
+				return fs.SkipDir // session files live at most two levels below chats/
+			}
+			return nil
+		}
+		switch {
+		case depth == 3 && filepath.Base(filepath.Dir(path)) == "chats" &&
+			strings.HasPrefix(d.Name(), "session-") && strings.HasSuffix(d.Name(), ".jsonl"):
+			main = append(main, path)
+		case depth == 4 && filepath.Base(filepath.Dir(filepath.Dir(path))) == "chats" &&
+			strings.HasSuffix(d.Name(), ".jsonl"):
+			sub = append(sub, path)
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	sub, err := filepath.Glob(filepath.Join(a.tmpDir(), "*", "chats", "*", "*.jsonl"))
-	if err != nil {
-		return nil, err
-	}
-	sort.Strings(main)
-	sort.Strings(sub)
 	return append(main, sub...), nil
 }
 
-// legacyFiles lists the monolithic chats.json paths, one per project dir.
+// legacyFiles lists the monolithic chats.json paths, one per project dir,
+// sorted for determinism — same WalkDir rationale as sessionFiles.
 func (a *Adapter) legacyFiles() ([]string, error) {
-	files, err := filepath.Glob(filepath.Join(a.tmpDir(), "*", legacyName))
+	root := a.tmpDir()
+	var files []string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			if path == root && os.IsNotExist(err) {
+				return fs.SkipAll // storage absent: no sessions, not an error (spec §8)
+			}
+			return err // unreadable storage: surfaced, not silently truncated
+		}
+		if d.IsDir() {
+			if relDepth(root, path) >= 3 {
+				return fs.SkipDir // legacy stores sit directly in the project dir
+			}
+			return nil
+		}
+		if relDepth(root, path) == 2 && d.Name() == legacyName {
+			files = append(files, path)
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	sort.Strings(files)
 	return files, nil
+}
+
+// relDepth counts the path components below root (0 for root itself).
+func relDepth(root, path string) int {
+	rel, err := filepath.Rel(root, path)
+	if err != nil || rel == "." {
+		return 0
+	}
+	return strings.Count(rel, string(filepath.Separator)) + 1
 }
 
 // sessionFor locates the backing store of a session id through the lazily

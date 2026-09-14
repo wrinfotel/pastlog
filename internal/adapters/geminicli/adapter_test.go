@@ -294,6 +294,60 @@ func TestEntriesUnknownSessionErrors(t *testing.T) {
 	}
 }
 
+// TestSessionsGlobMetacharacterHome ports the claudecode lister regression
+// (final review, M4 fix): the gemini-cli listers — main JSONL sessions,
+// subagent files and the legacy monolithic chats.json — must survive a home
+// path containing glob metacharacters, where filepath.Glob silently matches
+// nothing, for both listing and per-session file resolution.
+func TestSessionsGlobMetacharacterHome(t *testing.T) {
+	// Windows forbids * and ? in real filenames, but [ and ] are legal and
+	// are exactly the metacharacters that turn a Glob pattern into a broken
+	// character class.
+	home := filepath.Join(t.TempDir(), "we[ird]home")
+	chats := filepath.Join(home, ".gemini", "tmp", testHash, "chats")
+	if err := os.MkdirAll(filepath.Join(chats, "gparent9999-9999-4999-8999-999999999999"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	mainContent := `{"sessionId":"gmet1111-1111-4111-8111-111111111111","startTime":"2026-07-01T10:00:00Z","lastUpdated":"2026-07-01T10:05:00Z","kind":"main","directories":["/home/dev/app"],"summary":"metachar home"}` + "\n" +
+		`{"id":"m1","timestamp":"2026-07-01T10:01:00Z","type":"user","content":"one"}`
+	subContent := `{"sessionId":"gmet2222-2222-4222-8222-222222222222","kind":"subagent","directories":["/home/dev/app"]}` + "\n" +
+		`{"id":"m1","timestamp":"2026-07-01T11:00:00Z","type":"user","content":"two"}`
+	legacyContent := `{"version":1,"sessions":[{"sessionId":"gmet3333-3333-4333-8333-333333333333","messages":[{"id":"m1","type":"user","content":"legacy one"}]}]}`
+	for name, content := range map[string]string{
+		"session-2026-07-01T10-00-gmet1111.jsonl":                mainContent,
+		"gparent9999-9999-4999-8999-999999999999/subagent.jsonl": subContent,
+	} {
+		if err := os.WriteFile(filepath.Join(chats, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// the legacy monolithic store sits in the project dir, next to chats/
+	if err := os.WriteFile(filepath.Join(home, ".gemini", "tmp", testHash, "chats.json"), []byte(legacyContent), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := New(home)
+	got := listSessions(t, a)
+	// sorted main JSONL first, sorted subagent JSONL next, legacy last —
+	// exactly the listing order the lister had before the metacharacter fix
+	wantIDs := []string{"gmet1111-1111-4111-8111-111111111111", "gmet2222-2222-4222-8222-222222222222", "gmet3333-3333-4333-8333-333333333333"}
+	if len(got) != len(wantIDs) {
+		t.Fatalf("got %d sessions, want %d (lister must survive glob metacharacters)", len(got), len(wantIDs))
+	}
+	for i, want := range wantIDs {
+		if got[i].ID != want {
+			t.Errorf("session[%d].ID = %q, want %q", i, got[i].ID, want)
+		}
+	}
+	var texts []string
+	err := a.Entries(got[0], func(e agentlog.Entry) error { texts = append(texts, e.Text); return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(texts) != 1 || texts[0] != "one" {
+		t.Errorf("Entries should resolve the file inside a metacharacter home, got %v", texts)
+	}
+}
+
 func TestSessionsEmptyFileYieldsNothing(t *testing.T) {
 	a := newTestAdapter(t, map[string]string{realisticRel: "empty.jsonl"})
 	if got := listSessions(t, a); len(got) != 0 {

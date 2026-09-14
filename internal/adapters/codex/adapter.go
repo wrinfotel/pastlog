@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -289,10 +290,48 @@ func (a *Adapter) scanFile(path string, keep func([]byte) bool, emit func(agentl
 	return sum, nil
 }
 
-// sessionFiles lists all rollout JSONL paths under
-// sessions/YYYY/MM/DD, sorted for determinism.
+// sessionFiles lists all rollout JSONL paths, sorted for determinism
+// (WalkDir visits entries lexically, and files sort inside their directory).
+// It deliberately uses WalkDir instead of filepath.Glob: Glob silently
+// matches nothing when the home path contains glob metacharacters ([, *, ?),
+// while a directory walk is immune (M4). Only rollout-*.jsonl files exactly
+// three date levels below sessions/ are considered (SCHEMA.md) — anything
+// else is ignored, exactly like the old */*/*/rollout-*.jsonl pattern.
 func (a *Adapter) sessionFiles() ([]string, error) {
-	return filepath.Glob(filepath.Join(a.sessionsDir(), "*", "*", "*", "rollout-*.jsonl"))
+	root := a.sessionsDir()
+	var files []string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			if path == root && os.IsNotExist(err) {
+				return fs.SkipAll // storage absent: no sessions, not an error (spec §8)
+			}
+			return err // unreadable storage: surfaced, not silently truncated
+		}
+		depth := relDepth(root, path)
+		if d.IsDir() {
+			if depth >= 4 {
+				return fs.SkipDir // rollouts live exactly three levels deep (YYYY/MM/DD)
+			}
+			return nil
+		}
+		if depth == 4 && strings.HasPrefix(d.Name(), "rollout-") && strings.HasSuffix(d.Name(), ".jsonl") {
+			files = append(files, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return files, nil
+}
+
+// relDepth counts the path components below root (0 for root itself).
+func relDepth(root, path string) int {
+	rel, err := filepath.Rel(root, path)
+	if err != nil || rel == "." {
+		return 0
+	}
+	return strings.Count(rel, string(filepath.Separator)) + 1
 }
 
 // fileForSession locates the JSONL file backing a session: first by rollout

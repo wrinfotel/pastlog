@@ -218,6 +218,39 @@ func TestNoTrailingNewlineFixtureIsWired(t *testing.T) {
 	}
 }
 
+// TestSessionsGlobMetacharacterHome ports the claudecode lister regression
+// (final review, M4 fix): the codex lister must survive a home path containing
+// glob metacharacters — filepath.Glob silently matches nothing there — for
+// both listing and per-session file resolution.
+func TestSessionsGlobMetacharacterHome(t *testing.T) {
+	// Windows forbids * and ? in real filenames, but [ and ] are legal and
+	// are exactly the metacharacters that turn a Glob pattern into a broken
+	// character class.
+	home := filepath.Join(t.TempDir(), "we[ird]home")
+	day := filepath.Join(home, ".codex", "sessions", "2026", "07", "01")
+	if err := os.MkdirAll(day, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := `{"timestamp":"2026-07-01T10:00:00Z","type":"session_meta","payload":{"id":"88888888-8888-4888-8888-888888888888","cwd":"/home/dev/app"}}` + "\n" +
+		`{"timestamp":"2026-07-01T10:00:05Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"one"}]}}` + "\n"
+	if err := os.WriteFile(filepath.Join(day, "rollout-2026-07-01T10-00-00-88888888-8888-4888-8888-888888888888.jsonl"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := New(home)
+	got := listSessions(t, a)
+	if len(got) != 1 {
+		t.Fatalf("got %d sessions, want 1 (lister must survive glob metacharacters)", len(got))
+	}
+	var texts []string
+	err := a.Entries(got[0], func(e agentlog.Entry) error { texts = append(texts, e.Text); return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(texts) != 1 || texts[0] != "one" {
+		t.Errorf("Entries should resolve the rollout inside a metacharacter home, got %v", texts)
+	}
+}
+
 func TestSessionsIDFallbackFromFilename(t *testing.T) {
 	// no session_meta record: the ID must fall back to the rollout filename
 	a := newTestAdapter(t, map[string]string{

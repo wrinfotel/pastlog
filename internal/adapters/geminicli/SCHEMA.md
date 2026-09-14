@@ -123,6 +123,13 @@ matches no known shape increments the counter:
 - Lines longer than 16 MiB exceed the scanner buffer: the rest of that file
   is skipped and counted (1 per oversized file). The enlarged buffer (64 KiB
   initial, 16 MiB max) handles all plausible lines >64 KiB per spec §5.
+- Session listing (JSONL sessions, subagent files, and the legacy `chats.json`
+  stores) walks the storage tree (`filepath.WalkDir`) instead of using
+  `filepath.Glob`: Glob silently matches nothing when the home path contains
+  glob metacharacters (`[`, `*`, `?`), while a walk is immune. Unreadable
+  storage during listing is surfaced as a whole-adapter error (the CLI notes
+  the agent as storage-unreadable), never silently truncated; absent storage
+  simply lists zero sessions.
 - Unreadable files (permission errors) are skipped silently.
 - Iteration callbacks may abort the stream by returning an error; the error
   is propagated unchanged.
