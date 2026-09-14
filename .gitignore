@@ -11,3 +11,6 @@ coverage.txt
 # SDD scratch workspaces (self-ignoring, but keep it explicit)
 .superpowers/
 /demo/demo.gif
+
+# Demo: the OpenCode store is generated at demo render time (demo/genopencode)
+/demo/fixture-home/.local/share/opencode/
