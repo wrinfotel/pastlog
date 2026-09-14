@@ -112,8 +112,11 @@ func Run(adapters []agentlog.Adapter, m *Matcher, o EngineOptions) []Result {
 			return nil
 		}
 		// scan errors leave partial results behind: search is best effort,
-		// but the user learns about it (one note per failing adapter)
-		if err := scanSession(sc.adapter, sc.meta.Session, keep, iter); err != nil {
+		// but the user learns about it (one note per failing adapter). The
+		// errStop sentinel is not a failure: it is how the iter signals that
+		// the total-hits cap is reached (M6 finding — a capped scan must not
+		// be reported as unreadable storage).
+		if err := scanSession(sc.adapter, sc.meta.Session, keep, iter); err != nil && !errors.Is(err, errStop) {
 			if o.Note != nil && !notedAdapters[sc.adapter.Name()] {
 				notedAdapters[sc.adapter.Name()] = true
 				o.Note(agentlog.UnreadableNote(sc.adapter.Name(), err))

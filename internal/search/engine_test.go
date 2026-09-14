@@ -127,6 +127,35 @@ func TestRunNotesFailingAdapter(t *testing.T) {
 	}
 }
 
+// TestRunMaxHitsCapIsNotAStorageFailure pins the M6 DoD finding: when a scan
+// stops because the total-hits cap is reached, the engine's errStop sentinel
+// must not surface as an "unreadable storage" note — the cap is normal,
+// expected behavior, and the results are complete.
+func TestRunMaxHitsCapIsNotAStorageFailure(t *testing.T) {
+	entries := make([]agentlog.Entry, 0, 10)
+	for i := 0; i < 10; i++ {
+		entries = append(entries, agentlog.Entry{Kind: agentlog.Message, Role: "user", Text: "needle in the log"})
+	}
+	big := &fakeAdapter{
+		name:  "big",
+		metas: []agentlog.SessionMeta{{Session: agentlog.Session{ID: "s1", StartedAt: tNew}}},
+		entries: map[string][]agentlog.Entry{
+			"s1": entries,
+		},
+	}
+
+	var notes []string
+	results := Run([]agentlog.Adapter{big},
+		mustMatcher(t, "needle", MatchOptions{}),
+		EngineOptions{MaxHits: 3, Note: func(n string) { notes = append(notes, n) }})
+	if len(results) != 1 || len(results[0].Hits) != 3 {
+		t.Fatalf("cap must stop the scan with exactly MaxHits hits, got %+v", results)
+	}
+	if len(notes) != 0 {
+		t.Errorf("reaching the hit cap must not emit a note, got %v", notes)
+	}
+}
+
 // TestRunFastListingHitsMatchFullListing pins the fix-round regression
 // guarantee end to end over real adapters: switching the search flow to the
 // fast metadata listing (first record line + stat) changes nothing about the
