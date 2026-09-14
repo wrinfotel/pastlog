@@ -1,0 +1,44 @@
+# Release (spec §10): GoReleaser on v* tags. Builds the six targets
+# (windows/darwin/linux × amd64/arm64), archives them, writes SHA256
+# checksums and publishes the GitHub Release with an auto-generated
+# changelog. Package-manager taps are unconfigured placeholders — see
+# .goreleaser.yaml.
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write # GoReleaser creates the release and uploads its artifacts
+
+jobs:
+  release:
+    name: GoReleaser release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: GoReleaser derives the changelog from commits and
+          # validates the tag against the built commit.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          # Go stable. Pinned fallback if ever needed: go-version: '1.27'.
+          go-version: stable
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          # Keep in sync with the locally verified v2.18.1 (config is
+          # `version: 2` and fails on v1 binaries).
+          version: v2.18.1
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

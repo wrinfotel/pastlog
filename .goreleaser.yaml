@@ -1,0 +1,104 @@
+# GoReleaser v2 configuration for pastlog (spec §10).
+#
+# Verify locally:
+#   goreleaser check
+#   goreleaser build --snapshot --clean   (output goes to the gitignored dist/)
+#
+# The six release targets (spec §2.5: single static binary, cross-platform):
+#   windows/amd64, windows/arm64  (.zip)
+#   darwin/amd64,  darwin/arm64   (.tar.gz)
+#   linux/amd64,   linux/arm64    (.tar.gz)
+#
+# Builds are CGO_ENABLED=0: the only storage driver is modernc.org/sqlite
+# (pure Go, read-only), so cross-compilation needs no C toolchain and every
+# binary is fully static.
+
+version: 2
+
+project_name: pastlog
+
+builds:
+  - id: pastlog
+    main: ./cmd/pastlog
+    binary: pastlog
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    # Build metadata is injected at link time into internal/version (the M1
+    # wiring; `pastlog version` prints exactly these three values). The
+    # values come from the release environment via GoReleaser's standard
+    # template fields: .Version is the git tag without the leading "v"
+    # (re-prefixed here so the CLI reports "v0.1.0" for tag v0.1.0),
+    # .FullCommit is the built commit SHA, .Date the RFC3339 build time.
+    ldflags:
+      - -s -w
+        -X github.com/pastlog/pastlog/internal/version.Version=v{{ .Version }}
+        -X github.com/pastlog/pastlog/internal/version.Commit={{ .FullCommit }}
+        -X github.com/pastlog/pastlog/internal/version.Date={{ .Date }}
+
+archives:
+  - id: default
+    # .tar.gz everywhere, .zip on Windows (spec §10).
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+      - "^build:"
+      - Merge pull request
+      - Merge branch
+
+# Owner/repo are intentionally not pinned here: GoReleaser infers them from
+# the git remote at release time (the repository does not exist yet — the
+# module path github.com/pastlog/pastlog is the canonical future address).
+release:
+  # GitHub Release with an auto-generated changelog (GoReleaser default);
+  # `release --clean` regenerates it on re-runs.
+
+# --- Package-manager distribution (spec §10): committed but UNCONFIGURED. ---
+#
+# TODO: set up the <owner>/homebrew-tap repository, then uncomment and fill
+# in <owner>. Until then this block must stay commented (an empty/broken
+# brews section would fail `goreleaser check`).
+# brews:
+#   - repository:
+#       owner: <owner>
+#       name: homebrew-tap
+#     directory: Formula
+#     homepage: "https://github.com/<owner>/pastlog"
+#     description: "Search the full history of your AI coding agents — 100% local, one binary."
+#     license: "MIT"
+#
+# TODO: create the <owner>/scoop-bucket repository, then uncomment and fill
+# in <owner>.
+# scoop:
+#   bucket:
+#     owner: <owner>
+#     name: scoop-bucket
+#     # token: "{{ .Env.SCOPED_GITHUB_TOKEN }}"  # needs the bucket repo to exist
+#   homepage: "https://github.com/<owner>/pastlog"
+#   description: "Search the full history of your AI coding agents — 100% local, one binary."
+#   license: "MIT"
