@@ -93,6 +93,13 @@ empty) message: the line is readable and not counted.
   file is skipped silently and NOT counted — nothing was parsed wrong, the
   storage itself became unreadable (same class as an unopenable file).
 - Unreadable files (permission errors) are skipped silently.
+- Listing failures are surfaced, never silently truncated (M4): the session
+  file walk (`filepath.WalkDir` over `projects/`) returns an error when the
+  storage cannot be read, and the CLI reports the agent as storage-unreadable
+  (one note on stderr) while the other agents continue — listing does not
+  proceed with partial results. Absent storage simply lists zero sessions.
+  The walk is also immune to glob metacharacters in the home path (`[`, `*`,
+  `?`), which would make a `filepath.Glob` pattern silently match nothing.
 - The skipped counter accumulates across scans and is never reset; an adapter
   is not safe for concurrent scans (one Adapter per goroutine; see the
   Adapter type documentation).
