@@ -4,6 +4,9 @@
 #
 #   vhs demo/demo.tape        # writes demo/demo.gif
 #
+# Requirement: the `pastlog` binary must be on PATH at render time
+# (e.g. `go install github.com/pastlog/pastlog/cmd/pastlog@latest` first).
+#
 # demo.gif itself is NOT committed — render it once, then reference it from
 # the README (a placeholder marks the spot).
 #
@@ -46,5 +49,4 @@ Sleep 4s
 Ctrl+L
 
 Type "pastlog version" Enter
-Sleep 2.5s
-Sleep 1s
+Sleep 3.5s
