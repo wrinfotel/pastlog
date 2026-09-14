@@ -5,3 +5,4 @@
 *.yaml text eol=lf
 *.jsonl text eol=lf
 *.json text eol=lf
+*.tape text eol=lf
