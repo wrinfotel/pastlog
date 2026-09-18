@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/spf13/cobra"
 	"github.com/wrinfotel/pastlog/internal/agentlog"
 	"github.com/wrinfotel/pastlog/internal/render"
-	"github.com/spf13/cobra"
 )
 
 // newStatsCmd builds `pastlog stats` (M7): token statistics across all four

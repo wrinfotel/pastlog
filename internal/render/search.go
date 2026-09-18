@@ -3,7 +3,6 @@ package render
 import (
 	"fmt"
 	"io"
-	"path/filepath"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -52,7 +51,7 @@ func highlightMatch(h search.Hit) string {
 // §3 example: "myapp/api"); empty paths show "-".
 func shortProject(project string) string {
 	var parts []string
-	for _, seg := range strings.Split(filepath.ToSlash(project), "/") {
+	for _, seg := range strings.Split(toSlash(project), "/") {
 		if seg != "" {
 			parts = append(parts, seg)
 		}

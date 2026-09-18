@@ -32,7 +32,7 @@ jobs:
           cache: true
           cache-dependency-path: go.sum
       - name: golangci-lint (uses the committed .golangci.yml, v2 syntax)
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
           # Keep in sync with the locally verified v2.18.1 (.golangci.yml is
           # v2 config and fails on golangci-lint v1).

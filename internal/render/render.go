@@ -201,6 +201,13 @@ func HumanBytes(n int64) string {
 	return fmt.Sprintf("%.1f EB", val)
 }
 
+// toSlash normalizes both separators to forward slashes on every platform.
+// Unlike filepath.ToSlash — a no-op on unix — it also folds the backslashes
+// that Windows agent records and Windows-style test paths contain.
+func toSlash(p string) string {
+	return strings.ReplaceAll(p, `\`, "/")
+}
+
 // tildePath shortens a path under the home directory to ~/... with forward
 // slashes, keeping output identical across platforms. Both separators are
 // accepted: agent records may use forward slashes on Windows too.
@@ -208,8 +215,8 @@ func tildePath(home, path string) string {
 	if home == "" || path == "" {
 		return path
 	}
-	h := filepath.ToSlash(strings.TrimSuffix(home, string(filepath.Separator)))
-	p := filepath.ToSlash(path)
+	h := toSlash(strings.TrimSuffix(home, string(filepath.Separator)))
+	p := toSlash(path)
 	if p == h {
 		return "~"
 	}

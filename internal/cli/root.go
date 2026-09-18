@@ -7,10 +7,10 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/spf13/cobra"
 	"github.com/wrinfotel/pastlog/internal/agentlog"
 	"github.com/wrinfotel/pastlog/internal/discovery"
 	"github.com/wrinfotel/pastlog/internal/version"
-	"github.com/spf13/cobra"
 )
 
 // Execute runs the pastlog CLI and returns the process exit code:

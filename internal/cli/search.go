@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/spf13/cobra"
 	"github.com/wrinfotel/pastlog/internal/agentlog"
 	"github.com/wrinfotel/pastlog/internal/render"
 	"github.com/wrinfotel/pastlog/internal/search"
-	"github.com/spf13/cobra"
 )
 
 // errNoMatches marks a grep-style "no matches" outcome: Execute returns 1
