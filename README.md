@@ -29,33 +29,45 @@ Supported agents: **Claude Code** · **Codex CLI** · **Gemini CLI** · **OpenCo
 
 ## Install
 
-**Go (any platform):**
+pastlog ships as a single static binary — no runtime, no dependencies, no
+config files. Three ways to get it:
+
+### 1. Download a release binary (recommended)
+
+Grab the archive for your platform from the
+[latest release](https://github.com/wrinfotel/pastlog/releases/latest) and
+put `pastlog` on your `PATH`:
+
+| Platform | Archive |
+|---|---|
+| Windows, Intel/AMD 64-bit | `pastlog_0.1.0_windows_amd64.zip` |
+| Windows on ARM | `pastlog_0.1.0_windows_arm64.zip` |
+| macOS, Apple Silicon | `pastlog_0.1.0_darwin_arm64.tar.gz` |
+| macOS, Intel | `pastlog_0.1.0_darwin_amd64.tar.gz` |
+| Linux, Intel/AMD 64-bit | `pastlog_0.1.0_linux_amd64.tar.gz` |
+| Linux on ARM | `pastlog_0.1.0_linux_arm64.tar.gz` |
+
+Every release ships a `checksums.txt` with SHA256 sums. Verify on
+macOS/Linux before unpacking:
 
 ```sh
-go install github.com/pastlog/pastlog/cmd/pastlog@latest
+sha256sum -c checksums.txt --ignore-missing
 ```
 
-Requires Go 1.27 or newer. The binary is static and fully self-contained.
+Windows (PowerShell):
 
-**Homebrew** (macOS/Linux) — coming with v0.1.0; the tap repository is not
-set up yet:
+```powershell
+Expand-Archive pastlog_0.1.0_windows_amd64.zip
+Move-Item .\pastlog.exe "$env:USERPROFILE\go\bin\"   # or any folder on PATH
+```
+
+macOS/Linux:
 
 ```sh
-brew install pastlog/tap/pastlog   # placeholder — coming with v0.1.0
+tar xzf pastlog_0.1.0_darwin_arm64.tar.gz   # your platform's archive
+sudo install pastlog /usr/local/bin/
+pastlog version                             # sanity check
 ```
-
-**Scoop** (Windows) — coming with v0.1.0; the bucket repository is not set
-up yet:
-
-```sh
-scoop bucket add pastlog https://github.com/pastlog/scoop-bucket   # placeholder — coming with v0.1.0
-scoop install pastlog
-```
-
-**Direct download:** grab the archive for your platform from the
-[Releases page](https://github.com/pastlog/pastlog/releases) (`.zip` for
-Windows, `.tar.gz` elsewhere), unpack it and put `pastlog` on your `PATH`.
-Every release ships a `checksums.txt` with SHA256 sums.
 
 > **macOS Gatekeeper:** release binaries are not notarized (out of scope for
 > v0.1), so macOS may refuse to run a downloaded binary with "cannot be
@@ -65,6 +77,29 @@ Every release ships a `checksums.txt` with SHA256 sums.
 > ```sh
 > xattr -d com.apple.quarantine ./pastlog
 > ```
+
+### 2. Install with Go (any platform)
+
+```sh
+go install github.com/wrinfotel/pastlog/cmd/pastlog@latest
+```
+
+Requires Go 1.27 or newer. `go install` builds without version metadata, so
+`pastlog version` reports `0.0.0-dev (commit none, date unknown)` — release
+binaries report the tagged build.
+
+### 3. Build from source
+
+```sh
+git clone https://github.com/wrinfotel/pastlog
+cd pastlog
+go build ./cmd/pastlog    # produces ./pastlog (.exe on Windows)
+```
+
+### Package managers
+
+Homebrew and Scoop formulas are planned (see [Roadmap](#roadmap)); for now
+use one of the three ways above.
 
 ## Quickstart
 
@@ -524,7 +559,7 @@ Per-agent schema notes live next to the adapters —
 [opencode](internal/adapters/opencode/SCHEMA.md) — including what is parsed,
 skipped, and counted. If a format change makes pastlog miss or misread your
 sessions, open an issue at
-<https://github.com/pastlog/pastlog/issues> with the agent name and version
+<https://github.com/wrinfotel/pastlog/issues> with the agent name and version
 (please never attach real session data — a synthetic record that reproduces
 the shape is enough).
 
@@ -532,6 +567,7 @@ the shape is enough).
 
 - **MCP server** (`pastlog mcp`) — let your coding agent search its own history
 - **TUI** — interactive browsing on top of the same engine
+- **Homebrew / Scoop packages** — `brew install` and `scoop install` formulas
 - **Optional index** — for corpora where streaming is not enough
 
 ## License
