@@ -1,0 +1,6 @@
+{"timestamp":"2026-08-02T14:03:20.000Z","type":"session_meta","payload":{"id":"f3a7b8c9-3333-4333-8333-777777777777","cwd":"/home/dev/tok","cli_version":"0.42.1"}}
+{"timestamp":"2026-08-02T14:03:22.000Z","type":"turn_context","payload":{"cwd":"/home/dev/tok","model":"gpt-5.3-mini","effort":"medium"}}
+{"timestamp":"2026-08-02T14:03:25.000Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"count the tokens"}]}}
+{"timestamp":"2026-08-02T14:03:40.000Z","type":"token_count","payload":{"info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":20,"output_tokens":30,"reasoning_output_tokens":5},"last_token_usage":{"input_tokens":10,"cached_input_tokens":0,"output_tokens":6,"reasoning_output_tokens":1}}}}
+{"timestamp":"2026-08-02T14:03:45.000Z","type":"turn_context","payload":{"cwd":"/home/dev/tok","model":"gpt-5.3-codex","effort":"high"}}
+{"timestamp":"2026-08-02T14:03:50.000Z","type":"token_count","payload":{"info":{"total_token_usage":{"input_tokens":250,"cached_input_tokens":45,"output_tokens":80,"reasoning_output_tokens":12},"last_token_usage":{"input_tokens":15,"cached_input_tokens":0,"output_tokens":9,"reasoning_output_tokens":2}}}}

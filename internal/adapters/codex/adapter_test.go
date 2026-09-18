@@ -420,12 +420,14 @@ func TestDefensiveParsingCountsSkipped(t *testing.T) {
 }
 
 func TestUnknownShapesCountedAsSkipped(t *testing.T) {
-	// realistic.jsonl carries event_msg, turn_context and an unknown
-	// response_item payload type — all three are skipped and counted
+	// realistic.jsonl carries event_msg and an unknown response_item payload
+	// type — both are skipped and counted. turn_context is NOT counted
+	// anymore: M7 moved it to recognized-silent (controller ruling 4), so
+	// this expectation legitimately changed from 3 to 2.
 	a := newTestAdapter(t, map[string]string{realisticRel: "realistic.jsonl"})
 	_ = listSessions(t, a)
-	if a.SkippedLines() != 3 {
-		t.Errorf("SkippedLines = %d, want 3 (event_msg, turn_context, web_search_call)", a.SkippedLines())
+	if a.SkippedLines() != 2 {
+		t.Errorf("SkippedLines = %d, want 2 (event_msg, web_search_call; turn_context is recognized-silent since M7)", a.SkippedLines())
 	}
 }
 

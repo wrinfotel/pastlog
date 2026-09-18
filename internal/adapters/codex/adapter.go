@@ -70,6 +70,24 @@ func (a *Adapter) SessionsMeta(iter func(agentlog.SessionMeta) error) error {
 	return a.walk(iter)
 }
 
+// SessionsUsage implements agentlog.UsageSource (M7): token_count values are
+// cumulative, so the LAST total_token_usage in the rollout is the session's
+// usage (compaction resets are documented best-effort — last wins), and the
+// model comes from the LAST turn_context record. token_count/turn_context
+// are recognized-silent: no entries, not counted. Usage rides the shared
+// walkSummaries pass (one scan, same order and skip accounting as
+// SessionsMeta); codex provides no per-session cost, HasCost stays false.
+func (a *Adapter) SessionsUsage(iter func(agentlog.SessionUsage) error) error {
+	return a.walkSummaries(func(sum fileSummary, path string) error {
+		meta := sum.meta(path)
+		return iter(agentlog.SessionUsage{
+			Session:  meta.Session,
+			Messages: meta.Messages,
+			Usage:    sum.usage(),
+		})
+	})
+}
+
 // SessionsMetaFast implements agentlog.FastMetaSource: the search flow lists
 // sessions from the FIRST record line of each file plus a stat (a rollout's
 // session_meta carries id, cwd and timestamp) instead of parsing every line
@@ -167,6 +185,16 @@ func (a *Adapter) entriesFor(s agentlog.Session, keep func([]byte) bool, iter fu
 
 // walk streams every rollout file, in sorted path order, through iter.
 func (a *Adapter) walk(iter func(agentlog.SessionMeta) error) error {
+	return a.walkSummaries(func(sum fileSummary, path string) error {
+		return iter(sum.meta(path))
+	})
+}
+
+// walkSummaries streams every rollout file's aggregate through iter — the
+// one shared storage walk behind Sessions, SessionsMeta (meta view) and
+// SessionsUsage (usage view), so all listing passes scan the files once, in
+// the same sorted order, and skip/usage accounting stays identical.
+func (a *Adapter) walkSummaries(iter func(sum fileSummary, path string) error) error {
 	files, err := a.sessionFiles()
 	if err != nil {
 		return fmt.Errorf("cannot list codex storage: %v", err)
@@ -180,7 +208,7 @@ func (a *Adapter) walk(iter func(agentlog.SessionMeta) error) error {
 			continue // empty (or blank) file: not a session
 		}
 		a.registerIDs(path, sum.sessionID)
-		if err := iter(sum.meta(path)); err != nil {
+		if err := iter(sum, path); err != nil {
 			return err
 		}
 	}
@@ -196,6 +224,8 @@ type fileSummary struct {
 	messages           int
 	size               int64
 	sawLine            bool
+	model              string      // last non-empty turn_context model
+	tokens             *tokenUsage // last token_count totals (values are cumulative)
 }
 
 func (f fileSummary) meta(path string) agentlog.SessionMeta {
@@ -211,6 +241,21 @@ func (f fileSummary) meta(path string) agentlog.SessionMeta {
 		},
 		Messages: f.messages,
 	}
+}
+
+// usage maps the last-wins token_count totals and turn_context model to the
+// agentlog.Usage view (M7): input_tokens→Input, output_tokens→Output,
+// cached_input_tokens→CacheRead, reasoning_output_tokens→Reasoning
+// (0 when absent). Codex rollouts carry no per-session cost.
+func (f fileSummary) usage() agentlog.Usage {
+	u := agentlog.Usage{Model: f.model}
+	if f.tokens != nil {
+		u.Input = f.tokens.input
+		u.CacheRead = f.tokens.cached
+		u.Output = f.tokens.output
+		u.Reasoning = f.tokens.reasoning
+	}
+	return u
 }
 
 // id prefers the session_meta payload id; the rollout filename is the
@@ -262,6 +307,12 @@ func (a *Adapter) scanFile(path string, keep func([]byte) bool, emit func(agentl
 		}
 		if info.cwd != "" && sum.cwd == "" {
 			sum.cwd = info.cwd
+		}
+		if info.model != "" {
+			sum.model = info.model // last non-empty turn_context model wins
+		}
+		if info.tokens != nil {
+			sum.tokens = info.tokens // last total_token_usage wins (cumulative values)
 		}
 		for _, e := range entries {
 			if e.Kind == agentlog.Message && e.Role == "user" && sum.title == "" {

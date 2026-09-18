@@ -26,7 +26,7 @@ Fields the adapter uses:
 
 | Field | Meaning |
 |---|---|
-| `type` | record type: `session_meta` or `response_item`; anything else (`event_msg`, `turn_context`, `compacted`, …) is skipped **and counted** |
+| `type` | record types: `session_meta`, `response_item`, and — since M7 — the recognized-silent `token_count` and `turn_context`; anything else (`event_msg`, `compacted`, …) is skipped **and counted** |
 | `timestamp` | ISO 8601, e.g. `2026-08-02T14:03:22.150Z` → session start/end bounds |
 | `payload` | type-specific object, see below |
 
@@ -52,6 +52,33 @@ treated as one text part. Unknown item types inside a readable `content` /
 `summary` array are ignored silently; a *malformed* item (invalid JSON) marks
 the whole line skipped.
 
+### `token_count` payload (recognized-silent, M7)
+
+```json
+{"info": {"total_token_usage": {"input_tokens": N, "cached_input_tokens": N,
+          "output_tokens": N, "reasoning_output_tokens": N?},
+          "last_token_usage": {…}}}
+```
+
+- **Recognized-silent** (controller ruling, M7): the record yields no entries
+  and is NOT counted as skipped — only `event_msg`, `compacted` and other
+  unknown top-level types remain skip+counted.
+- `total_token_usage` values are **cumulative** over the rollout, so the
+  session's usage is the LAST `token_count` record (last wins). Compaction
+  resets are documented best-effort: after a reset the last record still
+  wins, so post-compaction usage reflects the reset baseline.
+- `last_token_usage` (the per-turn delta) is ignored — only totals map to the
+  session. Missing `reasoning_output_tokens` contributes 0.
+- A payload that is missing/null/unparsable (or a wrong-typed `info`) stays
+  in the skip+counted class, like every known type with an unusable payload.
+
+### `turn_context` payload (recognized-silent, M7)
+
+`{"cwd":…, "model":"gpt-…", "effort":…}` — **recognized-silent** since M7 (no
+entries, not counted). The `model` field feeds `Usage.Model`: the LAST
+non-empty `turn_context.model` in the rollout wins. `cwd` here does not
+override the session project (that stays `session_meta`, first wins).
+
 ## Mapping to pastlog's model
 
 - `Session.ID` = first `session_meta.payload.id`; fallback: rollout filename
@@ -70,12 +97,36 @@ the whole line skipped.
   unknown records are excluded.
 - A file yields a session if it contains at least one non-empty line.
 
+## Token usage (`pastlog stats`, M7)
+
+`SessionsUsage` reads usage facts in the same streaming pass that yields the
+sessions (`agentlog.UsageSource`; one walk, same sorted order, same
+skip-accounting):
+
+| Usage field | Source (LAST `token_count` record wins — values are cumulative) |
+|---|---|
+| `Input` | `total_token_usage.input_tokens` |
+| `Output` | `total_token_usage.output_tokens` |
+| `Reasoning` | `total_token_usage.reasoning_output_tokens` (0 when absent) |
+| `CacheWrite` | — codex reports no separate cache-write total; stays 0 |
+| `CacheRead` | `total_token_usage.cached_input_tokens` |
+| `Model` | LAST non-empty `turn_context.payload.model`; "" when the rollout has none |
+| `CostUSD` / `HasCost` | — rollouts carry no per-session cost; `HasCost` stays false |
+
+- `Messages` keeps the `SessionsMeta` semantic, so sessions and messages of
+  zero-usage rollouts still count in the aggregates.
+- `SessionsMetaFast` (the search fast path) reads only line 1 and carries no
+  usage — the stats flow always uses the full `SessionsUsage` pass.
+
 ## Defensive behavior
 
 - Corrupt / truncated / non-object lines → skipped, counted
   (`SkippedLines()`); the CLI summarizes as "N unreadable lines skipped".
-- Unknown top-level `type` (`event_msg`, `turn_context`, …) and unknown
+- Unknown top-level `type` (`event_msg`, `compacted`, …) and unknown
   `response_item` payload types → skipped and counted.
+- `token_count` and `turn_context` → recognized-silent (M7 controller
+  ruling): no entries, NOT counted; unusable payloads of these two types
+  stay skip+counted, like every known type.
 - Known types with a missing/null/unparsable payload → skipped and counted.
 - Unknown item types inside a recognized content/summary array are ignored
   silently (the line itself was readable).

@@ -43,11 +43,39 @@ type textItem struct {
 	Text string `json:"text"`
 }
 
+// tokenUsage carries one token_count record's totals for the stats flow (M7).
+// The values are cumulative over the rollout, so the LAST record wins.
+type tokenUsage struct {
+	input, cached, output, reasoning int64
+}
+
+// tokenCountPayload mirrors the token_count payload: the info object holds
+// the cumulative totals (total_token_usage) alongside the per-turn delta
+// (last_token_usage, ignored — only totals map to the session).
+type tokenCountPayload struct {
+	Info struct {
+		TotalTokenUsage struct {
+			InputTokens           *int64 `json:"input_tokens"`
+			CachedInputTokens     *int64 `json:"cached_input_tokens"`
+			OutputTokens          *int64 `json:"output_tokens"`
+			ReasoningOutputTokens *int64 `json:"reasoning_output_tokens"`
+		} `json:"total_token_usage"`
+	} `json:"info"`
+}
+
+// turnContextPayload mirrors the turn_context payload; only the model field
+// is consumed (last non-empty wins).
+type turnContextPayload struct {
+	Model string `json:"model"`
+}
+
 // lineInfo carries the per-line facts the session scanner aggregates.
 type lineInfo struct {
 	sessionID string
 	cwd       string
 	ts        time.Time
+	model     string      // turn_context model, "" when the record had none
+	tokens    *tokenUsage // token_count totals, nil when the record had none
 }
 
 // processLine classifies one non-empty JSONL line into at most a handful of
@@ -89,11 +117,52 @@ func processLine(line []byte) (info lineInfo, entries []agentlog.Entry, ok bool)
 		}
 		entries, ok = responseItemEntries(ip, info.ts)
 		return info, entries, ok
+	case "token_count":
+		// M7: recognized-silent — no entries, not counted. The totals are
+		// cumulative; the scanner keeps the LAST record (last wins).
+		trimmed := bytes.TrimSpace(rec.Payload)
+		if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+			return info, nil, false // known type, missing payload
+		}
+		var tp tokenCountPayload
+		if err := json.Unmarshal(trimmed, &tp); err != nil {
+			return info, nil, false // known type, unusable payload
+		}
+		t := tp.Info.TotalTokenUsage
+		info.tokens = &tokenUsage{
+			input:     ptrVal(t.InputTokens),
+			cached:    ptrVal(t.CachedInputTokens),
+			output:    ptrVal(t.OutputTokens),
+			reasoning: ptrVal(t.ReasoningOutputTokens),
+		}
+		return info, nil, true
+	case "turn_context":
+		// M7: recognized-silent — no entries, not counted. The model is
+		// last-wins in the scanner.
+		trimmed := bytes.TrimSpace(rec.Payload)
+		if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+			return info, nil, false // known type, missing payload
+		}
+		var tp turnContextPayload
+		if err := json.Unmarshal(trimmed, &tp); err != nil {
+			return info, nil, false // known type, unusable payload
+		}
+		info.model = tp.Model
+		return info, nil, true
 	default:
-		// event_msg, turn_context, compacted, … — unknown top-level types are
+		// event_msg, compacted, … — unknown top-level types are
 		// skipped and counted (SCHEMA.md, Defensive behavior).
 		return info, nil, false
 	}
+}
+
+// ptrVal dereferences an optional token field: nil (missing) contributes
+// zero.
+func ptrVal(p *int64) int64 {
+	if p == nil {
+		return 0
+	}
+	return *p
 }
 
 // responseItemEntries maps one response_item payload to entries. ok=false

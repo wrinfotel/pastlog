@@ -1,0 +1,2 @@
+{"timestamp":"2026-07-01T10:00:00Z","type":"session_meta","payload":{"id":"a5b8c9d0-4444-4444-8444-888888888888","cwd":"/home/dev/app"}}
+{"timestamp":"2026-07-01T10:00:05Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"a rollout without token_count or turn_context records"}]}}
