@@ -94,3 +94,36 @@ type WarningSource interface {
 type TotalSizer interface {
 	TotalBytes() int64
 }
+
+// Usage aggregates one session's token usage (M7). CacheRead counts cache-hit
+// input tokens and CacheWrite cache-creation input tokens where an agent
+// reports the split; fields an agent does not expose stay zero. CostUSD is
+// the session cost with HasCost=true when the agent provides one at all (it
+// is provided even for a 0 cost). Model is the model name the agent reported
+// for the session ("" when unknown).
+type Usage struct {
+	Input, Output, Reasoning int64
+	CacheRead, CacheWrite    int64
+	CostUSD                  float64
+	HasCost                  bool
+	Model                    string
+}
+
+// SessionUsage is a Session plus the usage facts adapters compute in the
+// same pass that yields sessions. Messages keeps the SessionMeta semantic
+// (message-kind entries), so token statistics count the sessions and
+// messages of zero-usage sessions too.
+type SessionUsage struct {
+	Session
+	Messages int
+	Usage
+}
+
+// UsageSource is optionally implemented by adapters that can supply token
+// usage in one streaming pass (one storage walk, like SessionsMeta). Callers
+// aggregate what they get; adapters without usage data simply do not
+// implement it and contribute nothing to token statistics — silently, stats
+// has no business noting that.
+type UsageSource interface {
+	SessionsUsage(iter func(SessionUsage) error) error
+}
