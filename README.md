@@ -57,7 +57,7 @@ sha256sum -c checksums.txt --ignore-missing
 Windows (PowerShell):
 
 ```powershell
-Expand-Archive pastlog_0.1.0_windows_amd64.zip
+Expand-Archive pastlog_0.1.0_windows_amd64.zip -DestinationPath .
 Move-Item .\pastlog.exe "$env:USERPROFILE\go\bin\"   # or any folder on PATH
 ```
 
