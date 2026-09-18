@@ -155,10 +155,29 @@ func (a *Adapter) SessionsMeta(iter func(agentlog.SessionMeta) error) error {
 	return a.walk(iter)
 }
 
+// SessionsUsage implements agentlog.UsageSource (M7): the session table
+// carries the aggregate token columns and the per-session cost directly, so
+// the usage view rides the same walk as SessionsMeta (one connection, one
+// scan, locked-DB handling included).
+func (a *Adapter) SessionsUsage(iter func(agentlog.SessionUsage) error) error {
+	return a.walkUsage(iter)
+}
+
 // walk streams every session (parent and child alike — no filtering) in
 // time_created order through iter, with per-session sizes and message counts
 // from grouped aggregate cursors.
 func (a *Adapter) walk(iter func(agentlog.SessionMeta) error) error {
+	return a.walkUsage(func(su agentlog.SessionUsage) error {
+		return iter(agentlog.SessionMeta{Session: su.Session, Messages: su.Messages})
+	})
+}
+
+// walkUsage streams every session in time_created order through iter with
+// per-session sizes, message counts and the token/cost/model columns — the
+// shared walk behind Sessions/SessionsMeta (meta view) and SessionsUsage
+// (usage view), so all listing passes open one connection and scan the
+// session table once.
+func (a *Adapter) walkUsage(iter func(agentlog.SessionUsage) error) error {
 	if a.dir == "" {
 		return nil // storage root absent: no sessions, not an error (spec §8)
 	}
@@ -179,7 +198,8 @@ func (a *Adapter) walk(iter func(agentlog.SessionMeta) error) error {
 		return fmt.Errorf("cannot read opencode database: %v", err)
 	}
 
-	rows, err := db.Query(`SELECT id, directory, title, time_created, time_updated
+	rows, err := db.Query(`SELECT id, directory, title, time_created, time_updated,
+		tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write, cost, model
 		FROM session ORDER BY time_created, id`)
 	if err != nil {
 		if a.markLocked(err) {
@@ -192,10 +212,14 @@ func (a *Adapter) walk(iter func(agentlog.SessionMeta) error) error {
 	for rows.Next() {
 		var id, directory, title string
 		var created, updated int64
-		if err := rows.Scan(&id, &directory, &title, &created, &updated); err != nil {
+		var input, output, reasoning, cacheRead, cacheWrite int64
+		var cost float64
+		var model sql.NullString // NULL → "" (no model reported)
+		if err := rows.Scan(&id, &directory, &title, &created, &updated,
+			&input, &output, &reasoning, &cacheRead, &cacheWrite, &cost, &model); err != nil {
 			continue // unreadable row: skip
 		}
-		m := agentlog.SessionMeta{
+		su := agentlog.SessionUsage{
 			Session: agentlog.Session{
 				ID:        id,
 				Agent:     agentName,
@@ -206,8 +230,18 @@ func (a *Adapter) walk(iter func(agentlog.SessionMeta) error) error {
 				SizeBytes: sizes[id],
 			},
 			Messages: int(counts[id]),
+			Usage: agentlog.Usage{
+				Input:      input,
+				Output:     output,
+				Reasoning:  reasoning,
+				CacheRead:  cacheRead,
+				CacheWrite: cacheWrite,
+				CostUSD:    cost,
+				HasCost:    true, // the cost column is NOT NULL — every session provides one
+				Model:      model.String,
+			},
 		}
-		if err := iter(m); err != nil {
+		if err := iter(su); err != nil {
 			return err
 		}
 	}

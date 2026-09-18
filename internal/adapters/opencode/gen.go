@@ -94,14 +94,20 @@ CREATE INDEX ` + "`part_message_id_id_idx`" + ` ON ` + "`part`" + ` (` + "`messa
 
 // seed inserts two sessions (one child, proving parent sessions are listed
 // too), user/assistant messages, and one part of every observed type plus an
-// unknown type and a malformed row for the defensive-parsing paths.
+// unknown type and a malformed row for the defensive-parsing paths. Both
+// sessions carry non-zero aggregate token columns, a cost and a model (M7
+// token statistics); the child's zero cache_read column exercises a 0 value.
 func seed(db *sql.DB) error {
 	stmts := []string{
 		// sessions (times are fixed epoch milliseconds for determinism)
-		`INSERT INTO session (id, project_id, workspace_id, parent_id, slug, directory, title, version, time_created, time_updated)
-		 VALUES ('ses_fixture100001fix', 'prj_fixture', NULL, NULL, 'fixture-one', 'C:/dev/fixture app', 'Fix the widget flux', '1.18.0', 1786220928012, 1786220992255)`,
-		`INSERT INTO session (id, project_id, workspace_id, parent_id, slug, directory, title, version, time_created, time_updated)
-		 VALUES ('ses_fixture200002fix', 'prj_fixture', NULL, 'ses_fixture100001fix', 'fixture-two', 'C:/dev/fixture app', 'Child subagent session', '1.18.0', 1786220993000, 1786220994000)`,
+		`INSERT INTO session (id, project_id, workspace_id, parent_id, slug, directory, title, version, time_created, time_updated,
+			tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write, cost, model)
+		 VALUES ('ses_fixture100001fix', 'prj_fixture', NULL, NULL, 'fixture-one', 'C:/dev/fixture app', 'Fix the widget flux', '1.18.0', 1786220928012, 1786220992255,
+			1523, 412, 87, 10240, 512, 0.42, 'qwen3-coder-480b')`,
+		`INSERT INTO session (id, project_id, workspace_id, parent_id, slug, directory, title, version, time_created, time_updated,
+			tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write, cost, model)
+		 VALUES ('ses_fixture200002fix', 'prj_fixture', NULL, 'ses_fixture100001fix', 'fixture-two', 'C:/dev/fixture app', 'Child subagent session', '1.18.0', 1786220993000, 1786220994000,
+			310, 95, 20, 0, 128, 0.08, 'qwen3-coder-480b')`,
 		// messages: user, assistant (parent session); one assistant (child)
 		`INSERT INTO message (id, session_id, time_created, time_updated, data) VALUES
 		 ('msg_fixture100001fi', 'ses_fixture100001fix', 1786220928145, 1786220928145,

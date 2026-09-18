@@ -117,6 +117,38 @@ Recognized types: `text`, `reasoning`, `tool`, `file`, `patch`,
   errors. `Entries` scopes every query by `session_id`.
 - Entry timestamps = `part.time_created`.
 
+## Token usage (`pastlog stats`, M7)
+
+OpenCode is the one agent whose storage carries the usage aggregates
+directly: the `session` table has `tokens_input`, `tokens_output`,
+`tokens_reasoning`, `tokens_cache_read`, `tokens_cache_write` (integers,
+NOT NULL DEFAULT 0), `cost` (real, NOT NULL DEFAULT 0) and `model` (text,
+nullable). `SessionsUsage` maps the columns 1:1:
+
+| Usage field | Source |
+|---|---|
+| `Input` | `session.tokens_input` |
+| `Output` | `session.tokens_output` |
+| `Reasoning` | `session.tokens_reasoning` |
+| `CacheWrite` | `session.tokens_cache_write` |
+| `CacheRead` | `session.tokens_cache_read` |
+| `Model` | `session.model` (NULL → "") |
+| `CostUSD` / `HasCost` | `session.cost` with `HasCost=true` — the column is NOT NULL, so every opencode session provides a cost (even 0); opencode is the only agent with cost data (M7 ruling 5) |
+
+- The usage columns ride the SAME walk as `SessionsMeta` (`walkUsage`): one
+  connection, one `SELECT … ORDER BY time_created, id` cursor over `session`
+  (extended by the token/cost/model columns), plus the existing grouped
+  aggregate cursors for sizes and message counts.
+- `Messages` keeps the `SessionsMeta` semantic, so sessions and messages of
+  zero-usage sessions still count in the aggregates.
+- The stored per-message `tokens`/`cost` payloads inside `message.data` are
+  NOT read — the session-level columns are the agent's own aggregate and are
+  the authoritative source (M7 ruling 3: stored totals like claude/codex
+  `total` fields stay unused for the total column; pastlog computes
+  total = input+output+reasoning itself).
+- Locked-DB handling is identical to `SessionsMeta`: the usage view yields
+  zero rows, no error, one warning.
+
 ## `agents` totals (controller ruling)
 
 - `agents` total size = the on-disk sizes of `opencode.db` + `opencode.db-wal`
