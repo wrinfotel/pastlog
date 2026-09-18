@@ -1,0 +1,5 @@
+{"sessionId":"b7c9d0e1-5555-4555-8555-999999999999","projectHash":"a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0","startTime":"2026-08-02T14:03:20Z","lastUpdated":"2026-08-02T14:04:00Z","kind":"main","directories":["/home/dev/tok"],"summary":"token accounting fixture"}
+{"id":"t1","timestamp":"2026-08-02T14:03:22Z","type":"user","content":"count the tokens"}
+{"id":"t2","timestamp":"2026-08-02T14:03:30Z","type":"gemini","content":"counting","model":"gemini-2.5-flash","tokens":{"input":150,"output":40,"cached":10,"thoughts":8,"tool":3,"total":198}}
+{"id":"t3","timestamp":"2026-08-02T14:03:40Z","type":"gemini","content":"middle turn without a model field","tokens":{"input":0,"output":5,"cached":0,"thoughts":0,"tool":0,"total":5}}
+{"id":"t4","timestamp":"2026-08-02T14:03:50Z","type":"gemini","content":"done","model":"gemini-2.5-pro","tokens":{"input":90,"output":25,"cached":5,"thoughts":4,"tool":1,"total":115}}

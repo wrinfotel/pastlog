@@ -71,6 +71,15 @@ func (a *Adapter) SessionsMeta(iter func(agentlog.SessionMeta) error) error {
 	return a.walk(iter)
 }
 
+// SessionsUsage implements agentlog.UsageSource (M7): token usage comes from
+// the same streaming pass that yields sessions — the `tokens` summaries of
+// the session's records accumulate (input/output/cached/thoughts; `tool` and
+// `total` are ignored) and Model is the LAST non-empty record model. Usage
+// rides the shared walkAll pass; gemini-cli provides no per-session cost.
+func (a *Adapter) SessionsUsage(iter func(agentlog.SessionUsage) error) error {
+	return a.walkAll(iter)
+}
+
 // SessionsMetaFast implements agentlog.FastMetaSource: the search flow lists
 // sessions from the FIRST line of each JSONL file plus a stat — gemini-cli
 // files open with a metadata record carrying sessionId, project, title and
@@ -112,7 +121,9 @@ func (a *Adapter) SessionsMetaFast(iter func(agentlog.SessionMeta) error) (bool,
 		return true, fmt.Errorf("cannot list gemini-cli storage: %v", err)
 	}
 	for _, path := range legacy {
-		if err := a.walkLegacy(path, "", iter, nil); err != nil {
+		if err := a.walkLegacy(path, "", func(su agentlog.SessionUsage) error {
+			return iter(agentlog.SessionMeta{Session: su.Session, Messages: su.Messages})
+		}, nil); err != nil {
 			return true, err
 		}
 	}
@@ -199,6 +210,17 @@ func (a *Adapter) entriesFor(s agentlog.Session, keep func([]byte) bool, iter fu
 // walk streams every session, in sorted path order, through iter: main and
 // subagent JSONL files first, then the legacy monolithic chats.json files.
 func (a *Adapter) walk(iter func(agentlog.SessionMeta) error) error {
+	return a.walkAll(func(su agentlog.SessionUsage) error {
+		return iter(agentlog.SessionMeta{Session: su.Session, Messages: su.Messages})
+	})
+}
+
+// walkAll streams every session's usage view through iter — the one shared
+// walk behind Sessions/SessionsMeta (meta view) and SessionsUsage (usage
+// view), so all listing passes scan the stores once, in the same sorted
+// order, and skip/usage accounting stays identical. JSONL main/subagent
+// files go first, then the legacy monolithic chats.json files.
+func (a *Adapter) walkAll(iter func(agentlog.SessionUsage) error) error {
 	files, err := a.sessionFiles()
 	if err != nil {
 		return fmt.Errorf("cannot list gemini-cli storage: %v", err)
@@ -212,7 +234,7 @@ func (a *Adapter) walk(iter func(agentlog.SessionMeta) error) error {
 			continue // empty (or blank) file: not a session
 		}
 		a.registerIDs(path, sum.sessionID, false)
-		if err := iter(sum.meta(path)); err != nil {
+		if err := iter(sum.sessionUsage(path)); err != nil {
 			return err
 		}
 	}
@@ -237,7 +259,8 @@ type fileSummary struct {
 	messages           int
 	size               int64
 	sawLine            bool
-	metaStart, metaEnd bool // metadata startTime / lastUpdated seen: they win over record timestamps
+	metaStart, metaEnd bool           // metadata startTime / lastUpdated seen: they win over record timestamps
+	usage              agentlog.Usage // token totals accumulated over the records (M7)
 }
 
 func (f fileSummary) meta(path string) agentlog.SessionMeta {
@@ -252,6 +275,17 @@ func (f fileSummary) meta(path string) agentlog.SessionMeta {
 			SizeBytes: f.size,
 		},
 		Messages: f.messages,
+	}
+}
+
+// sessionUsage lifts the scan aggregate into the agentlog.SessionUsage view
+// (M7): same session fields and message count as meta, plus the usage.
+func (f fileSummary) sessionUsage(path string) agentlog.SessionUsage {
+	meta := f.meta(path)
+	return agentlog.SessionUsage{
+		Session:  meta.Session,
+		Messages: meta.Messages,
+		Usage:    f.usage,
 	}
 }
 
@@ -308,10 +342,21 @@ func (a *Adapter) scanFile(path string, keep func([]byte) bool, emit func(agentl
 		if keep != nil && !keep(line) {
 			continue // prefilter: not a candidate, not an error
 		}
-		entries, ok := processRecord(line, &a.skipped)
+		entries, usage, ok := processRecord(line, &a.skipped)
 		if !ok {
 			a.skipped++
 			continue
+		}
+		if usage.model != "" {
+			sum.usage.Model = usage.model // last non-empty record model wins
+		}
+		if usage.tokens != nil {
+			// input/output/cached/thoughts accumulate; `tool` and `total`
+			// are recognized but ignored (SCHEMA.md)
+			sum.usage.Input += ptrVal(usage.tokens.Input)
+			sum.usage.Output += ptrVal(usage.tokens.Output)
+			sum.usage.CacheRead += ptrVal(usage.tokens.Cached)
+			sum.usage.Reasoning += ptrVal(usage.tokens.Thoughts)
 		}
 		if err := a.forward(entries, emit, &sum); err != nil {
 			return sum, err

@@ -11,7 +11,7 @@
       "summary": "legacy monolithic session",
       "messages": [
         {"id": "l1", "timestamp": "2026-07-01T09:00:10Z", "type": "user", "content": "hello from the legacy format"},
-        {"id": "l2", "timestamp": "2026-07-01T09:00:30Z", "type": "gemini", "content": "Hi! How can I help?"}
+        {"id": "l2", "timestamp": "2026-07-01T09:00:30Z", "type": "gemini", "content": "Hi! How can I help?", "model": "gemini-2.5-flash", "tokens": {"input": 55, "output": 22, "cached": 4, "thoughts": 6, "tool": 2, "total": 83}}
       ]
     },
     {

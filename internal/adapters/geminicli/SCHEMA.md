@@ -88,6 +88,42 @@ recognize) are skipped **and counted**.
   `agentlog.SessionMeta.Messages` semantic used by the other adapters);
   tool calls and thoughts are excluded.
 
+## Token usage (`pastlog stats`, M7)
+
+`SessionsUsage` reads usage facts in the same streaming pass that yields the
+sessions (`agentlog.UsageSource`; one walk over JSONL files then legacy
+stores, same sorted order, same skip-accounting). Gemini records carry a
+`tokens` summary and a `model` name (schema-confirmed fields of the gemini-cli
+MessageRecord):
+
+| Usage field | Source |
+|---|---|
+| `Input` | sum of `tokens.input` over the session's records |
+| `Output` | sum of `tokens.output` |
+| `Reasoning` | sum of `tokens.thoughts` |
+| `CacheWrite` | — gemini-cli reports no cache-write count; stays 0 |
+| `CacheRead` | sum of `tokens.cached` |
+| `Model` | LAST non-empty record `model`; "" when none |
+| `CostUSD` / `HasCost` | — gemini-cli logs carry no per-session cost; `HasCost` stays false |
+
+- `tokens.tool` and `tokens.total` are recognized but **ignored**: `tool`
+  counts tool-driving tokens, `total` double-counts the others, and mapping
+  them would inflate the input/output columns. Documented best-effort.
+- Per-record values are per-turn deltas (not cumulative, unlike codex), so
+  usage ACCUMULATES across the session's records.
+- Every field of `tokens` is optional; missing fields contribute 0. A record
+  whose `tokens` value has the wrong JSON shape is a known type with an
+  unusable field → the record is skipped and counted (gemini convention).
+- Records replayed inside a compaction checkpoint (`{$set:…}`) contribute
+  their entries only — their token facts stay with the original records, so
+  checkpointed content is never double-counted.
+- The legacy `chats.json` path runs the same record processing, so legacy
+  sessions carry usage the same way.
+- `Messages` keeps the `SessionsMeta` semantic, so sessions and messages of
+  zero-usage sessions still count in the aggregates.
+- `SessionsMetaFast` (the search fast path) reads only line 1 and carries no
+  usage — the stats flow always uses the full `SessionsUsage` pass.
+
 ## Legacy chats.json
 
 Top-level `{version, sessions: [...], currentSessionId}`; each `sessions[]`

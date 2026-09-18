@@ -25,8 +25,9 @@ type legacyRaw struct {
 // listing mode (wantID "") every session goes through iter with emit nil; in
 // entries mode only the session whose id matches wantID is mapped and its
 // entries go through emit. Unreadable wrappers/elements are skipped and
-// counted; a non-nil iter error aborts the walk.
-func (a *Adapter) walkLegacy(path, wantID string, iter func(agentlog.SessionMeta) error, emit func(agentlog.Entry) error) error {
+// counted; a non-nil iter error aborts the walk. iter receives the usage
+// view (M7) — SessionsMeta wraps it back to the meta view.
+func (a *Adapter) walkLegacy(path, wantID string, iter func(agentlog.SessionUsage) error, emit func(agentlog.Entry) error) error {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil // unreadable file: skip silently
@@ -63,13 +64,13 @@ func (a *Adapter) walkLegacy(path, wantID string, iter func(agentlog.SessionMeta
 				a.skipped++ // truncated element: the rest is unreadable
 				return nil
 			}
-			meta, entries, ok := a.legacySession(raw)
+			su, entries, ok := a.legacySession(raw)
 			if !ok {
 				a.skipped++
 				continue
 			}
-			a.registerIDs(path, meta.ID, true) // feed the id→store index (idempotent)
-			if wantID != "" && meta.ID != wantID {
+			a.registerIDs(path, su.ID, true) // feed the id→store index (idempotent)
+			if wantID != "" && su.ID != wantID {
 				continue
 			}
 			if emit != nil {
@@ -80,7 +81,7 @@ func (a *Adapter) walkLegacy(path, wantID string, iter func(agentlog.SessionMeta
 				}
 			}
 			if iter != nil {
-				if err := iter(meta); err != nil {
+				if err := iter(su); err != nil {
 					return err
 				}
 			}
@@ -103,26 +104,38 @@ func delim(dec *json.Decoder, want json.Delim) bool {
 	return ok && d == want
 }
 
-// legacySession maps one raw ConversationRecord element to a session meta and
-// its entries. Unusable message elements count as skipped. ok=false marks a
-// session pastlog cannot name (no sessionId).
-func (a *Adapter) legacySession(raw []byte) (agentlog.SessionMeta, []agentlog.Entry, bool) {
+// legacySession maps one raw ConversationRecord element to the session usage
+// view and its entries. Unusable message elements count as skipped. ok=false
+// marks a session pastlog cannot name (no sessionId).
+func (a *Adapter) legacySession(raw []byte) (agentlog.SessionUsage, []agentlog.Entry, bool) {
 	var rec legacyRaw
 	if err := json.Unmarshal(bytes.TrimSpace(raw), &rec); err != nil {
-		return agentlog.SessionMeta{}, nil, false
+		return agentlog.SessionUsage{}, nil, false
 	}
 	if rec.SessionID == "" {
-		return agentlog.SessionMeta{}, nil, false
+		return agentlog.SessionUsage{}, nil, false
 	}
 	var entries []agentlog.Entry
+	var usage agentlog.Usage
 	for _, msg := range rec.Messages {
-		if sub, ok := processRecord(msg, &a.skipped); ok {
+		// same record processing as the JSONL layout: token facts accumulate
+		// per session (M7)
+		if sub, ru, ok := processRecord(msg, &a.skipped); ok {
 			entries = append(entries, sub...)
+			if ru.model != "" {
+				usage.Model = ru.model
+			}
+			if ru.tokens != nil {
+				usage.Input += ptrVal(ru.tokens.Input)
+				usage.Output += ptrVal(ru.tokens.Output)
+				usage.CacheRead += ptrVal(ru.tokens.Cached)
+				usage.Reasoning += ptrVal(ru.tokens.Thoughts)
+			}
 		} else {
 			a.skipped++
 		}
 	}
-	meta := agentlog.SessionMeta{
+	su := agentlog.SessionUsage{
 		Session: agentlog.Session{
 			ID:        rec.SessionID,
 			Agent:     agentName,
@@ -133,8 +146,9 @@ func (a *Adapter) legacySession(raw []byte) (agentlog.SessionMeta, []agentlog.En
 			SizeBytes: int64(len(bytes.TrimSpace(raw))), // approximation: the raw element (SCHEMA.md)
 		},
 		Messages: countMessages(entries),
+		Usage:    usage,
 	}
-	return meta, entries, true
+	return su, entries, true
 }
 
 func countMessages(entries []agentlog.Entry) int {

@@ -74,7 +74,36 @@ type recordRaw struct {
 	Content   json.RawMessage `json:"content"` // PartListUnion: string or []part
 	ToolCalls json.RawMessage `json:"toolCalls"`
 	Thoughts  json.RawMessage `json:"thoughts"`
-	Set       *setRaw         `json:"$set"` // compaction checkpoint
+	Tokens    *tokensRaw      `json:"tokens"` // usage summary on gemini records (M7)
+	Model     string          `json:"model"`  // model name on gemini records (M7)
+	Set       *setRaw         `json:"$set"`   // compaction checkpoint
+}
+
+// tokensRaw mirrors a record's tokens summary (M7): every field is optional.
+// `tool` and `total` are recognized but IGNORED — the stats flow maps only
+// input/output/cached/thoughts (SCHEMA.md).
+type tokensRaw struct {
+	Input    *int64 `json:"input"`
+	Output   *int64 `json:"output"`
+	Cached   *int64 `json:"cached"`
+	Thoughts *int64 `json:"thoughts"`
+	Tool     *int64 `json:"tool"`
+	Total    *int64 `json:"total"`
+}
+
+// recordUsage carries one record's token/model facts for the stats flow.
+type recordUsage struct {
+	tokens *tokensRaw
+	model  string
+}
+
+// ptrVal dereferences an optional token field: nil (missing) contributes
+// zero.
+func ptrVal(p *int64) int64 {
+	if p == nil {
+		return 0
+	}
+	return *p
 }
 
 // setRaw is the checkpoint payload: a snapshot of the conversation so far.
@@ -123,34 +152,41 @@ func roleFor(recordType string) (string, bool) {
 // unknown shapes and are counted via skipped. Within one record the entry
 // order is: content texts, content part entries, tool calls/results,
 // thoughts.
-func processRecord(line []byte, skipped *int) (entries []agentlog.Entry, ok bool) {
+//
+// M7: the record's tokens/model facts ride along for the stats flow
+// (usage.tokens/usage.model, zero-valued when the record has none). Records
+// replayed inside a compaction checkpoint contribute their ENTRIES only —
+// their token facts stay with the original records, so checkpointed content
+// is never double-counted.
+func processRecord(line []byte, skipped *int) (entries []agentlog.Entry, usage recordUsage, ok bool) {
 	trimmed := bytes.TrimSpace(line)
 	if len(trimmed) == 0 || trimmed[0] != '{' {
-		return nil, false
+		return nil, recordUsage{}, false
 	}
 	var rec recordRaw
 	if err := json.Unmarshal(trimmed, &rec); err != nil {
-		return nil, false
+		return nil, recordUsage{}, false
 	}
 	if rec.Set != nil {
 		// compaction checkpoint: apply the snapshot's messages in place
 		for _, raw := range rec.Set.Messages {
-			if sub, ok := processRecord(raw, skipped); ok {
+			if sub, _, subOK := processRecord(raw, skipped); subOK {
 				entries = append(entries, sub...)
 			} else {
 				*skipped++ // unknown shape inside a recognized checkpoint
 			}
 		}
-		return entries, true
+		return entries, recordUsage{}, true
 	}
 	role, known := roleFor(rec.Type)
 	if !known {
-		return nil, false // unknown record shape (deletion records, …)
+		return nil, recordUsage{}, false // unknown record shape (deletion records, …)
 	}
+	usage = recordUsage{tokens: rec.Tokens, model: rec.Model}
 	ts := parseTS(rec.Timestamp)
 	texts, extras, ok := contentEntries(rec.Content, ts)
 	if !ok {
-		return nil, false // content present but unusable
+		return nil, recordUsage{}, false // content present but unusable
 	}
 	for _, text := range texts {
 		entries = append(entries, agentlog.Entry{Kind: agentlog.Message, Role: role, Text: text, Timestamp: ts})
@@ -158,14 +194,14 @@ func processRecord(line []byte, skipped *int) (entries []agentlog.Entry, ok bool
 	entries = append(entries, extras...)
 	calls, ok := toolCallEntries(rec.ToolCalls, ts)
 	if !ok {
-		return nil, false // toolCalls present but unusable
+		return nil, recordUsage{}, false // toolCalls present but unusable
 	}
 	entries = append(entries, calls...)
 	thoughts, ok := thoughtEntries(rec.Thoughts, ts)
 	if !ok {
-		return nil, false // thoughts present but unusable
+		return nil, recordUsage{}, false // thoughts present but unusable
 	}
-	return append(entries, thoughts...), true
+	return append(entries, thoughts...), usage, true
 }
 
 // contentEntries flattens a PartListUnion content (string or part array).
