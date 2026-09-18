@@ -6,8 +6,9 @@ pastlog indexes nothing, uploads nothing, and configures nothing: it streams
 the session logs that Claude Code, Codex CLI, Gemini CLI and OpenCode already
 wrote under your home directory and makes them searchable across all your
 projects — user/assistant messages, tool calls and tool outputs included.
-One static binary, zero servers, zero accounts, zero telemetry, strictly
-read-only.
+`pastlog stats` aggregates token usage (and OpenCode's session cost) across
+agents, projects, days and models. One static binary, zero servers, zero
+accounts, zero telemetry, strictly read-only.
 
 Supported agents: **Claude Code** · **Codex CLI** · **Gemini CLI** · **OpenCode**
 
@@ -87,6 +88,7 @@ Available Commands:
   search      search all session entries across agents
   sessions    list sessions, newest first
   show        print one session as a readable transcript
+  stats       aggregate token usage across agents, projects, days and models
   version     print version, commit and build date
 
 Flags:
@@ -311,6 +313,78 @@ $ pastlog show 3f9c81a2 --json
 }
 ```
 
+`pastlog stats` — where your tokens go: token usage aggregated across all
+four agents, grouped with `--by agent|project|day|model` (default `agent`)
+and filterable with the same `--agent`/`--project`/`--since`/`--until`
+filters as `sessions`, plus `--model <substring>` (case-insensitive match on
+the session's model). Groups print in ascending key order (chronological for
+`--by day`); `total` is input+output+reasoning; the `cost usd` column appears
+only when the selection includes sessions that carry a cost (OpenCode records
+one per session — the other agents' logs don't, shown as `-`):
+
+```console
+$ pastlog stats
+agent        sessions  messages  input  output  reasoning  cache read  cache write  total  cost usd
+claude-code         3         6    120      45          0         200           30    165         -
+codex               2         3    300      90         25          80            0    415         -
+gemini-cli          2         4    200      60         10          15            0    270         -
+opencode            2         3  1,833     507        107      10,240          640  2,447      0.50
+```
+
+Group by model (sessions whose logs record no model land in the `-` group)
+or by day; filter first if you only want one slice:
+
+```console
+$ pastlog stats --by model --model sonnet
+model              sessions  messages  input  output  reasoning  cache read  cache write  total
+claude-sonnet-4-5         1         2    120      45          0         200           30    165
+
+$ pastlog stats --by day --since 60d
+day         sessions  messages  input  output  reasoning  cache read  cache write  total  cost usd
+2026-08-01         1         2      0       0          0           0            0      0         -
+2026-08-02         6        11    620     195         35         295           30    850         -
+2026-08-08         2         3  1,833     507        107      10,240          640  2,447      0.50
+```
+
+`--json` emits the stable machine-readable schema; `cost_usd` is `null` when
+no session in the group provided a cost and a number (even `0`) when any did.
+An empty selection is not an error: the human output prints nothing and the
+JSON prints `[]`, both with exit code 0:
+
+```console
+$ pastlog stats --agent opencode --json
+[
+  {
+    "key": "opencode",
+    "sessions": 2,
+    "messages": 3,
+    "tokens": {
+      "input": 1833,
+      "output": 507,
+      "reasoning": 107,
+      "cache_read": 10240,
+      "cache_write": 640,
+      "total": 2447
+    },
+    "cost_usd": 0.5
+  }
+]
+```
+
+| Flag | Meaning |
+|---|---|
+| `--by agent\|project\|day\|model` | grouping dimension (default `agent`; project keys render tilde-shortened like `sessions`) |
+| `--agent <name>` | only one agent's sessions (unknown names exit 2) |
+| `--project <substring>` | only sessions whose working dir contains it (case-insensitive) |
+| `--model <substring>` | only sessions whose model name contains it (case-insensitive) |
+| `--since <Nd\|Nw\|YYYY-MM-DD>` | only sessions started after that point |
+| `--until <Nd\|Nw\|YYYY-MM-DD>` | only sessions started before that point |
+| `--json` | stable JSON schema instead of the table |
+
+(The examples above were captured from the real binary on a synthetic
+fixture home whose sessions carry usage fields; where your own agent logs
+record no usage, sessions still count — their token columns stay 0.)
+
 `pastlog version` — semantic version, commit and build date, injected at
 link time. A release binary reports the tagged build:
 
@@ -332,9 +406,9 @@ grep-style, on every command:
 
 | Code | Meaning |
 |---|---|
-| `0` | ok — including "nothing found" (`agents`/`sessions` list nothing, `show` prints an empty session) |
-| `1` | `search` found no matches (nothing is printed) |
-| `2` | real error — bad flag value, unknown agent, unreadable `--home`, ambiguous session-ID prefix, unusable storage |
+| `0` | ok — including "nothing found" (`agents`/`sessions` list nothing, `stats` prints nothing for an empty selection, `show` prints an empty session) |
+| `1` | `search` found no matches (nothing is printed) — stats never exits 1: an empty aggregate is a valid result |
+| `2` | real error — bad flag value (e.g. an invalid `--by`), unknown agent, unreadable `--home`, ambiguous session-ID prefix, unusable storage |
 
 ```console
 $ pastlog search "kubernetes"
@@ -458,7 +532,6 @@ the shape is enough).
 
 - **MCP server** (`pastlog mcp`) — let your coding agent search its own history
 - **TUI** — interactive browsing on top of the same engine
-- **Token/project stats** — where your time and tokens go
 - **Optional index** — for corpora where streaming is not enough
 
 ## License
