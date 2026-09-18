@@ -49,7 +49,7 @@ func parseUsage(raw json.RawMessage) *usageRecord {
 		return nil
 	}
 	var u usageRecord
-	_ = json.Unmarshal(trimmed, &u) // per-field pointers tolerate partial shapes
+	_ = json.Unmarshal(trimmed, &u) //nolint:errcheck // deliberate: per-field pointers tolerate partial shapes; a type error just zeroes that field and the line stays readable
 	return &u
 }
 

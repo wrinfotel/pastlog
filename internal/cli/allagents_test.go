@@ -14,14 +14,19 @@ import (
 
 // Fixtures for the all-agents integration tests: one session per agent
 // sharing the needle "calibration", plus per-agent extra sessions so filters
-// and show stay exercised across adapters (M3 acceptance).
+// and show stay exercised across adapters (M3). M7 adds usage facts to each
+// fixture so `stats` goldens have real numbers to pin.
 const (
-	allClaudeContent = `{"type":"user","sessionId":"ccaa1111-1111-4111-8111-111111111111","cwd":"/home/dev/cal","timestamp":"2026-08-02T14:03:22Z","message":{"role":"user","content":"check the calibration log"}}`
-	allCodexContent  = `{"timestamp":"2026-08-02T14:10:00Z","type":"session_meta","payload":{"id":"ccbb2222-2222-4222-8222-222222222222","cwd":"/home/dev/cal"}}
-{"timestamp":"2026-08-02T14:10:05Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"calibration drift confirmed"}]}}`
+	allClaudeContent = `{"type":"user","sessionId":"ccaa1111-1111-4111-8111-111111111111","cwd":"/home/dev/cal","timestamp":"2026-08-02T14:03:22Z","message":{"role":"user","content":"check the calibration log"}}
+{"type":"assistant","sessionId":"ccaa1111-1111-4111-8111-111111111111","cwd":"/home/dev/cal","timestamp":"2026-08-02T14:03:25Z","message":{"role":"assistant","model":"claude-sonnet-4-5","content":"calibration drift corrected","usage":{"input_tokens":120,"output_tokens":45,"cache_creation_input_tokens":30,"cache_read_input_tokens":200}}}`
+	allCodexContent = `{"timestamp":"2026-08-02T14:10:00Z","type":"session_meta","payload":{"id":"ccbb2222-2222-4222-8222-222222222222","cwd":"/home/dev/cal"}}
+{"timestamp":"2026-08-02T14:10:05Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"calibration drift confirmed"}]}}
+{"timestamp":"2026-08-02T14:10:08Z","type":"turn_context","payload":{"cwd":"/home/dev/cal","model":"gpt-5.3-codex","effort":"high"}}
+{"timestamp":"2026-08-02T14:10:10Z","type":"token_count","payload":{"info":{"total_token_usage":{"input_tokens":300,"cached_input_tokens":80,"output_tokens":90,"reasoning_output_tokens":25},"last_token_usage":{"input_tokens":10,"cached_input_tokens":0,"output_tokens":12}}}}`
 
 	allGeminiContent = `{"sessionId":"gccc3333-3333-4333-8333-333333333333","startTime":"2026-08-02T14:20:00Z","lastUpdated":"2026-08-02T14:21:00Z","kind":"main","directories":["/home/dev/cal"],"summary":"calibration review"}
-{"id":"gm1","timestamp":"2026-08-02T14:20:10Z","type":"user","content":"review the calibration constants"}`
+{"id":"gm1","timestamp":"2026-08-02T14:20:10Z","type":"user","content":"review the calibration constants"}
+{"id":"gm2","timestamp":"2026-08-02T14:20:30Z","type":"gemini","content":"calibration corrected","model":"gemini-2.5-pro","tokens":{"input":200,"output":60,"cached":15,"thoughts":10,"tool":5,"total":275}}`
 )
 
 // allAgentsHome builds a synthetic home with data for all four agents:
