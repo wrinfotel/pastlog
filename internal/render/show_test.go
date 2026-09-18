@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pastlog/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/agentlog"
 )
 
 func showMeta(t *testing.T, loc *time.Location) agentlog.SessionMeta {

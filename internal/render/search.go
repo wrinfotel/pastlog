@@ -9,7 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/fatih/color"
-	"github.com/pastlog/pastlog/internal/search"
+	"github.com/wrinfotel/pastlog/internal/search"
 )
 
 var matchColor = color.New(color.Bold)

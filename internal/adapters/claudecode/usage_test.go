@@ -3,7 +3,7 @@ package claudecode
 import (
 	"testing"
 
-	"github.com/pastlog/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/agentlog"
 )
 
 // listUsage streams SessionsUsage through a collecting iterator.

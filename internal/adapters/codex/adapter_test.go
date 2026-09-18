@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pastlog/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/agentlog"
 )
 
 // buildHome copies named fixtures from testdata/ into a synthetic home tree:

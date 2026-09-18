@@ -1,6 +1,6 @@
 // Package version holds build metadata injected at link time via -ldflags:
 //
-//	-X github.com/pastlog/pastlog/internal/version.Version=v0.1.0
+//	-X github.com/wrinfotel/pastlog/internal/version.Version=v0.1.0
 package version
 
 // Build information, overridable via -ldflags -X.

@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/pastlog/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/agentlog"
 )
 
 // legacyRaw mirrors one ConversationRecord element of a legacy monolithic

@@ -17,7 +17,7 @@ func TestNoNetworkDeps(t *testing.T) {
 	if err != nil {
 		t.Skip("go toolchain not on PATH: cannot audit the dependency graph")
 	}
-	out, err := exec.Command(goBin, "list", "-deps", "github.com/pastlog/pastlog/...").CombinedOutput()
+	out, err := exec.Command(goBin, "list", "-deps", "github.com/wrinfotel/pastlog/...").CombinedOutput()
 	if err != nil {
 		t.Fatalf("go list -deps failed: %v\n%s", err, out)
 	}

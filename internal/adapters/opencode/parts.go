@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/pastlog/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/agentlog"
 )
 
 // partRaw mirrors the part.data JSON payload; only fields pastlog consumes

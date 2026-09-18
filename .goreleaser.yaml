@@ -38,9 +38,9 @@ builds:
     # .FullCommit is the built commit SHA, .Date the RFC3339 build time.
     ldflags:
       - -s -w
-        -X github.com/pastlog/pastlog/internal/version.Version=v{{ .Version }}
-        -X github.com/pastlog/pastlog/internal/version.Commit={{ .FullCommit }}
-        -X github.com/pastlog/pastlog/internal/version.Date={{ .Date }}
+        -X github.com/wrinfotel/pastlog/internal/version.Version=v{{ .Version }}
+        -X github.com/wrinfotel/pastlog/internal/version.Commit={{ .FullCommit }}
+        -X github.com/wrinfotel/pastlog/internal/version.Date={{ .Date }}
 
 archives:
   - id: default
@@ -73,7 +73,7 @@ changelog:
 
 # Owner/repo are intentionally not pinned here: GoReleaser infers them from
 # the git remote at release time (the repository does not exist yet — the
-# module path github.com/pastlog/pastlog is the canonical future address).
+# module path github.com/wrinfotel/pastlog is the canonical future address).
 release:
   # GitHub Release with an auto-generated changelog (GoReleaser default);
   # `release --clean` regenerates it on re-runs.

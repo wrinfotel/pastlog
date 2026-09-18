@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pastlog/pastlog/internal/render"
+	"github.com/wrinfotel/pastlog/internal/render"
 )
 
 func TestShowGolden(t *testing.T) {

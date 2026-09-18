@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pastlog/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/agentlog"
 )
 
 // record mirrors one JSONL line; only fields pastlog consumes are declared

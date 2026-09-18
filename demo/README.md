@@ -29,7 +29,7 @@ shows.
 ## Render requirements
 
 - `pastlog` on `PATH` at render time
-  (`go install github.com/pastlog/pastlog/cmd/pastlog@latest`).
+  (`go install github.com/wrinfotel/pastlog/cmd/pastlog@latest`).
 - Go, for the generator step above.
 - `vhs` itself.
 

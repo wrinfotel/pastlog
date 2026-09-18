@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pastlog/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/agentlog"
 )
 
 const showTimeLayout = "2006-01-02 15:04:05"

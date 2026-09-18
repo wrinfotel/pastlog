@@ -1,4 +1,4 @@
-module github.com/pastlog/pastlog
+module github.com/wrinfotel/pastlog
 
 go 1.27
 

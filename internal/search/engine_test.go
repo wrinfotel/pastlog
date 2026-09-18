@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pastlog/pastlog/internal/adapters/claudecode"
-	"github.com/pastlog/pastlog/internal/adapters/codex"
-	"github.com/pastlog/pastlog/internal/adapters/geminicli"
-	"github.com/pastlog/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/adapters/claudecode"
+	"github.com/wrinfotel/pastlog/internal/adapters/codex"
+	"github.com/wrinfotel/pastlog/internal/adapters/geminicli"
+	"github.com/wrinfotel/pastlog/internal/agentlog"
 )
 
 var (

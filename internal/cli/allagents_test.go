@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pastlog/pastlog/internal/adapters/opencode"
+	"github.com/wrinfotel/pastlog/internal/adapters/opencode"
 	_ "modernc.org/sqlite"
 )
 

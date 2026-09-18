@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	"github.com/pastlog/pastlog/internal/agentlog"
-	"github.com/pastlog/pastlog/internal/discovery"
-	"github.com/pastlog/pastlog/internal/version"
+	"github.com/wrinfotel/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/discovery"
+	"github.com/wrinfotel/pastlog/internal/version"
 	"github.com/spf13/cobra"
 )
 

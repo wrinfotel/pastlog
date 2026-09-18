@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/pastlog/pastlog/internal/agentlog"
-	"github.com/pastlog/pastlog/internal/render"
-	"github.com/pastlog/pastlog/internal/search"
+	"github.com/wrinfotel/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/render"
+	"github.com/wrinfotel/pastlog/internal/search"
 	"github.com/spf13/cobra"
 )
 

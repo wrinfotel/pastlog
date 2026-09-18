@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pastlog/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/agentlog"
 )
 
 // sampleUsageRows uses wall-clock times in the local zone: the day grouping

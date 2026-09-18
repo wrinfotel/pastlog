@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/pastlog/pastlog/internal/agentlog"
-	"github.com/pastlog/pastlog/internal/search"
+	"github.com/wrinfotel/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/search"
 )
 
 func searchSampleUTC(t *testing.T) []search.Result {

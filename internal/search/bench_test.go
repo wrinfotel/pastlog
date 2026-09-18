@@ -11,9 +11,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/pastlog/pastlog/internal/adapters/claudecode"
-	"github.com/pastlog/pastlog/internal/adapters/codex"
-	"github.com/pastlog/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/adapters/claudecode"
+	"github.com/wrinfotel/pastlog/internal/adapters/codex"
+	"github.com/wrinfotel/pastlog/internal/agentlog"
 )
 
 // Benchmarks over a synthetic JSONL corpus (spec §7). The corpus is generated

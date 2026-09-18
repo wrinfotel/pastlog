@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pastlog/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/agentlog"
 )
 
 // metadata is the parsed JSONL metadata record (line 1); see SCHEMA.md.

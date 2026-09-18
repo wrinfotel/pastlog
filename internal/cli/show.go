@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pastlog/pastlog/internal/agentlog"
-	"github.com/pastlog/pastlog/internal/render"
+	"github.com/wrinfotel/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/render"
 	"github.com/spf13/cobra"
 )
 

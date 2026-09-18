@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/fatih/color"
-	"github.com/pastlog/pastlog/internal/render"
+	"github.com/wrinfotel/pastlog/internal/render"
 )
 
 // TestMain pins colors off so golden output is deterministic regardless of

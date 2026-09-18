@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pastlog/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/agentlog"
 )
 
 // writeRolloutLines writes the given lines into one rollout file inside a

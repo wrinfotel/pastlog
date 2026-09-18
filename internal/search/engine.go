@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sort"
 
-	"github.com/pastlog/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/agentlog"
 )
 
 // DefaultMaxHits caps the total hits printed when --max-hits is not given

@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pastlog/pastlog/internal/agentlog"
-	"github.com/pastlog/pastlog/internal/discovery"
+	"github.com/wrinfotel/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/discovery"
 
 	// pure-Go SQLite driver, CGO off (spec §6); registered for its side
 	// effects

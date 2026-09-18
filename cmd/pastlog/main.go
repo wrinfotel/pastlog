@@ -4,7 +4,7 @@ package main
 import (
 	"os"
 
-	"github.com/pastlog/pastlog/internal/cli"
+	"github.com/wrinfotel/pastlog/internal/cli"
 )
 
 func main() {

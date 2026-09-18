@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pastlog/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/agentlog"
 )
 
 // buildFixtureDB generates the synthetic database into a temp dir.
