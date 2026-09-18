@@ -172,6 +172,28 @@ func (a *Adapter) walk(iter func(agentlog.SessionMeta) error) error {
 	})
 }
 
+// modelName extracts the display model name from the session.model column
+// (M7 fix): the column may carry a plain model id ("gpt-5.3-codex") or a
+// model-object JSON string ({"id":"…","providerID":"…","variant":"…"} —
+// observed on real databases). When the value parses as a JSON object with a
+// non-empty string `id` field, that id is the model name; anything else
+// (plain strings, objects without a usable id, non-string id, malformed
+// JSON) passes through verbatim so no information is lost — and a substring
+// --model filter can never false-match providerID/variant inside the JSON.
+func modelName(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if len(trimmed) == 0 || trimmed[0] != '{' {
+		return raw
+	}
+	var mo struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(trimmed), &mo); err != nil || mo.ID == "" {
+		return raw
+	}
+	return mo.ID
+}
+
 // walkUsage streams every session in time_created order through iter with
 // per-session sizes, message counts and the token/cost/model columns — the
 // shared walk behind Sessions/SessionsMeta (meta view) and SessionsUsage
@@ -238,7 +260,7 @@ func (a *Adapter) walkUsage(iter func(agentlog.SessionUsage) error) error {
 				CacheWrite: cacheWrite,
 				CostUSD:    cost,
 				HasCost:    true, // the cost column is NOT NULL — every session provides one
-				Model:      model.String,
+				Model:      modelName(model.String),
 			},
 		}
 		if err := iter(su); err != nil {

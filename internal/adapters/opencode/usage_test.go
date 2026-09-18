@@ -1,6 +1,8 @@
 package opencode
 
 import (
+	"database/sql"
+	"path/filepath"
 	"testing"
 
 	"github.com/pastlog/pastlog/internal/agentlog"
@@ -96,5 +98,73 @@ func TestLockedDBSessionsUsageNoError(t *testing.T) {
 	}
 	if a.Warning() == "" {
 		t.Error("locked DB should produce a warning line on the usage path too")
+	}
+}
+
+// TestSessionsUsageModelObjectExtraction pins the real-data fix (M7 fix
+// round): the session.model column may carry a model-OBJECT JSON string
+// ({"id":"…","providerID":"…",…} — observed on real databases). The usage
+// view must surface the extracted `id` as Usage.Model, not the raw JSON
+// blob, so `--by model` keys stay readable and `--model <substring>` cannot
+// false-match providerID/variant inside the JSON.
+func TestSessionsUsageModelObjectExtraction(t *testing.T) {
+	dir := buildFixtureDB(t)
+	// write the observed object shape into the parent session's model column
+	// (the fixture generator is a test helper; the adapter itself stays
+	// strictly read-only — TestNoWritesToDatabase guards that)
+	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(filepath.Join(dir, "opencode.db")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const objectModel = `{"id":"z-ai/glm-5.3-flash","providerID":"openrouter","variant":"default"}`
+	if _, err := db.Exec(`UPDATE session SET model = ? WHERE id = ?`, objectModel, parentID); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	a := NewDir(dir)
+	got := listUsage(t, a)
+	var parent agentlog.SessionUsage
+	for _, su := range got {
+		if su.ID == parentID {
+			parent = su
+		}
+	}
+	if parent.ID != parentID {
+		t.Fatalf("parent session not found in %v", got)
+	}
+	if parent.Model != "z-ai/glm-5.3-flash" {
+		t.Errorf("Model = %q, want the extracted id (not the raw JSON object)", parent.Model)
+	}
+}
+
+// TestModelName pins the session.model extraction rules (M7 fix): a JSON
+// object with a non-empty string `id` yields that id; everything else —
+// plain strings, objects without an id (or with a non-string/empty one),
+// malformed JSON, the empty column — passes through verbatim.
+func TestModelName(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{"plain id passes through", "gpt-5.3-codex", "gpt-5.3-codex"},
+		{"empty column", "", ""},
+		{"object with id extracts it", `{"id":"z-ai/glm-5.3-flash","providerID":"openrouter","variant":"default"}`, "z-ai/glm-5.3-flash"},
+		{"object with id and surrounding spaces", `  {"id":"minimax/minimax-m3:free"}  `, "minimax/minimax-m3:free"},
+		{"object without id stays raw", `{"providerID":"openrouter","variant":"default"}`, `{"providerID":"openrouter","variant":"default"}`},
+		{"object with non-string id stays raw", `{"id":42}`, `{"id":42}`},
+		{"object with empty id stays raw", `{"id":""}`, `{"id":""}`},
+		{"malformed json stays raw", `{"id": "trunc`, `{"id": "trunc`},
+		{"non-object json stays raw", `"gpt-5"`, `"gpt-5"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := modelName(tt.raw); got != tt.want {
+				t.Errorf("modelName(%q) = %q, want %q", tt.raw, got, tt.want)
+			}
+		})
 	}
 }

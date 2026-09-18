@@ -132,7 +132,7 @@ nullable). `SessionsUsage` maps the columns 1:1:
 | `Reasoning` | `session.tokens_reasoning` |
 | `CacheWrite` | `session.tokens_cache_write` |
 | `CacheRead` | `session.tokens_cache_read` |
-| `Model` | `session.model` (NULL → "") |
+| `Model` | `session.model`, extracted: the column may carry a plain model id (`"gpt-5.3-codex"`) or a model-OBJECT JSON string (`{"id":"…","providerID":"…","variant":"…"}` — observed on real databases); when the value parses as a JSON object with a non-empty string `id`, that id is used, everything else (plain strings, objects without a usable id, malformed JSON) passes through verbatim |
 | `CostUSD` / `HasCost` | `session.cost` with `HasCost=true` — the column is NOT NULL, so every opencode session provides a cost (even 0); opencode is the only agent with cost data (M7 ruling 5) |
 
 - The usage columns ride the SAME walk as `SessionsMeta` (`walkUsage`): one
