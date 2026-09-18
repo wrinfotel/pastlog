@@ -13,6 +13,7 @@ coverage.txt
 /demo/demo.gif
 
 # Local-only dev specs — never publish (owner, 2026-09-19)
+/TASK.md
 /TASK-DESKTOP.md
 
 # Demo: the OpenCode store is generated at demo render time (demo/genopencode)
