@@ -74,6 +74,23 @@ func (a *Adapter) SessionsMeta(iter func(agentlog.SessionMeta) error) error {
 	return a.walk(iter)
 }
 
+// SessionsUsage implements agentlog.UsageSource (M7): token usage comes from
+// the same streaming pass that yields sessions — message.usage fields
+// accumulate per session (input/output/cache read/cache write), Model is the
+// LAST non-empty message.model in the file. Usage of the wrong shape
+// contributes zero and keeps the line readable (SCHEMA.md). claude-code
+// records carry no per-session cost: HasCost stays false.
+func (a *Adapter) SessionsUsage(iter func(agentlog.SessionUsage) error) error {
+	return a.walkSummaries(func(sum fileSummary, path string) error {
+		meta := sum.meta(path)
+		return iter(agentlog.SessionUsage{
+			Session:  meta.Session,
+			Messages: meta.Messages,
+			Usage:    sum.usage,
+		})
+	})
+}
+
 // SessionsMetaFast implements agentlog.FastMetaSource: the search flow lists
 // sessions from the FIRST record line of each file plus a stat, instead of
 // parsing every line (spec §7: listing must not dominate a search run).
@@ -170,6 +187,16 @@ func (a *Adapter) entriesFor(s agentlog.Session, keep func([]byte) bool, iter fu
 
 // walk streams every session file, in sorted path order, through iter.
 func (a *Adapter) walk(iter func(agentlog.SessionMeta) error) error {
+	return a.walkSummaries(func(sum fileSummary, path string) error {
+		return iter(sum.meta(path))
+	})
+}
+
+// walkSummaries streams every session file's aggregate through iter — the
+// one shared storage walk behind Sessions, SessionsMeta (meta view) and
+// SessionsUsage (usage view), so all listing passes scan the files once, in
+// the same sorted order, and skip/usage accounting stays identical.
+func (a *Adapter) walkSummaries(iter func(sum fileSummary, path string) error) error {
 	files, err := a.sessionFiles()
 	if err != nil {
 		return fmt.Errorf("cannot list claude-code storage: %v", err)
@@ -183,7 +210,7 @@ func (a *Adapter) walk(iter func(agentlog.SessionMeta) error) error {
 			continue // empty (or blank) file: not a session
 		}
 		a.registerIDs(path, sum.sessionID)
-		if err := iter(sum.meta(path)); err != nil {
+		if err := iter(sum, path); err != nil {
 			return err
 		}
 	}
@@ -199,6 +226,7 @@ type fileSummary struct {
 	messages           int
 	size               int64
 	sawLine            bool
+	usage              agentlog.Usage // token totals accumulated over the file's records (M7)
 }
 
 func (f fileSummary) meta(path string) agentlog.SessionMeta {
@@ -274,6 +302,15 @@ func (a *Adapter) scanFile(path string, keep func([]byte) bool, emit func(agentl
 		}
 		if info.summary != "" && sum.title == "" {
 			sum.title = info.summary
+		}
+		if info.model != "" {
+			sum.usage.Model = info.model // last non-empty message.model wins
+		}
+		if u := info.usage; u != nil {
+			sum.usage.Input += ptrVal(u.InputTokens)
+			sum.usage.Output += ptrVal(u.OutputTokens)
+			sum.usage.CacheWrite += ptrVal(u.CacheCreationInputTokens)
+			sum.usage.CacheRead += ptrVal(u.CacheReadInputTokens)
 		}
 		if !info.ts.IsZero() {
 			if sum.startedAt.IsZero() {

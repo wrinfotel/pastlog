@@ -23,6 +23,34 @@ type record struct {
 type messageRecord struct {
 	Role    string          `json:"role"`
 	Content json.RawMessage `json:"content"` // string or array of blocks
+	Model   string          `json:"model"`   // assistant records carry it
+	Usage   json.RawMessage `json:"usage"`   // parsed defensively, see parseUsage
+}
+
+// usageRecord mirrors message.usage (M7 token statistics). Every field is a
+// pointer: missing fields are zero, and a wrong-typed field simply stays nil
+// (encoding/json keeps decoding the rest of the object past the first type
+// error), so malformed usage contributes what it can and never makes the
+// line unreadable.
+type usageRecord struct {
+	InputTokens              *int64 `json:"input_tokens"`
+	OutputTokens             *int64 `json:"output_tokens"`
+	CacheCreationInputTokens *int64 `json:"cache_creation_input_tokens"`
+	CacheReadInputTokens     *int64 `json:"cache_read_input_tokens"`
+}
+
+// parseUsage extracts message.usage defensively: only a JSON object is
+// interpreted; anything else (missing, null, string, number) contributes
+// zero. Fields of the wrong type inside an object contribute zero for that
+// field alone. The line stays readable either way.
+func parseUsage(raw json.RawMessage) *usageRecord {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || trimmed[0] != '{' {
+		return nil
+	}
+	var u usageRecord
+	_ = json.Unmarshal(trimmed, &u) // per-field pointers tolerate partial shapes
+	return &u
 }
 
 // block mirrors one typed content block.
@@ -40,6 +68,8 @@ type lineInfo struct {
 	cwd       string
 	summary   string
 	ts        time.Time
+	model     string       // message.model, "" when the record had none
+	usage     *usageRecord // message.usage, nil when absent/unusable
 }
 
 // lineResult is the outcome of classifying one non-empty JSONL line.
@@ -88,6 +118,8 @@ func processLine(line []byte) lineResult {
 		if rec.Message == nil {
 			return lineResult{info: info} // known type, no message: skipped and counted
 		}
+		info.model = rec.Message.Model
+		info.usage = parseUsage(rec.Message.Usage)
 		role := rec.Message.Role
 		if role == "" {
 			role = rec.Type
@@ -102,6 +134,15 @@ func processLine(line []byte) lineResult {
 	default:
 		return lineResult{info: info} // unknown record type: skip and count
 	}
+}
+
+// ptrVal dereferences an optional usage field: nil (missing or wrong-typed)
+// contributes zero.
+func ptrVal(p *int64) int64 {
+	if p == nil {
+		return 0
+	}
+	return *p
 }
 
 // yieldContent walks message content (string or block array), appending

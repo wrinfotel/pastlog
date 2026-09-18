@@ -31,6 +31,8 @@ Each line is a JSON object. Fields the adapter uses:
 |---|---|
 | `type` | record type: `user`, `assistant`, `system`, `summary`; anything else is skipped and counted |
 | `message` | `{role, content}` on `user`/`assistant`/`system` records; `content` is a string **or** an array of typed blocks |
+| `message.model` | the model that produced the record (assistant messages carry it) → `Usage.Model` |
+| `message.usage` | `{input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens}` → token statistics (M7) |
 | `timestamp` | ISO 8601 UTC, e.g. `2026-08-02T14:03:22.150Z` |
 | `sessionId` | session UUID; fallback: JSONL filename minus `.jsonl` |
 | `cwd` | working dir → `Session.Project` (first non-empty wins) |
@@ -63,6 +65,31 @@ results are always role `tool`.
   (string) part. `summary`/snapshot/unknown records are excluded; a
   tool-use-only assistant turn adds a `ToolCall` but no message.
 - A file yields a session if it contains at least one non-empty line.
+
+## Token usage (`pastlog stats`, M7)
+
+`SessionsUsage` reads usage facts in the same streaming pass that yields the
+sessions (`agentlog.UsageSource`; one walk, same sorted order, same
+skip-accounting):
+
+| Usage field | Source |
+|---|---|
+| `Input` | sum of `message.usage.input_tokens` over the session's records |
+| `Output` | sum of `message.usage.output_tokens` |
+| `Reasoning` | — claude-code records carry no separate reasoning count; stays 0 |
+| `CacheWrite` | sum of `message.usage.cache_creation_input_tokens` |
+| `CacheRead` | sum of `message.usage.cache_read_input_tokens` |
+| `Model` | LAST non-empty `message.model` in the file (assistant records carry it); "" when none |
+| `CostUSD` / `HasCost` | — claude-code logs carry no per-session cost; `HasCost` stays false |
+
+- `Messages` keeps the `SessionsMeta` semantic, so sessions and messages of
+  zero-usage sessions still count in the aggregates.
+- Malformed usage never makes a line unreadable: a `message.usage` that is
+  not a JSON object (missing, null, string, number) contributes zero, and a
+  field of the wrong JSON type contributes zero for that field alone (the
+  other fields of the same object still count).
+- `SessionsMetaFast` (the search fast path) reads only line 1 and carries no
+  usage — the stats flow always uses the full `SessionsUsage` pass.
 
 ### usable content
 

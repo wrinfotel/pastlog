@@ -1,0 +1,2 @@
+{"type":"user","sessionId":"e2f6a7b8-2222-4222-8222-666666666666","cwd":"/home/dev/app","timestamp":"2026-07-01T10:00:00Z","message":{"role":"user","content":"a session without any usage fields"}}
+{"type":"assistant","sessionId":"e2f6a7b8-2222-4222-8222-666666666666","cwd":"/home/dev/app","timestamp":"2026-07-01T10:00:05Z","message":{"role":"assistant","content":"plain reply, no model, no usage"}}
