@@ -25,3 +25,4 @@ coverage.txt
 !/desktop/frontend/dist/.gitkeep
 /desktop/frontend/wailsjs/
 /desktop/build/bin/
+/desktop/build/windows/installer/wails_tools.nsh
