@@ -94,7 +94,9 @@ jobs:
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.16.0
 
       - name: Build
-        run: wails build -platform ${{ matrix.platform }} ${{ matrix.wailsargs }}
+        # wails needs the project dir (wails.json) as its cwd; every later
+        # step keeps repo-root paths
+        run: cd desktop && wails build -platform ${{ matrix.platform }} ${{ matrix.wailsargs }}
 
       - name: Name the portable exe by arch (both windows legs share one outputfilename)
         if: runner.os == 'Windows'
