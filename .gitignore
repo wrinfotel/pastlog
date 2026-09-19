@@ -1,7 +1,7 @@
 # Build artifacts
 /pastlog
 /pastlog.exe
-dist/
+/dist/
 
 # Go
 *.test
