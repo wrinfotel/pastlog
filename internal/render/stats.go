@@ -167,52 +167,12 @@ func StatsHuman(w io.Writer, by string, rows []StatsRow) {
 	}
 }
 
-// statsTokens is the stable token block of the stats JSON schema.
-type statsTokens struct {
-	Input      int64 `json:"input"`
-	Output     int64 `json:"output"`
-	Reasoning  int64 `json:"reasoning"`
-	CacheRead  int64 `json:"cache_read"`
-	CacheWrite int64 `json:"cache_write"`
-	Total      int64 `json:"total"` // input+output+reasoning (M7 ruling 3)
-}
-
-type statsJSON struct {
-	Key      string      `json:"key"`
-	Sessions int         `json:"sessions"`
-	Messages int         `json:"messages"`
-	Tokens   statsTokens `json:"tokens"`
-	CostUSD  *float64    `json:"cost_usd"` // null when no session in the group provided a cost
-}
-
 // StatsJSON writes the stats data as JSON with a stable schema: an array of
 // row objects keyed in struct order; `cost_usd` is null when no session in
 // the group provided a cost and a number (even 0) when any did. An empty
 // selection prints `[]`.
 func StatsJSON(w io.Writer, rows []StatsRow) error {
-	out := make([]statsJSON, len(rows))
-	for i, r := range rows {
-		var cost *float64
-		if r.Usage.HasCost {
-			c := r.Usage.CostUSD
-			cost = &c
-		}
-		out[i] = statsJSON{
-			Key:      r.Key,
-			Sessions: r.Sessions,
-			Messages: r.Messages,
-			Tokens: statsTokens{
-				Input:      r.Usage.Input,
-				Output:     r.Usage.Output,
-				Reasoning:  r.Usage.Reasoning,
-				CacheRead:  r.Usage.CacheRead,
-				CacheWrite: r.Usage.CacheWrite,
-				Total:      r.Usage.Input + r.Usage.Output + r.Usage.Reasoning,
-			},
-			CostUSD: cost,
-		}
-	}
-	return writeJSON(w, out)
+	return writeJSON(w, NewStatsRows(rows))
 }
 
 // groupDigits renders an integer with thousands separators (1,234,567) so

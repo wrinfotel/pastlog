@@ -84,32 +84,9 @@ func ShowMarkdown(w io.Writer, meta agentlog.SessionMeta, entries []agentlog.Ent
 	}
 }
 
-type entryJSON struct {
-	Kind      string     `json:"kind"`
-	Role      string     `json:"role"`
-	Text      string     `json:"text"`
-	Timestamp *time.Time `json:"timestamp"`
-}
-
-// showJSON embeds sessionJSON, so the session keys keep their stable order
-// and "entries" comes last.
-type showJSON struct {
-	sessionJSON
-	Entries []entryJSON `json:"entries"`
-}
-
 // ShowJSON writes one session with its entries as JSON with a stable schema.
 func ShowJSON(w io.Writer, meta agentlog.SessionMeta, entries []agentlog.Entry) error {
-	out := showJSON{sessionJSON: newSessionJSON(meta), Entries: make([]entryJSON, 0, len(entries))}
-	for _, e := range entries {
-		out.Entries = append(out.Entries, entryJSON{
-			Kind:      kindJSON(e.Kind),
-			Role:      e.Role,
-			Text:      e.Text,
-			Timestamp: timePtr(e.Timestamp),
-		})
-	}
-	return writeJSON(w, out)
+	return writeJSON(w, NewShowDoc(meta, entries))
 }
 
 // showTitle is the transcript heading: the session title, or a session
