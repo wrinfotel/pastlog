@@ -117,7 +117,9 @@ func (a *App) stillActive(gen int64) bool { return a.gen.Load() == gen }
 
 // begin starts a long operation: it returns the generation plus the search-
 // and stats-shaped progress hooks bound to it. Hooks are nil-safe on the
-// sink and emit ("search", scanned, hits) / ("stats", scanned, hits).
+// sink and emit ("search", scanned, hits) / ("stats", scanned, hits). A sink
+// that cancels synchronously from its callback is honored immediately: the
+// active check runs again after the emit.
 func (a *App) begin(op string) (int64, func(scanned, hits int) bool, func(done int) bool) {
 	gen := a.gen.Add(1)
 	searchHook := func(scanned, hits int) bool {
@@ -127,7 +129,7 @@ func (a *App) begin(op string) (int64, func(scanned, hits int) bool, func(done i
 		if a.sink != nil {
 			a.sink.Progress(op, scanned, hits)
 		}
-		return true
+		return a.stillActive(gen)
 	}
 	statsHook := func(done int) bool { return searchHook(done, 0) }
 	return gen, searchHook, statsHook
