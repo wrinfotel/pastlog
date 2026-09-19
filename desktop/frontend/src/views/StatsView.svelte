@@ -7,6 +7,7 @@
   import { debounce } from '../lib/debounce';
   import FilterBar from '../components/FilterBar.svelte';
   import Notes from '../components/Notes.svelte';
+  import Loader from '../components/Loader.svelte';
 
   type Row = {
     key: string;
@@ -24,13 +25,18 @@
   let notes = $state<string[]>([]);
   let error = $state('');
   let progress = $state<{ scanned: number } | null>(null);
+  let loading = $state(true);
 
   api.diagnostics().then((d) => (agents = d.agents.map((a) => a.name)));
   const stopProgress = onProgress((e) => {
     if (e.op === 'stats') progress = { scanned: e.scanned };
   });
 
+  let seq = 0;
+
   async function load() {
+    const mine = ++seq;
+    loading = true;
     progress = null;
     try {
       const o = await api.stats({
@@ -38,15 +44,20 @@
         by,
         model,
       });
+      if (mine !== seq) return; // a newer selection superseded this load
       rows = o.rows as Row[];
       notes = o.notes ?? [];
       error = '';
     } catch (e) {
+      if (mine !== seq) return;
       rows = [];
       notes = [];
       error = String(e);
     } finally {
-      progress = null;
+      if (mine === seq) {
+        progress = null;
+        loading = false;
+      }
     }
   }
   const loadDebounced = debounce(load, 250);
@@ -83,142 +94,111 @@
   </label>
 </div>
 <FilterBar {agents} bind:filters />
-<Notes {notes} />
+{#if !loading}<Notes {notes} />{/if}
 
 {#if progress}
   <div class="progress">
     <span>aggregating… {progress.scanned} sessions</span>
-    <button onclick={cancel}>Cancel</button>
+    <button class="btn" onclick={cancel}>Cancel</button>
   </div>
 {/if}
-{#if error}<p class="err">{error}</p>{/if}
+{#if !loading && error}<p class="err">{error}</p>{/if}
 
-{#if rows.length > 0}
-  <table>
-    <thead>
-      <tr>
-        <th>{by}</th>
-        <th class="r">sessions</th>
-        <th class="r">messages</th>
-        <th class="r">input</th>
-        <th class="r">output</th>
-        <th class="r">reasoning</th>
-        <th class="r">cache read</th>
-        <th class="r">cache write</th>
-        <th class="r total">total</th>
-        {#if hasCost}<th class="r">cost usd</th>{/if}
-      </tr>
-    </thead>
-    <tbody>
-      {#each rows as row}
+{#if loading}
+  {#if !progress}
+    <Loader label="aggregating…" />
+  {/if}
+{:else if rows.length > 0}
+  <div class="panel tablewrap fadein">
+    <table>
+      <thead>
         <tr>
-          <td class="key">{row.key}</td>
-          <td class="r">{fmtInt(row.sessions)}</td>
-          <td class="r">{fmtInt(row.messages)}</td>
-          <td class="r">{fmtInt(row.tokens.input)}</td>
-          <td class="r">{fmtInt(row.tokens.output)}</td>
-          <td class="r">{fmtInt(row.tokens.reasoning)}</td>
-          <td class="r">{fmtInt(row.tokens.cache_read)}</td>
-          <td class="r">{fmtInt(row.tokens.cache_write)}</td>
-          <td class="r total">
-            <span class="bar" style="width: {(row.tokens.total / maxTotal) * 100}%"></span>
-            <span class="num">{fmtInt(row.tokens.total)}</span>
-          </td>
-          {#if hasCost}
-            <td class="r">{row.cost_usd === null || row.cost_usd === undefined ? '-' : row.cost_usd.toFixed(2)}</td>
-          {/if}
+          <th>{by}</th>
+          <th class="r">sessions</th>
+          <th class="r">messages</th>
+          <th class="r">input</th>
+          <th class="r">output</th>
+          <th class="r">reasoning</th>
+          <th class="r">cache read</th>
+          <th class="r">cache write</th>
+          <th class="r total">total</th>
+          {#if hasCost}<th class="r">cost usd</th>{/if}
         </tr>
-      {/each}
-    </tbody>
-  </table>
-{:else if !error && !progress}
+      </thead>
+      <tbody>
+        {#each rows as row}
+          <tr>
+            <td class="key">{row.key}</td>
+            <td class="r">{fmtInt(row.sessions)}</td>
+            <td class="r">{fmtInt(row.messages)}</td>
+            <td class="r">{fmtInt(row.tokens.input)}</td>
+            <td class="r">{fmtInt(row.tokens.output)}</td>
+            <td class="r">{fmtInt(row.tokens.reasoning)}</td>
+            <td class="r">{fmtInt(row.tokens.cache_read)}</td>
+            <td class="r">{fmtInt(row.tokens.cache_write)}</td>
+            <td class="r total">
+              <span class="bar" style="width: {(row.tokens.total / maxTotal) * 100}%"></span>
+              <span class="num">{fmtInt(row.tokens.total)}</span>
+            </td>
+            {#if hasCost}
+              <td class="r">{row.cost_usd === null || row.cost_usd === undefined ? '-' : row.cost_usd.toFixed(2)}</td>
+            {/if}
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  </div>
+{:else if !error}
   <p class="meta">no usage data for this selection</p>
 {/if}
 
 <style>
   .byrow {
     display: flex;
-    gap: 14px;
+    gap: 16px;
     align-items: end;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
   }
   label {
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    font-size: 12px;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
     color: var(--muted);
   }
-  select,
-  input {
-    background: var(--panel);
+  .tablewrap {
+    margin-top: 12px;
+    padding: 6px 16px 8px;
+  }
+  .key {
     color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 5px 8px;
-  }
-  table {
-    border-collapse: collapse;
-    margin-top: 10px;
-    width: 100%;
-  }
-  th,
-  td {
-    padding: 6px 12px 6px 0;
-    border-bottom: 1px solid var(--border);
-    font-size: 13px;
-  }
-  th {
-    color: var(--muted);
-    font-size: 12px;
-    text-align: right;
-  }
-  th:first-child {
-    text-align: left;
+    font-weight: 600;
   }
   .r {
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
-  .key {
-    color: var(--accent);
+  td.r {
+    color: var(--text-2);
   }
   .total {
     position: relative;
-    min-width: 140px;
+    min-width: 150px;
   }
   .bar {
     position: absolute;
-    right: 0;
-    top: 25%;
-    height: 50%;
-    background: color-mix(in srgb, var(--accent) 25%, transparent);
-    border-radius: 2px;
+    right: 14px;
+    top: 20%;
+    height: 60%;
+    background: linear-gradient(90deg, var(--accent-soft), var(--accent-glow) 70%);
+    border-radius: 3px;
   }
   .num {
     position: relative;
-  }
-  .meta {
-    color: var(--muted);
-    margin-top: 14px;
-  }
-  .progress {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin: 8px 0;
-    color: var(--muted);
-    font-size: 12px;
-  }
-  .progress button {
-    background: var(--panel);
     color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 4px 10px;
-    cursor: pointer;
-  }
-  .err {
-    color: #f87171;
+    font-weight: 600;
   }
 </style>

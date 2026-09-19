@@ -14,7 +14,7 @@
   mark {
     background: var(--match);
     color: var(--text);
-    border-radius: 2px;
-    padding: 0 1px;
+    border-radius: 3px;
+    padding: 0 2px;
   }
 </style>

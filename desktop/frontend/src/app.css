@@ -1,33 +1,384 @@
+/*
+  pastlog Desktop — design system.
+  Layered graphite surfaces + a single cyan accent, dark-first with an
+  equally deliberate light theme. Components consume tokens only; the
+  shared controls (buttons, fields, panels, empty states) are defined once
+  here so every view inherits the same rhythm.
+*/
 :root {
-  --bg: #101418;
-  --panel: #171c22;
-  --text: #e6e9ee;
-  --muted: #8b94a1;
+  /* surfaces */
+  --bg: #0b0e14; /* app canvas */
+  --bg-deep: #080b10; /* sidebar, recessed toolbars */
+  --panel: #10141d; /* cards, fields */
+  --panel-hover: #151b26; /* raised hover layer */
+  --inset: #0b0f16; /* wells, code blocks, tool entries */
+
+  /* text */
+  --text: #e8edf4;
+  --text-2: #aeb9c9;
+  --muted: #7c8899;
+  --faint: #5d6a7d;
+
+  /* lines */
+  --border: #1e2633;
+  --border-strong: #2c3849;
+  --border-subtle: #151c27;
+
+  /* accent (cyan) */
   --accent: #22d3ee;
-  --border: #262d36;
-  --match: #4d3d12;
+  --accent-strong: #67e3f9;
+  --accent-ink: #061015; /* text on solid accent */
+  --accent-soft: rgba(34, 211, 238, 0.11);
+  --accent-soft-2: rgba(34, 211, 238, 0.2);
+  --accent-glow: rgba(34, 211, 238, 0.3);
+
+  /* semantic */
+  --ok: #4ade80;
+  --ok-soft: rgba(74, 222, 128, 0.12);
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.1);
+  --warn: #fbbf24;
+  --warn-soft: rgba(251, 191, 36, 0.09);
+
+  /* search-hit mark */
+  --match: #5a470f;
+
+  /* elevation */
+  --shadow-1: 0 1px 2px rgba(3, 6, 12, 0.45);
+  --shadow-2: 0 10px 30px rgba(3, 6, 12, 0.5);
+  --hairline: inset 0 1px 0 rgba(148, 163, 184, 0.05);
+
+  /* shape + motion */
+  --radius-s: 6px;
+  --radius: 10px;
+  --radius-l: 14px;
+  --speed: 140ms;
+
+  --mono: ui-monospace, 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme='dark']) {
-    --bg: #f7f8fa;
+    --bg: #f3f5f9;
+    --bg-deep: #eaeef4;
     --panel: #ffffff;
-    --text: #1a1f26;
-    --muted: #5b6472;
+    --panel-hover: #f7f9fc;
+    --inset: #f1f4f8;
+
+    --text: #161c26;
+    --text-2: #3f4959;
+    --muted: #67707f;
+    --faint: #a2abb8;
+
+    --border: #dfe4ec;
+    --border-strong: #c6d0dd;
+    --border-subtle: #e9edf3;
+
     --accent: #0891b2;
-    --border: #d9dee5;
+    --accent-strong: #0e7490;
+    --accent-ink: #ffffff;
+    --accent-soft: rgba(8, 145, 178, 0.09);
+    --accent-soft-2: rgba(8, 145, 178, 0.16);
+    --accent-glow: rgba(8, 145, 178, 0.22);
+
+    --ok: #16a34a;
+    --ok-soft: rgba(22, 163, 74, 0.1);
+    --danger: #dc2626;
+    --danger-soft: rgba(220, 38, 38, 0.08);
+    --warn: #b45309;
+    --warn-soft: rgba(180, 83, 9, 0.08);
+
     --match: #fde68a;
+
+    --shadow-1: 0 1px 2px rgba(22, 28, 38, 0.07);
+    --shadow-2: 0 12px 32px rgba(22, 28, 38, 0.14);
+    --hairline: none;
   }
 }
+
 * {
   box-sizing: border-box;
 }
+html,
+body {
+  height: 100%;
+}
 body {
   margin: 0;
-  background: var(--bg);
   color: var(--text);
   font:
-    14px/1.5 system-ui,
+    13.5px/1.55 system-ui,
     -apple-system,
     'Segoe UI',
     sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* the canvas carries a quiet two-point glow; views stay transparent */
+  background:
+    radial-gradient(1100px 460px at 78% -12%, var(--accent-soft), transparent 62%),
+    radial-gradient(900px 420px at -8% 108%, rgba(67, 86, 155, 0.1), transparent 55%),
+    var(--bg);
+  background-attachment: fixed;
+}
+
+::selection {
+  background: var(--accent-soft-2);
+}
+
+/* thin, theme-aware scrollbars (WebView2 is Chromium) */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---- typography ---------------------------------------------------- */
+h1 {
+  margin: 0 0 16px;
+  font-size: 16.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+h2 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---- native controls ------------------------------------------------ */
+button,
+input,
+select {
+  font: inherit;
+}
+button:not(:disabled) {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+}
+input:where([type='text'], [type='number'], :not([type])),
+select {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  padding: 6px 10px;
+  transition:
+    border-color var(--speed) ease,
+    box-shadow var(--speed) ease;
+}
+input:where([type='text'], [type='number'], :not([type])):focus,
+select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+::placeholder {
+  color: var(--faint);
+}
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--accent);
+}
+input[type='checkbox'],
+input[type='radio'] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+select {
+  appearance: none;
+  padding-right: 26px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236b7789' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+}
+
+/* ---- shared pieces --------------------------------------------------- */
+/* ghost button — the default affordance everywhere */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--panel);
+  color: var(--text-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    color var(--speed) ease,
+    background var(--speed) ease,
+    border-color var(--speed) ease,
+    box-shadow var(--speed) ease;
+}
+.btn:hover {
+  color: var(--text);
+  background: var(--panel-hover);
+  border-color: var(--border-strong);
+}
+.btn.primary {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+  font-weight: 600;
+}
+.btn.primary:hover {
+  background: var(--accent-strong);
+}
+
+/* card surface */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow:
+    var(--hairline),
+    var(--shadow-1);
+}
+
+/* meta chip — agent names, ids, small facts */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+.chip.plain {
+  background: var(--panel-hover);
+  color: var(--muted);
+}
+
+/* status dot */
+.dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 6px var(--ok-soft);
+}
+.dot.off {
+  background: var(--faint);
+  box-shadow: none;
+}
+
+/* shared text roles */
+.err {
+  color: var(--danger);
+}
+.ok {
+  color: var(--ok);
+}
+.meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* empty state */
+.empty {
+  margin-top: 28px;
+  padding: 44px 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  text-align: center;
+  color: var(--muted);
+  background: var(--panel);
+  box-shadow: var(--shadow-1);
+}
+
+/* progress row + animated bar (search / stats / projects) */
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 10px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.progress .btn,
+.progress button {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.track {
+  flex: 1;
+  height: 5px;
+  background: var(--inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+  box-shadow: 0 0 10px var(--accent-glow);
+  transition: width 0.2s ease;
+}
+
+/* content fade-in — applied to blocks that swap in after a load completes */
+.fadein {
+  animation: fadein 180ms ease;
+}
+@keyframes fadein {
+  from {
+    opacity: 0;
+  }
+}
+
+/* data tables */
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+th {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  text-align: right;
+  padding: 8px 14px 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+th:first-child {
+  text-align: left;
+}
+td {
+  padding: 7px 14px 7px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 13px;
+}
+tr:last-child td {
+  border-bottom: 0;
 }

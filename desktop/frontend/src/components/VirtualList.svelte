@@ -44,6 +44,9 @@
     height: 100%;
     overflow-y: auto;
     position: relative;
+    /* reserve the scrollbar lane so column headers outside the scroller
+       stay aligned with the rows (headers compensate with padding) */
+    scrollbar-gutter: stable;
   }
   .vrow {
     position: absolute;

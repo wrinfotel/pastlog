@@ -55,32 +55,34 @@
 <h1>Settings</h1>
 
 {#if settings}
-  <section>
+  <section class="panel">
     <h2>Agent storage home</h2>
     <p class="meta">the directory holding the agent data (the CLI's --home). Empty = auto-discover.</p>
     <div class="row">
       <input type="text" bind:value={homeInput} placeholder="auto-discover" />
-      <button class="btn" onclick={saveHome}>Save</button>
+      <button class="btn primary" onclick={saveHome}>Save</button>
       <button class="btn" onclick={clearHome}>Clear</button>
     </div>
   </section>
 
-  <section>
+  <section class="panel">
     <h2>Theme</h2>
-    {#each ['system', 'dark', 'light'] as t}
-      <label class="radio">
-        <input
-          type="radio"
-          name="theme"
-          checked={(settings.theme || 'system') === t}
-          onclick={() => pickTheme(t as Theme)}
-        />
-        {t}
-      </label>
-    {/each}
+    <div class="seg">
+      {#each ['system', 'dark', 'light'] as t}
+        <label class="segopt">
+          <input
+            type="radio"
+            name="theme"
+            checked={(settings.theme || 'system') === t}
+            onclick={() => pickTheme(t as Theme)}
+          />
+          {t}
+        </label>
+      {/each}
+    </div>
   </section>
 
-  <section>
+  <section class="panel">
     <h2>About</h2>
     <p class="meta">
       pastlog Desktop {settings.version} (commit {settings.commit}, date {settings.date})<br />
@@ -95,52 +97,61 @@
 
 <style>
   section {
-    margin: 18px 0;
+    margin: 0 0 14px;
+    padding: 16px 18px;
+    max-width: 640px;
   }
-  h2 {
-    font-size: 15px;
-    margin-bottom: 6px;
+  section .meta {
+    margin: 0 0 12px;
   }
   .row {
     display: flex;
     gap: 8px;
-    max-width: 560px;
   }
-  input[type='text'] {
+  .row input {
     flex: 1;
-    background: var(--panel);
-    color: var(--text);
+  }
+  .seg {
+    display: inline-flex;
+    gap: 4px;
+    padding: 4px;
+    background: var(--inset);
     border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 7px 10px;
+    border-radius: 999px;
   }
-  .btn {
-    background: var(--panel);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 6px 12px;
-    cursor: pointer;
-    font: inherit;
-  }
-  .btn:hover {
-    border-color: var(--accent);
-  }
-  .radio {
-    display: flex;
+  .segopt {
+    display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 3px 0;
-    cursor: pointer;
-  }
-  .meta {
+    padding: 5px 16px;
+    border-radius: 999px;
     color: var(--muted);
-    font-size: 12px;
+    font-size: 12.5px;
+    cursor: pointer;
+    user-select: none;
+    transition:
+      color var(--speed) ease,
+      background var(--speed) ease,
+      box-shadow var(--speed) ease;
   }
-  .ok {
-    color: #4ade80;
+  .segopt:hover {
+    color: var(--text);
   }
-  .err {
-    color: #f87171;
+  .segopt:has(input:checked) {
+    color: var(--accent);
+    background: var(--panel);
+    font-weight: 600;
+    box-shadow:
+      var(--hairline),
+      var(--shadow-1),
+      0 0 0 1px var(--accent-soft);
+  }
+  .segopt input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .segopt:has(input:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
 </style>
