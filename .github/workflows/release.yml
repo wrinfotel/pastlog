@@ -98,10 +98,11 @@ jobs:
 
       - name: Install NSIS (only the amd64 leg builds the installer)
         if: matrix.platform == 'windows/amd64'
+        shell: bash
         run: |
           choco install nsis -y --no-progress
           # wails looks makensis up on PATH only; the choco package adds no shim
-          echo "C:\Program Files (x86)\NSIS" >> $GITHUB_PATH
+          echo "C:\Program Files (x86)\NSIS" >> "$GITHUB_PATH"
 
       - name: Build
         # wails needs the project dir (wails.json) as its cwd; every later
