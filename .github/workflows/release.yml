@@ -121,11 +121,14 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist-desktop
-          tag="${GITHUB_REF_NAME#desktop-v}"
-          find desktop/build/bin -maxdepth 1 \( -name '*.exe' -o -name '*.deb' -o -name '*.dmg' -o -name '*.app' \) \
-            ! -name '*-dev*' -exec cp {} dist-desktop/ \; || true
-          cp pastlog-desktop-*.dmg dist-desktop/ 2>/dev/null || true
-          ls -la dist-desktop/
+          find desktop/build/bin -maxdepth 1 \( -name '*.exe' -o -name '*.deb' -o -name '*.dmg' \) \
+            ! -name '*-dev*' ! -name '*.exe~' -exec cp {} dist-desktop/ \; || true
+          [ -d pastlog-desktop.app ] && ditto -c -k pastlog-desktop.app dist-desktop/pastlog-desktop.app.zip || true
+          [ -f pastlog-desktop-*.dmg ] && mv pastlog-desktop-*.dmg dist-desktop/ || true
+          cd dist-desktop
+          sha256sum * > checksums.txt
+          cd ..
+          echo "artifact sizes:" && du -b dist-desktop/* | sort
 
       - name: Upload to the release
         uses: softprops/action-gh-release@v2
