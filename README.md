@@ -37,7 +37,7 @@ config files. Three ways to get it:
 ### 1. Download a release binary (recommended)
 
 Grab the archive for your platform from the
-[latest release](https://github.com/wrinfotel/pastlog/releases/latest) and
+[v0.1.0 release](https://github.com/wrinfotel/pastlog/releases/tag/v0.1.0) and
 put `pastlog` on your `PATH`:
 
 | Platform | Archive |
@@ -471,15 +471,19 @@ proven by tests that run both against the same data.
 ### Desktop install
 
 Grab a `desktop-v*` release from the
-[releases page](https://github.com/wrinfotel/pastlog/releases) — one artifact
-per platform, ~15–20 MB each:
+[releases page](https://github.com/wrinfotel/pastlog/releases) — the first one
+is [desktop-v0.1.0](https://github.com/wrinfotel/pastlog/releases/tag/desktop-v0.1.0),
+~15–20 MB per platform:
 
 | Platform | Artifact |
 |---|---|
-| Windows, Intel/AMD 64-bit | `pastlog-desktop-amd64-installer.exe` (or the portable exe) |
-| Windows on ARM | `pastlog-desktop-arm64-portable.exe` |
-| macOS, Apple Silicon / Intel | `pastlog-desktop-<tag>.dmg` |
-| Linux | `pastlog-desktop_<version>_amd64.deb` |
+| Windows, Intel/AMD 64-bit | `pastlog-desktop-amd64-installer.exe`, or `pastlog-desktop-amd64.exe` as a portable single file |
+| Windows on ARM | `pastlog-desktop-arm64.exe` |
+| macOS, Apple Silicon | `pastlog-desktop-<version>-arm64.dmg` |
+| macOS, Intel | `pastlog-desktop-<version>-amd64.dmg` |
+| Linux, amd64 / arm64 | `pastlog-desktop_<version>_amd64.deb` / `pastlog-desktop_<version>_arm64.deb` |
+
+Every desktop release ships a `checksums.txt` with SHA256 sums.
 
 - **Windows:** unsigned in v0.1 (SmartScreen may warn — same honesty as the
   CLI). WebView2 is preinstalled on Windows 11 and virtually all Windows 10
