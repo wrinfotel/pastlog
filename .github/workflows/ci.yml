@@ -119,3 +119,87 @@ jobs:
         env:
           PASTLOG_BENCH_MB: '5'
         run: go test -bench . -benchtime 1x -run '^$' -timeout 15m ./internal/search/...
+
+  desktop:
+    name: desktop build (${{ matrix.os }})
+    # The Wails GUI app (TASK-DESKTOP.md). Linux needs the webkit/gtk
+    # platform glue (CGo — platform shell only, R-D8; the data layer stays
+    # CGO-free). Windows stays CGO_ENABLED=0.
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+          - os: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skip when desktop did not change
+        id: scope
+        shell: bash
+        run: |
+          if git diff --name-only HEAD^ HEAD 2>/dev/null | grep -qE '^(desktop/|\.github/|go\.(mod|sum))'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-go@v5
+        if: steps.scope.outputs.run == 'true'
+        with:
+          go-version: stable
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Install webkit/gtk dev packages (linux platform glue)
+        if: steps.scope.outputs.run == 'true' && matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Install wails CLI
+        if: steps.scope.outputs.run == 'true'
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.16.0
+
+      - name: Build (linux/amd64)
+        if: steps.scope.outputs.run == 'true' && matrix.os == 'ubuntu-latest'
+        run: wails build -platform linux/amd64
+
+      - name: Build (windows/amd64)
+        if: steps.scope.outputs.run == 'true' && matrix.os == 'windows-latest'
+        shell: bash
+        run: wails build -platform windows/amd64 -webview2 embed -nsis
+
+      - name: Frontend tests
+        if: steps.scope.outputs.run == 'true'
+        shell: bash
+        working-directory: desktop/frontend
+        run: |
+          npm install
+          npm test
+          npm run audit:bundle
+
+      - name: Go tests incl. desktop glue and the CSP middleware
+        if: steps.scope.outputs.run == 'true'
+        shell: bash
+        run: |
+          go test -race ./internal/... ./desktop/app/...
+          go test -tags desktop ./desktop/...
+          go vet -tags desktop ./desktop/...
+
+      - name: Artifact size guard (<= 30 MB, spec §8)
+        if: steps.scope.outputs.run == 'true' && matrix.os == 'windows-latest'
+        shell: bash
+        run: |
+          size=$(stat -c %s desktop/build/bin/pastlog-desktop.exe)
+          echo "windows amd64 binary: $size bytes"
+          test "$size" -le 31457280
+
+      - name: Upload windows artifacts (manual smoke)
+        if: steps.scope.outputs.run == 'true' && matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pastlog-desktop-windows
+          path: |
+            desktop/build/bin/pastlog-desktop.exe
+            desktop/build/bin/pastlog-desktop-amd64-installer.exe

@@ -20,7 +20,7 @@ func newAgentsCmd(stdout, stderr io.Writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			adapters := newRegistry(home).Adapters()
+			adapters := NewRegistry(home).Adapters()
 
 			rows := make([]render.AgentRow, len(adapters))
 			for i, a := range adapters {

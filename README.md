@@ -3,14 +3,15 @@
 **Search the full history of your AI coding agents — 100% local, one binary.**
 
 pastlog indexes nothing, uploads nothing, and configures nothing: it streams
-the session logs that Claude Code, Codex CLI, Gemini CLI and OpenCode already
+the session logs that Claude Code, Codex CLI, Gemini CLI, OpenCode and ZCode
+already
 wrote under your home directory and makes them searchable across all your
 projects — user/assistant messages, tool calls and tool outputs included.
 `pastlog stats` aggregates token usage (and OpenCode's session cost) across
 agents, projects, days and models. One static binary, zero servers, zero
 accounts, zero telemetry, strictly read-only.
 
-Supported agents: **Claude Code** · **Codex CLI** · **Gemini CLI** · **OpenCode**
+Supported agents: **Claude Code** · **Codex CLI** · **Gemini CLI** · **OpenCode** · **ZCode**
 
 <!-- TODO: render demo.gif from demo/demo.tape -->
 <!-- <p align="center"><img src="demo/demo.gif" alt="pastlog demo"></p> -->
@@ -19,6 +20,7 @@ Supported agents: **Claude Code** · **Codex CLI** · **Gemini CLI** · **OpenCo
 
 - [Install](#install)
 - [Quickstart](#quickstart)
+- [pastlog Desktop](#pastlog-desktop)
 - [Exit codes](#exit-codes)
 - [How it finds your data](#how-it-finds-your-data)
 - [Performance](#performance)
@@ -35,7 +37,7 @@ config files. Three ways to get it:
 ### 1. Download a release binary (recommended)
 
 Grab the archive for your platform from the
-[latest release](https://github.com/wrinfotel/pastlog/releases/latest) and
+[v0.1.0 release](https://github.com/wrinfotel/pastlog/releases/tag/v0.1.0) and
 put `pastlog` on your `PATH`:
 
 | Platform | Archive |
@@ -144,6 +146,7 @@ claude-code  2 sessions  1.7 KB  ~/.claude/projects
 codex        1 session   664 B  ~/.codex/sessions
 gemini-cli   1 session   548 B  ~/.gemini/tmp
 opencode     2 sessions  28.0 KB  ~/.local/share/opencode
+zcode        0 sessions  (not found)
 ```
 
 The same data as JSON (`--json` works on every command):
@@ -178,6 +181,13 @@ $ pastlog agents --json
     "path": "/home/dev/.local/share/opencode",
     "sessions": 2,
     "bytes": 28672
+  },
+  {
+    "name": "zcode",
+    "detected": false,
+    "path": null,
+    "sessions": 0,
+    "bytes": 0
   }
 ]
 ```
@@ -349,7 +359,7 @@ $ pastlog show 3f9c81a2 --json
 ```
 
 `pastlog stats` — where your tokens go: token usage aggregated across all
-four agents, grouped with `--by agent|project|day|model` (default `agent`)
+five agents, grouped with `--by agent|project|day|model` (default `agent`)
 and filterable with the same `--agent`/`--project`/`--since`/`--until`
 filters as `sessions`, plus `--model <substring>` (case-insensitive match on
 the session's model). Groups print in ascending key order (chronological for
@@ -435,6 +445,69 @@ Colors: matches and agent names are highlighted on a TTY; `--no-color`,
 `NO_COLOR`, and non-TTY output (pipes, redirects) disable color. Non-standard
 setups: `--home <dir>` points pastlog at any home directory.
 
+## pastlog Desktop
+
+**Prefer a window to a terminal?** pastlog Desktop is the GUI companion to
+the CLI: the same engine, the same guarantees, the same view of your data —
+browse and search the full history of all five agents across all projects,
+click an agent on Home to drill into its projects and see which models each
+one used and at what token cost, read transcripts comfortably (collapsible
+tool calls, markdown-rendered assistant messages), inspect token-usage
+statistics, and export anything to JSON or markdown.
+
+| CLI | Desktop |
+|---|---|
+| `pastlog` (summary) | Home (agent cards drill into their projects) |
+| `pastlog agents` | Diagnostics |
+| `pastlog sessions` | Sessions (virtualized, all filters) |
+| `pastlog search` | Search (live, progress + cancel, click a hit to open the session) |
+| `pastlog show` | Session viewer (with `--export md`/`--json` parity) |
+| `pastlog stats` | Stats · Projects (per-agent project list → per-model usage of one project + its sessions) |
+| `pastlog version` | About (in Settings) |
+
+Every GUI JSON export is byte-identical to the CLI's `--json` output —
+proven by tests that run both against the same data.
+
+### Desktop install
+
+Grab a `desktop-v*` release from the
+[releases page](https://github.com/wrinfotel/pastlog/releases) — the first one
+is [desktop-v0.1.0](https://github.com/wrinfotel/pastlog/releases/tag/desktop-v0.1.0),
+~15–20 MB per platform:
+
+| Platform | Artifact |
+|---|---|
+| Windows, Intel/AMD 64-bit | `pastlog-desktop-amd64-installer.exe`, or `pastlog-desktop-amd64.exe` as a portable single file |
+| Windows on ARM | `pastlog-desktop-arm64.exe` |
+| macOS, Apple Silicon | `pastlog-desktop-<version>-arm64.dmg` |
+| macOS, Intel | `pastlog-desktop-<version>-amd64.dmg` |
+| Linux, amd64 / arm64 | `pastlog-desktop_<version>_amd64.deb` / `pastlog-desktop_<version>_arm64.deb` |
+
+Every desktop release ships a per-platform `checksums-<platform>.txt` with
+SHA256 sums of its artifacts.
+
+- **Windows:** unsigned in v0.1 (SmartScreen may warn — same honesty as the
+  CLI). WebView2 is preinstalled on Windows 11 and virtually all Windows 10
+  devices; the installer embeds Microsoft's silent Evergreen bootstrapper for
+  the rare builds without it. Nothing else is installed.
+- **macOS:** unsigned — remove the quarantine flag with
+  `xattr -d com.apple.quarantine ./pastlog\ Desktop.app` after mounting the
+  dmg.
+- **Linux:** the `.deb` declares `libgtk-3-0` and `libwebkit2gtk-4.1-0`; your
+  package manager resolves them automatically.
+
+### What the desktop app does NOT do
+
+No telemetry, no auto-update checks, no network calls in its own operation
+(the frontend is embedded in the binary and loads zero external assets; a
+strict CSP is enforced). It never writes to agent storage — its only writes
+are your chosen export destination and its own settings file in the OS
+app-config dir (theme + home override). Session content is rendered as text
+or sanitized markdown only; nothing shown is ever executable, and links open
+in your system browser, never inside the app.
+
+<!-- TODO: desktop screenshots (Home / Search / Viewer / Stats) -->
+
 ## Exit codes
 
 grep-style, on every command:
@@ -465,12 +538,14 @@ the OpenCode database with SQLite's `mode=ro` (see the
 | codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | one rollout JSONL per session (`session_meta` + `response_item` records) |
 | gemini-cli | `~/.gemini/tmp/<project-hash>/chats/session-*.jsonl` (+ `chats.json` for legacy stores) | `<project-hash>` is not decodable; the project comes from the records' `directories[]` |
 | opencode | `~/.local/share/opencode/opencode.db`; on Windows `%LOCALAPPDATA%\opencode\opencode.db` first, falling back to `~/.local/share/opencode/opencode.db`; on macOS/Linux `$XDG_DATA_HOME/opencode/opencode.db` (when the variable is set) first, falling back to `~/.local/share/opencode/opencode.db` (first existing wins) | SQLite database, opened strictly read-only (`?mode=ro`); if it is locked by a running OpenCode instance, pastlog warns once and continues with the other agents |
+| zcode | `~/.zcode/cli/db/db.sqlite` | SQLite database, opened strictly read-only (`?mode=ro`); if it is locked by a running ZCode instance, pastlog warns once and continues with the other agents |
 
 Schema details per agent, including exactly what is parsed, skipped, and
 counted: [`internal/adapters/claudecode/SCHEMA.md`](internal/adapters/claudecode/SCHEMA.md),
 [`internal/adapters/codex/SCHEMA.md`](internal/adapters/codex/SCHEMA.md),
 [`internal/adapters/geminicli/SCHEMA.md`](internal/adapters/geminicli/SCHEMA.md),
-[`internal/adapters/opencode/SCHEMA.md`](internal/adapters/opencode/SCHEMA.md).
+[`internal/adapters/opencode/SCHEMA.md`](internal/adapters/opencode/SCHEMA.md),
+[`internal/adapters/zcode/SCHEMA.md`](internal/adapters/zcode/SCHEMA.md).
 
 ## Performance
 
@@ -501,6 +576,15 @@ the shape of your agent data. Two caveats worth knowing before comparing:
    reports the file-read-inclusive 368–395 MB/s `BenchmarkPrefilterRaw` row
    above.
 
+### Desktop binding-layer numbers
+
+The GUI adds one serialization hop between the Go core and the webview.
+`BenchmarkMarshalSessions10k`
+([`desktop/app/export_test.go`](desktop/app/export_test.go)) marshals the
+10,000-session JSON payload the Sessions view receives: **≈ 5.8 ms** on the
+same dev machine (windows/amd64) — negligible against the scan itself, and
+the reason the virtualized lists stay smooth at 10k+ rows.
+
 ## How pastlog compares
 
 As of 2026-09:
@@ -513,7 +597,7 @@ As of 2026-09:
 | `claude-code-history-viewer` | GUI desktop app, Claude Code + Gemini only |
 | Built-in `/resume` | Current session picker only — no cross-project, cross-agent search |
 
-pastlog's wedge: **universal (4 agents) + fast + 100% local + first-class
+pastlog's wedge: **universal (5 agents) + fast + 100% local + first-class
 Windows support.**
 
 ## FAQ

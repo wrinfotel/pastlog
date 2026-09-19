@@ -3,12 +3,16 @@
 # checksums and publishes the GitHub Release with an auto-generated
 # changelog. Package-manager taps are unconfigured placeholders — see
 # .goreleaser.yaml.
+#
+# Desktop releases (TASK-DESKTOP.md §8) ride the same workflow on
+# `desktop-v*` tags (R-D2): the CLI's `v*` releases stay untouched.
 name: release
 
 on:
   push:
     tags:
       - 'v*'
+      - 'desktop-v*'
 
 permissions:
   contents: write # GoReleaser creates the release and uploads its artifacts
@@ -16,6 +20,7 @@ permissions:
 jobs:
   release:
     name: GoReleaser release
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -42,3 +47,130 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  desktop:
+    name: desktop (${{ matrix.name }})
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows/amd64
+            os: windows-latest
+            platform: windows/amd64
+            wailsargs: -webview2 embed -nsis
+          - name: windows/arm64
+            os: windows-latest
+            platform: windows/arm64
+            wailsargs: -webview2 embed
+          - name: linux/amd64
+            os: ubuntu-latest
+            platform: linux/amd64
+            # ubuntu 24.04 ships webkit2gtk-4.1 only (the deb declares it too)
+            wailsargs: -tags webkit2_41
+          - name: linux/arm64
+            os: ubuntu-24.04-arm
+            platform: linux/arm64
+            wailsargs: -tags webkit2_41
+          - name: darwin/amd64
+            os: macos-15-intel
+            platform: darwin/amd64
+          - name: darwin/arm64
+            os: macos-latest
+            platform: darwin/arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Install webkit/gtk dev packages (linux platform glue, R-D8)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Install wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.16.0
+
+      - name: Install NSIS (only the amd64 leg builds the installer)
+        if: matrix.platform == 'windows/amd64'
+        shell: bash
+        run: |
+          choco install nsis -y --no-progress
+          # wails looks makensis up on PATH only; the choco package adds no shim
+          echo "C:\Program Files (x86)\NSIS" >> "$GITHUB_PATH"
+
+      - name: Build
+        # wails needs the project dir (wails.json) as its cwd; every later
+        # step keeps repo-root paths
+        run: cd desktop && wails build -platform ${{ matrix.platform }} ${{ matrix.wailsargs }}
+
+      - name: Name the portable exe by arch (both windows legs share one outputfilename)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          arch="${{ matrix.platform }}"; arch="${arch#windows/}"
+          mv desktop/build/bin/pastlog-desktop.exe "desktop/build/bin/pastlog-desktop-${arch}.exe"
+
+      - name: Package .deb (linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+          tag="${GITHUB_REF_NAME#desktop-v}"
+          # the arch follows the matrix leg: the arm64 runner must pack (and
+          # name) arm64, or the two legs collide on one asset
+          arch="${{ matrix.platform }}"; arch="${arch#linux/}"
+          cp desktop/packaging/pastlog-desktop.desktop desktop/build/bin/
+          cp desktop/build/appicon.png desktop/build/bin/pastlog-desktop.png
+          cd desktop/build/bin
+          ARCH="$arch" VERSION="$tag" nfpm package -f ../../packaging/nfpm.yaml -p deb \
+            -t "pastlog-desktop_${tag}_${arch}.deb"
+          cd ../..
+
+      - name: Package .dmg (darwin)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME#desktop-v}"
+          # the arch suffix keeps the two darwin legs from colliding on one asset
+          arch="${{ matrix.platform }}"; arch="${arch#darwin/}"
+          hdiutil create -volname pastlog-desktop -srcfolder desktop/build/bin/pastlog-desktop.app \
+            -ov -format UDZO "pastlog-desktop-${tag}-${arch}.dmg"
+
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p dist-desktop
+          find desktop/build/bin -maxdepth 1 \( -name '*.exe' -o -name '*.deb' -o -name '*.dmg' \) \
+            ! -name '*-dev*' ! -name '*.exe~' -exec cp {} dist-desktop/ \; || true
+          [ -d pastlog-desktop.app ] && ditto -c -k pastlog-desktop.app dist-desktop/pastlog-desktop.app.zip || true
+          [ -f pastlog-desktop-*.dmg ] && mv pastlog-desktop-*.dmg dist-desktop/ || true
+          slug="${{ matrix.platform }}"; slug="${slug%/*}-${slug#*/}"
+          cd dist-desktop
+          # per-leg checksum files: the matrix legs upload independently, so a
+          # single checksums.txt would be overwritten by whichever leg finishes last
+          sha256sum * > "checksums-${slug}.txt"
+          cd ..
+          echo "artifact sizes:" && ls -l dist-desktop/
+
+      - name: Upload to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist-desktop/*
+          body: |
+            pastlog Desktop — the windowed twin of the pastlog CLI.
+            100% local, read-only, zero telemetry.
+
+            **Windows:** unsigned (SmartScreen may warn — same honesty as the CLI).
+            WebView2 is preinstalled on Windows 11 and virtually all Windows 10
+            devices; the amd64 installer embeds Microsoft's silent bootstrapper
+            for the rare builds without it.
+            **macOS:** unsigned — remove quarantine with
+            `xattr -d com.apple.quarantine ./pastlog\ Desktop.app`.
+            **Linux:** the .deb declares libgtk-3 / libwebkit2gtk dependencies;
+            the package manager resolves them (spec §3.1).

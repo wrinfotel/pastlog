@@ -55,25 +55,9 @@ func AgentsHuman(w io.Writer, home string, rows []AgentRow) {
 	}
 }
 
-type agentJSON struct {
-	Name     string  `json:"name"`
-	Detected bool    `json:"detected"`
-	Path     *string `json:"path"`
-	Sessions int     `json:"sessions"`
-	Bytes    int64   `json:"bytes"`
-}
-
 // AgentsJSON writes the agents data as JSON with a stable schema.
 func AgentsJSON(w io.Writer, rows []AgentRow) error {
-	out := make([]agentJSON, len(rows))
-	for i, r := range rows {
-		row := agentJSON{Name: r.Name, Detected: r.Detected, Sessions: r.Sessions, Bytes: r.Bytes}
-		if r.Detected {
-			row.Path = &r.Path
-		}
-		out[i] = row
-	}
-	return writeJSON(w, out)
+	return writeJSON(w, AgentRowsJSON(rows))
 }
 
 // SessionsHuman writes the sessions table, newest first (already sorted by
@@ -98,40 +82,10 @@ func SessionsHuman(w io.Writer, home string, rows []agentlog.SessionMeta) {
 	}
 }
 
-type sessionJSON struct {
-	ID        string     `json:"id"`
-	Agent     string     `json:"agent"`
-	Project   string     `json:"project"`
-	Title     string     `json:"title"`
-	StartedAt *time.Time `json:"started_at"`
-	EndedAt   *time.Time `json:"ended_at"`
-	Messages  int        `json:"messages"`
-	SizeBytes int64      `json:"size_bytes"`
-}
-
-// newSessionJSON maps a SessionMeta to its stable JSON shape; shared by the
-// sessions list, search results and show.
-func newSessionJSON(m agentlog.SessionMeta) sessionJSON {
-	return sessionJSON{
-		ID:        m.ID,
-		Agent:     m.Agent,
-		Project:   m.Project,
-		Title:     m.Title,
-		StartedAt: timePtr(m.StartedAt),
-		EndedAt:   timePtr(m.EndedAt),
-		Messages:  m.Messages,
-		SizeBytes: m.SizeBytes,
-	}
-}
-
 // SessionsJSON writes the sessions data as JSON with a stable schema; absent
 // timestamps render as null.
 func SessionsJSON(w io.Writer, rows []agentlog.SessionMeta) error {
-	out := make([]sessionJSON, len(rows))
-	for i, r := range rows {
-		out[i] = newSessionJSON(r)
-	}
-	return writeJSON(w, out)
+	return writeJSON(w, SessionRowsJSON(rows))
 }
 
 // kindJSON maps an entry kind to its stable JSON label.

@@ -12,8 +12,11 @@ import (
 // claude-sonnet-4-5), codex (1 session, 1 message, input 300, output 90,
 // reasoning 25, cache read 80, gpt-5.3-codex via the last turn_context),
 // gemini-cli (1 session, 2 messages, input 200, output 60, reasoning 10,
-// cache read 15, gemini-2.5-pro) and opencode (two sessions: 1523/412/87/
-// 10240/512 cost 0.42 and 310/95/20/0/128 cost 0.08, qwen3-coder-480b).
+// cache read 15, gemini-2.5-pro), opencode (two sessions: 1523/412/87/
+// 10240/512 cost 0.42 and 310/95/20/0/128 cost 0.08, qwen3-coder-480b) and
+// zcode (two sessions: usage summed from model_usage — 150/30/5/280/30 and
+// 10/2/1/16/4, no cost, models fixture-model-b / fixture-model-c via the
+// latest request).
 
 func TestStatsByAgentHumanGolden(t *testing.T) {
 	home := allAgentsHome(t)
@@ -26,6 +29,7 @@ claude-code         1         2    120      45          0         200           
 codex               1         1    300      90         25          80            0    415         -
 gemini-cli          1         2    200      60         10          15            0    270         -
 opencode            2         3  1,833     507        107      10,240          640  2,447      0.50
+zcode               2         3    160      32          6         296           34    198         -
 `
 	if out != want {
 		t.Errorf("stats output:\n%q\nwant:\n%q", out, want)
@@ -97,6 +101,20 @@ func TestStatsByAgentJSONGolden(t *testing.T) {
       "total": 2447
     },
     "cost_usd": 0.5
+  },
+  {
+    "key": "zcode",
+    "sessions": 2,
+    "messages": 3,
+    "tokens": {
+      "input": 160,
+      "output": 32,
+      "reasoning": 6,
+      "cache_read": 296,
+      "cache_write": 34,
+      "total": 198
+    },
+    "cost_usd": null
   }
 ]
 `
@@ -117,6 +135,7 @@ func TestStatsByProjectJSON(t *testing.T) {
 	}
 	for _, want := range []string{
 		`"key": "C:/dev/fixture app"`,
+		`"key": "C:/dev/fixture zcode"`,
 		`"key": "/home/dev/cal"`,
 		`"sessions": 2`,
 		`"sessions": 3`,
@@ -126,8 +145,9 @@ func TestStatsByProjectJSON(t *testing.T) {
 			t.Errorf("stats --by project should contain %s, got:\n%s", want, out)
 		}
 	}
-	if strings.Count(out, `"cost_usd": null`) != 1 {
-		t.Errorf("only the non-opencode group should have null cost, got:\n%s", out)
+	// opencode is the only agent with a cost; cal and zcode report null
+	if strings.Count(out, `"cost_usd": null`) != 2 {
+		t.Errorf("the non-opencode groups should have null cost, got:\n%s", out)
 	}
 
 	// excluding opencode drops the cost column entirely (human output)
@@ -145,8 +165,8 @@ func TestStatsByProjectJSON(t *testing.T) {
 
 // TestStatsByDay pins the day bucketing: local 2006-01-02 of StartedAt,
 // ascending (= chronological). The three JSONL agents share one start date
-// (2026-08-02 UTC); opencode is 2026-08-08 09:48 UTC, six days later, so the
-// grouping is stable on every timezone.
+// (2026-08-02 UTC); opencode is 2026-08-08 09:48 UTC, six days later, and
+// zcode three days after that — so the grouping is stable on every timezone.
 func TestStatsByDay(t *testing.T) {
 	home := allAgentsHome(t)
 	code, out, errOut := run(t, "--home", home, "stats", "--by", "day", "--json")
@@ -155,8 +175,9 @@ func TestStatsByDay(t *testing.T) {
 	}
 	jsonlDay := time.Date(2026, 8, 2, 14, 3, 22, 0, time.UTC).Local().Format("2006-01-02")
 	opencodeDay := time.UnixMilli(1786220928012).Local().Format("2006-01-02")
-	if jsonlDay == opencodeDay {
-		t.Fatalf("fixture assumption broken: both groups landed on %s", jsonlDay)
+	zcodeDay := time.UnixMilli(1786480128012).Local().Format("2006-01-02")
+	if jsonlDay == opencodeDay || opencodeDay == zcodeDay {
+		t.Fatalf("fixture assumption broken: groups share a day (%s, %s, %s)", jsonlDay, opencodeDay, zcodeDay)
 	}
 	// the JSONL-agents day: 3 sessions, 5 messages, input 620 (120+300+200)
 	wantJSONL := `"key": "` + jsonlDay + `",
@@ -176,7 +197,17 @@ func TestStatsByDay(t *testing.T) {
 	if !strings.Contains(out, wantOpen) {
 		t.Errorf("day group %s missing or wrong, got:\n%s", opencodeDay, out)
 	}
-	if strings.Index(out, jsonlDay) > strings.Index(out, opencodeDay) {
+	// the zcode day: 2 sessions, 3 messages, input 160 (150+10)
+	wantZcode := `"key": "` + zcodeDay + `",
+    "sessions": 2,
+    "messages": 3,
+    "tokens": {
+      "input": 160,`
+	if !strings.Contains(out, wantZcode) {
+		t.Errorf("day group %s missing or wrong, got:\n%s", zcodeDay, out)
+	}
+	if strings.Index(out, jsonlDay) > strings.Index(out, opencodeDay) ||
+		strings.Index(out, opencodeDay) > strings.Index(out, zcodeDay) {
 		t.Errorf("day groups must be chronological, got:\n%s", out)
 	}
 }
@@ -244,17 +275,18 @@ func TestStatsFilters(t *testing.T) {
 		if code != 0 {
 			t.Fatalf("exit = %d", code)
 		}
-		if strings.Contains(out, "opencode") {
-			t.Errorf("--until 2026-08-03 should drop opencode, got:\n%s", out)
+		if strings.Contains(out, "opencode") || strings.Contains(out, "zcode") {
+			t.Errorf("--until 2026-08-03 should drop the SQLite agents, got:\n%s", out)
 		}
 	})
-	t.Run("since keeps only opencode", func(t *testing.T) {
+	t.Run("since keeps the SQLite agents", func(t *testing.T) {
 		code, out, _ := run(t, "--home", home, "stats", "--since", "2026-08-04", "--json")
 		if code != 0 {
 			t.Fatalf("exit = %d", code)
 		}
-		if !strings.Contains(out, `"key": "opencode"`) || strings.Contains(out, "claude-code") {
-			t.Errorf("--since 2026-08-04 should keep only opencode, got:\n%s", out)
+		if !strings.Contains(out, `"key": "opencode"`) || !strings.Contains(out, `"key": "zcode"`) ||
+			strings.Contains(out, "claude-code") {
+			t.Errorf("--since 2026-08-04 should keep only opencode and zcode, got:\n%s", out)
 		}
 	})
 	t.Run("zero-usage sessions still count", func(t *testing.T) {

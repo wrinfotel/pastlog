@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/wrinfotel/pastlog/internal/adapters/opencode"
+	"github.com/wrinfotel/pastlog/internal/adapters/zcode"
 	_ "modernc.org/sqlite"
 )
 
@@ -29,10 +30,11 @@ const (
 {"id":"gm2","timestamp":"2026-08-02T14:20:30Z","type":"gemini","content":"calibration corrected","model":"gemini-2.5-pro","tokens":{"input":200,"output":60,"cached":15,"thoughts":10,"tool":5,"total":275}}`
 )
 
-// allAgentsHome builds a synthetic home with data for all four agents:
-// claude-code and codex JSONL, a gemini-cli JSONL session, and an opencode
+// allAgentsHome builds a synthetic home with data for all five agents:
+// claude-code and codex JSONL, a gemini-cli JSONL session, an opencode
 // database generated into <home>/.local/share/opencode (the storage root
-// discovery falls back to once the per-OS env override is neutralized).
+// discovery falls back to once the per-OS env override is neutralized), and
+// a zcode database generated into <home>/.zcode/cli/db.
 func allAgentsHome(t *testing.T) string {
 	t.Helper()
 	isolateDataHome(t)
@@ -54,6 +56,9 @@ func allAgentsHome(t *testing.T) string {
 	if _, err := opencode.GenerateTestDB(filepath.Join(home, ".local", "share", "opencode")); err != nil {
 		t.Fatalf("GenerateTestDB: %v", err)
 	}
+	if _, err := zcode.GenerateTestDB(filepath.Join(home, ".zcode", "cli", "db")); err != nil {
+		t.Fatalf("GenerateTestDB: %v", err)
+	}
 	return home
 }
 
@@ -68,6 +73,7 @@ func TestSessionsAllAgents(t *testing.T) {
 		`"agent": "codex"`,
 		`"agent": "gemini-cli"`,
 		`"agent": "opencode"`,
+		`"agent": "zcode"`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("sessions --json should include %s, got:\n%s", want, out)
@@ -86,6 +92,7 @@ func TestSearchAllAgents(t *testing.T) {
 		`"agent": "codex"`,
 		`"agent": "gemini-cli"`,
 		`"agent": "opencode"`,
+		`"agent": "zcode"`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("search should hit %s, got:\n%s", want, out)
@@ -115,6 +122,15 @@ func TestShowAllAgents(t *testing.T) {
 		}
 		if !strings.Contains(out, "review the calibration constants") {
 			t.Errorf("show should print the gemini transcript, got:\n%s", out)
+		}
+	})
+	t.Run("zcode by id prefix", func(t *testing.T) {
+		code, out, errOut := run(t, "--home", home, "show", "sess_fixture000001")
+		if code != 0 {
+			t.Fatalf("show exit = %d, stderr: %s", code, errOut)
+		}
+		if !strings.Contains(out, "recalibrating the flux capacitor now") {
+			t.Errorf("show should print the zcode transcript, got:\n%s", out)
 		}
 	})
 }

@@ -53,6 +53,14 @@ type EngineOptions struct {
 	// scanning one (spec §8): search stays best effort — partial results are
 	// still returned and the exit code is unchanged.
 	Note func(string)
+	// Progress (optional) reports scan progress for long-running flows (the
+	// desktop GUI, ruling R-D6): called once per completed session with
+	// scanned = sessions processed so far and hits = total hits so far.
+	// Returning false stops the scan before the next session; the partial
+	// results collected so far are returned, mirroring the best-effort notes
+	// path. Sessions skipped by the Sessions cap or the MaxHits break never
+	// trigger the hook. The CLI leaves it nil and sees no behavior change.
+	Progress func(scanned, hits int) bool
 }
 
 var errStop = errors.New("pastlog/search: stop scan")
@@ -82,6 +90,7 @@ func Run(adapters []agentlog.Adapter, m *Matcher, o EngineOptions) []Result {
 
 	keep := m.KeepRaw()
 	total := 0
+	scanned := 0
 	notedAdapters := map[string]bool{}
 	var results []Result
 	for _, sc := range scoped {
@@ -124,6 +133,12 @@ func Run(adapters []agentlog.Adapter, m *Matcher, o EngineOptions) []Result {
 		}
 		if len(res.Hits) > 0 {
 			results = append(results, res)
+		}
+		// Progress fires after the completed session (R-D6): the tick counts
+		// what has been scanned, and a false return stops before the next one.
+		scanned++
+		if o.Progress != nil && !o.Progress(scanned, total) {
+			break // cancelled: partial results, no error
 		}
 	}
 	return results

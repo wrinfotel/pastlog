@@ -45,7 +45,7 @@ func newRootCmd(stdout, stderr io.Writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			printAgentSummary(cmd.OutOrStdout(), stderr, newRegistry(home))
+			printAgentSummary(cmd.OutOrStdout(), stderr, NewRegistry(home))
 			return nil
 		},
 	}

@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- ZCode adapter (agent `zcode`) — pastlog now reads ZCode's session store at
+  `~/.zcode/cli/db/db.sqlite` in both the CLI and the desktop app. Sessions
+  (including subagent children), transcripts (messages, tool calls and
+  outputs, reasoning) and per-session token usage aggregated from ZCode's
+  `model_usage` table (model = the latest request's model; ZCode reports no
+  cost). Read-only (`mode=ro`), streaming, locked-DB fallback: one warning,
+  other agents unaffected. Documented in
+  `internal/adapters/zcode/SCHEMA.md`.
+- **pastlog Desktop (0.1.0, `desktop-v*` releases)** — the GUI companion to
+  the CLI, built with Wails over the same Go engine. Home/Diagnostics
+  summaries, virtualized Sessions with the full CLI filter set, live Search
+  with progress + cancel and highlighted hits, a transcript viewer with
+  collapsible tool calls and sanitized markdown, token Stats with plain-CSS
+  bars, Settings (home override, theme). JSON export is byte-identical to
+  the CLI's `--json` (tested); read-only, 100% local, zero telemetry; strict
+  CSP; frontend embedded in the binary, no external assets. Windows
+  (installer + portable, embedded WebView2 bootstrapper fallback), macOS
+  (.dmg), Linux (.deb with declared webkit dependencies).
+- Desktop: clickable agent cards on Home drill into a Projects view — one
+  agent's projects with their usage aggregates (`stats --by project`
+  in-process, keyed by the exact project path), and a per-project page with
+  the per-model token/cost breakdown (`stats --by model` narrowed to the
+  project's own sessions) plus the project's session list. Scans stream
+  progress and are cancellable.
+
+### Changed
+
+- `render.GroupStatsKeys`: the raw-key accumulator behind `GroupStats`,
+  exported for callers that group by an untransformed key (the desktop
+  Projects view groups by the stored project path, not the tilde-shortened
+  display form). CLI behavior unchanged.
+- `internal/render` JSON shapes are now exported types (same tags and order
+  — schemas unchanged) so the CLI and the desktop app share one definition.
+- `TestNoNetworkDeps` scopes the no-network audit to the data path plus the
+  desktop service glue (`cmd/...`, `internal/...`, `desktop/app`); the wails
+  webview shell is excluded by design, the frontend is audited by a bundle
+  scan instead.
+
 ## [0.1.0] - 2026-09-18
 
 Initial MVP release: a single static, 100%-local, read-only binary that

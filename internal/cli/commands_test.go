@@ -87,7 +87,8 @@ func TestAgentsHumanGolden(t *testing.T) {
 	want := fmt.Sprintf("claude-code  2 sessions  %s  ~/.claude/projects\n"+
 		"codex        0 sessions  (not found)\n"+
 		"gemini-cli   0 sessions  (not found)\n"+
-		"opencode     0 sessions  (not found)\n",
+		"opencode     0 sessions  (not found)\n"+
+		"zcode        0 sessions  (not found)\n",
 		render.HumanBytes(sizeA+sizeB))
 	if out != want {
 		t.Errorf("agents output:\n%q\nwant:\n%q", out, want)
@@ -105,6 +106,7 @@ func TestAgentsNotFound(t *testing.T) {
 		"codex        0 sessions  (not found)\n" +
 		"gemini-cli   0 sessions  (not found)\n" +
 		"opencode     0 sessions  (not found)\n" +
+		"zcode        0 sessions  (not found)\n" +
 		"nothing found — install an agent or pass --home <dir>\n"
 	if out != want {
 		t.Errorf("agents output:\n%q\nwant:\n%q", out, want)
@@ -144,6 +146,13 @@ func TestAgentsJSONGolden(t *testing.T) {
   },
   {
     "name": "opencode",
+    "detected": false,
+    "path": null,
+    "sessions": 0,
+    "bytes": 0
+  },
+  {
+    "name": "zcode",
     "detected": false,
     "path": null,
     "sessions": 0,

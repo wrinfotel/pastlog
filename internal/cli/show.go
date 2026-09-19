@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 	"time"
 
@@ -34,7 +33,7 @@ func newShowCmd(stdout, stderr io.Writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			reg := newRegistry(home)
+			reg := NewRegistry(home)
 			adapters := reg.Adapters()
 
 			meta, adapter, err := resolveSession(adapters, args[0])
@@ -75,82 +74,32 @@ func newShowCmd(stdout, stderr io.Writer) *cobra.Command {
 	return cmd
 }
 
-// resolveSession finds a session by exact id or unambiguous prefix across all
-// adapters. Misses and ambiguity are user-facing errors (spec §3, §8): the
-// ambiguity error lists the candidates, and a miss distinguishes "no match"
-// from "some agent storage could not be read" (M4-B3). Exit codes stay 2.
+// resolveSession adapts the structured core resolution (agentlog.ResolveSession,
+// R-D6) to the CLI's error contract: not-found gains the unreadable-storage
+// context (M4-B3); ambiguity lists candidates in the core's order. Golden CLI
+// output must not change.
 func resolveSession(adapters []agentlog.Adapter, arg string) (agentlog.SessionMeta, agentlog.Adapter, error) {
-	type found struct {
-		meta    agentlog.SessionMeta
-		adapter agentlog.Adapter
+	res, err := agentlog.ResolveSession(adapters, arg)
+	if res.Found() {
+		return res.Meta, res.Adapter, nil
 	}
-	var all []found
-	var unreadable []string
-	for _, a := range adapters {
-		add := func(m agentlog.SessionMeta) {
-			m.Agent = a.Name()
-			all = append(all, found{m, a})
-		}
-		noted := false
-		noteOnce := func(err error) {
-			if !noted {
-				noted = true
-				unreadable = append(unreadable, a.Name()+": "+err.Error())
-			}
-		}
-		if ms, ok := a.(agentlog.MetaSource); ok {
-			if err := ms.SessionsMeta(func(m agentlog.SessionMeta) error {
-				add(m)
-				return nil
-			}); err != nil {
-				noteOnce(err)
-			}
-		} else {
-			if err := a.Sessions(func(s agentlog.Session) error {
-				add(agentlog.SessionMeta{Session: s})
-				return nil
-			}); err != nil {
-				noteOnce(err)
-			}
-		}
-	}
-	sort.SliceStable(all, func(i, j int) bool {
-		if !all[i].meta.StartedAt.Equal(all[j].meta.StartedAt) {
-			return all[i].meta.StartedAt.After(all[j].meta.StartedAt)
-		}
-		return all[i].meta.ID < all[j].meta.ID
-	})
-
-	for _, f := range all {
-		if f.meta.ID == arg {
-			return f.meta, f.adapter, nil
-		}
-	}
-	var cands []found
-	for _, f := range all {
-		if strings.HasPrefix(f.meta.ID, arg) {
-			cands = append(cands, f)
-		}
-	}
-	switch len(cands) {
-	case 1:
-		return cands[0].meta, cands[0].adapter, nil
-	case 0:
-		if len(unreadable) > 0 {
-			return agentlog.SessionMeta{}, nil, fmt.Errorf(
-				"no session matches id prefix %q (some agent storage was unreadable: %s)",
-				arg, strings.Join(unreadable, "; "))
-		}
-		return agentlog.SessionMeta{}, nil, fmt.Errorf("no session matches id prefix %q", arg)
-	default:
+	if len(res.Candidates) > 0 {
 		var b strings.Builder
 		fmt.Fprintf(&b, "ambiguous session id prefix %q; candidates:", arg)
-		for _, c := range cands {
-			fmt.Fprintf(&b, "\n  %s  %s  %s  %s", c.meta.ID, c.meta.Agent,
-				candidateDate(c.meta.StartedAt), candidateProject(c.meta.Project))
+		for _, c := range res.Candidates {
+			fmt.Fprintf(&b, "\n  %s  %s  %s  %s", c.ID, c.Agent, candidateDate(c.StartedAt), candidateProject(c.Project))
 		}
 		return agentlog.SessionMeta{}, nil, errors.New(b.String())
 	}
+	if err == nil { // unreachable today, but never report success without a session
+		err = fmt.Errorf("no session matches id prefix %q", arg)
+	}
+	if len(res.Unreadable) > 0 {
+		return agentlog.SessionMeta{}, nil, fmt.Errorf(
+			"no session matches id prefix %q (some agent storage was unreadable: %s)",
+			arg, strings.Join(res.Unreadable, "; "))
+	}
+	return agentlog.SessionMeta{}, nil, err
 }
 
 func candidateDate(t time.Time) string {

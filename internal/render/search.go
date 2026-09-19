@@ -75,42 +75,11 @@ func shortDate(t time.Time) string {
 	return t.Local().Format("2006-01-02")
 }
 
-type searchHitJSON struct {
-	Kind       string     `json:"kind"`
-	Role       string     `json:"role"`
-	Timestamp  *time.Time `json:"timestamp"`
-	Context    string     `json:"context"`
-	Line       string     `json:"line"`
-	MatchStart int        `json:"match_start"` // rune offset into line
-	MatchEnd   int        `json:"match_end"`   // rune offset into line
-}
-
-type searchResultJSON struct {
-	Session sessionJSON     `json:"session"`
-	Hits    []searchHitJSON `json:"hits"`
-}
-
 // SearchJSON writes search results as JSON with a stable schema. Match
 // offsets are rune offsets into line, so they survive encoding and stay
 // readable for non-Go consumers.
 func SearchJSON(w io.Writer, results []search.Result) error {
-	out := make([]searchResultJSON, 0, len(results))
-	for _, r := range results {
-		row := searchResultJSON{Session: newSessionJSON(r.Session), Hits: make([]searchHitJSON, 0, len(r.Hits))}
-		for _, h := range r.Hits {
-			row.Hits = append(row.Hits, searchHitJSON{
-				Kind:       kindJSON(h.Entry.Kind),
-				Role:       h.Entry.Role,
-				Timestamp:  timePtr(h.Entry.Timestamp),
-				Context:    h.Context,
-				Line:       h.Line,
-				MatchStart: runeOffset(h.Line, h.MatchStart),
-				MatchEnd:   runeOffset(h.Line, h.MatchEnd),
-			})
-		}
-		out = append(out, row)
-	}
-	return writeJSON(w, out)
+	return writeJSON(w, NewSearchResults(results))
 }
 
 // runeOffset converts a byte offset in s to a rune offset, clamped to the
