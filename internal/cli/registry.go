@@ -8,9 +8,11 @@ import (
 	"github.com/wrinfotel/pastlog/internal/agentlog"
 )
 
-// newRegistry builds the adapter set for one home directory, in spec §4
-// order (P0 first): claude-code, codex, gemini-cli, opencode.
-func newRegistry(home string) *agentlog.Registry {
+// NewRegistry builds the adapter set for one home directory, in spec §4
+// order (P0 first): claude-code, codex, gemini-cli, opencode. It is the
+// single registration point shared by the CLI and the desktop app (ruling
+// R-D7): both surfaces must always see the same adapter set.
+func NewRegistry(home string) *agentlog.Registry {
 	reg := agentlog.NewRegistry()
 	reg.Register(claudecode.New(home))
 	reg.Register(codex.New(home))

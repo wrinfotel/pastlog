@@ -1,4 +1,7 @@
-package cli
+// Package dates parses the --since/--until cutoff values shared by the CLI
+// and the desktop app (ruling R-D6): one implementation, identical semantics
+// on both surfaces.
+package dates
 
 import (
 	"fmt"
@@ -7,11 +10,11 @@ import (
 	"time"
 )
 
-// parseCutoff parses --since/--until values: exactly Nd, Nw (relative to now)
+// ParseCutoff parses --since/--until values: exactly Nd, Nw (relative to now)
 // or YYYY-MM-DD (local date); nothing else (controller ruling).
 // endOfDay widens a plain date to the last nanosecond of that day so
 // --until 2026-01-01 includes that whole day.
-func parseCutoff(flag, value string, endOfDay bool) (time.Time, error) {
+func ParseCutoff(flag, value string, endOfDay bool) (time.Time, error) {
 	invalid := fmt.Errorf("invalid --%s value %q: use Nd, Nw or YYYY-MM-DD (e.g. 7d, 2w, 2026-01-01)", flag, value)
 
 	if t, err := time.ParseInLocation("2006-01-02", value, time.Local); err == nil {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/wrinfotel/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/dates"
 	"github.com/wrinfotel/pastlog/internal/render"
 	"github.com/wrinfotel/pastlog/internal/search"
 )
@@ -35,7 +36,7 @@ func newSearchCmd(stdout, stderr io.Writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			reg := newRegistry(home)
+			reg := NewRegistry(home)
 			adapters := reg.Adapters()
 
 			if agentName != "" {
@@ -51,12 +52,12 @@ func newSearchCmd(stdout, stderr io.Writer) *cobra.Command {
 			}
 			filter := agentlog.SessionFilter{Agent: agentName, Project: project}
 			if since != "" {
-				if filter.Since, err = parseCutoff("since", since, false); err != nil {
+				if filter.Since, err = dates.ParseCutoff("since", since, false); err != nil {
 					return err
 				}
 			}
 			if till != "" {
-				if filter.Until, err = parseCutoff("until", till, true); err != nil {
+				if filter.Until, err = dates.ParseCutoff("until", till, true); err != nil {
 					return err
 				}
 			}
