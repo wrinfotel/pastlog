@@ -13,6 +13,7 @@
   import { closeProject, openProject, projectsNav } from '../lib/projects.svelte';
   import Notes from '../components/Notes.svelte';
   import VirtualList from '../components/VirtualList.svelte';
+  import Loader from '../components/Loader.svelte';
 
   let agents = $state<string[]>([]);
   let list = $state<ProjectRow[] | null>(null);
@@ -21,6 +22,7 @@
   let notes = $state<string[]>([]);
   let error = $state('');
   let progress = $state<{ scanned: number } | null>(null);
+  let loading = $state(true);
 
   api.diagnostics().then((d) => (agents = d.agents.map((a) => a.name)));
   const stopProgress = onProgress((e) => {
@@ -31,6 +33,7 @@
 
   async function loadList(ag: string) {
     const mine = ++seq;
+    loading = true;
     progress = null;
     try {
       const o = await api.projects(ag);
@@ -44,12 +47,16 @@
       notes = [];
       error = String(e);
     } finally {
-      if (mine === seq) progress = null;
+      if (mine === seq) {
+        progress = null;
+        loading = false;
+      }
     }
   }
 
   async function loadDetail(ag: string, proj: string) {
     const mine = ++seq;
+    loading = true;
     progress = null;
     try {
       const [stats, sess] = await Promise.all([
@@ -68,7 +75,10 @@
       notes = [];
       error = String(e);
     } finally {
-      if (mine === seq) progress = null;
+      if (mine === seq) {
+        progress = null;
+        loading = false;
+      }
     }
   }
 
@@ -111,164 +121,196 @@
       </select>
     </label>
   </div>
-  <Notes {notes} />
+  <Notes notes={!loading ? notes : []} />
   {#if progress}
     <div class="progress">
       <span>scanning… {progress.scanned} sessions</span>
-      <button onclick={cancel}>Cancel</button>
+      <button class="btn" onclick={cancel}>Cancel</button>
     </div>
   {/if}
-  {#if error}<p class="err">{error}</p>{/if}
-  {#if list}
+  {#if !loading && error}<p class="err">{error}</p>{/if}
+  {#if loading}
+    {#if !progress}
+      <Loader label="scanning projects…" />
+    {/if}
+  {:else if list}
     {#if list.length > 0}
-      <div class="head" class:withcost={hasCost}>
-        <span>project</span>
-        <span class="r">sessions</span>
-        <span class="r">messages</span>
-        <span class="r">input</span>
-        <span class="r">output</span>
-        <span class="r">total</span>
-        {#if hasCost}<span class="r">cost usd</span>{/if}
+      <div class="panel tablewrap fadein">
+        <div class="head" class:withcost={hasCost}>
+          <span>project</span>
+          <span class="r">sessions</span>
+          <span class="r">messages</span>
+          <span class="r">input</span>
+          <span class="r">output</span>
+          <span class="r">total</span>
+          {#if hasCost}<span class="r">cost usd</span>{/if}
+        </div>
+        <div class="plist">
+          <VirtualList items={list} itemHeight={32}>
+            {#snippet row(p)}
+              <button class="prow" class:withcost={hasCost} onclick={() => openProject(p.project)} title={p.project}>
+                <span class="key">{p.project || '-'}</span>
+                <span class="r">{fmtInt(p.sessions)}</span>
+                <span class="r">{fmtInt(p.messages)}</span>
+                <span class="r">{fmtInt(p.tokens.input)}</span>
+                <span class="r">{fmtInt(p.tokens.output)}</span>
+                <span class="r strong">{fmtInt(p.tokens.total)}</span>
+                {#if hasCost}<span class="r">{p.cost_usd === null ? '-' : p.cost_usd.toFixed(2)}</span>{/if}
+              </button>
+            {/snippet}
+          </VirtualList>
+        </div>
       </div>
-      <div class="plist">
-        <VirtualList items={list} itemHeight={30}>
-          {#snippet row(p)}
-            <button class="prow" class:withcost={hasCost} onclick={() => openProject(p.project)} title={p.project}>
-              <span class="key">{p.project || '-'}</span>
-              <span class="r">{fmtInt(p.sessions)}</span>
-              <span class="r">{fmtInt(p.messages)}</span>
-              <span class="r">{fmtInt(p.tokens.input)}</span>
-              <span class="r">{fmtInt(p.tokens.output)}</span>
-              <span class="r strong">{fmtInt(p.tokens.total)}</span>
-              {#if hasCost}<span class="r">{p.cost_usd === null ? '-' : p.cost_usd.toFixed(2)}</span>{/if}
+      <p class="meta fadein">{fmtInt(list.length)} projects</p>
+    {:else}
+      <p class="meta">no sessions recorded for this agent</p>
+    {/if}
+  {/if}
+{:else}
+  <div class="crumb">
+    <button class="btn" onclick={closeProject}>
+      <svg
+        viewBox="0 0 24 24"
+        width="13"
+        height="13"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="m15 18-6-6 6-6" />
+      </svg>
+      All projects
+    </button>
+  </div>
+  <div class="top">
+    <div>
+      <h1 class="proj">{projectsNav.project || '-'}</h1>
+      <p class="meta"><span class="chip">{projectsNav.agent}</span> &middot; token usage by model</p>
+    </div>
+  </div>
+  <Notes notes={!loading ? notes : []} />
+  {#if progress}
+    <div class="progress">
+      <span>scanning… {progress.scanned} sessions</span>
+      <button class="btn" onclick={cancel}>Cancel</button>
+    </div>
+  {/if}
+  {#if !loading && error}<p class="err">{error}</p>{/if}
+  {#if loading}
+    {#if !progress}
+      <Loader label="loading project…" />
+    {/if}
+  {:else}
+    {#if modelRows}
+      {#if modelRows.length > 0}
+        <div class="panel tablewrap fadein">
+        <table>
+          <thead>
+            <tr>
+              <th>model</th>
+              <th class="r">sessions</th>
+              <th class="r">messages</th>
+              <th class="r">input</th>
+              <th class="r">output</th>
+              <th class="r">reasoning</th>
+              <th class="r">cache read</th>
+              <th class="r">cache write</th>
+              <th class="r total">total</th>
+              {#if hasCost}<th class="r">cost usd</th>{/if}
+            </tr>
+          </thead>
+          <tbody>
+            {#each modelRows as row}
+              <tr>
+                <td class="key">{row.key}</td>
+                <td class="r">{fmtInt(row.sessions)}</td>
+                <td class="r">{fmtInt(row.messages)}</td>
+                <td class="r">{fmtInt(row.tokens.input)}</td>
+                <td class="r">{fmtInt(row.tokens.output)}</td>
+                <td class="r">{fmtInt(row.tokens.reasoning)}</td>
+                <td class="r">{fmtInt(row.tokens.cache_read)}</td>
+                <td class="r">{fmtInt(row.tokens.cache_write)}</td>
+                <td class="r total">
+                  <span class="bar" style="width: {(row.tokens.total / maxModelTotal) * 100}%"></span>
+                  <span class="num">{fmtInt(row.tokens.total)}</span>
+                </td>
+                {#if hasCost}
+                  <td class="r">{row.cost_usd === null ? '-' : row.cost_usd.toFixed(2)}</td>
+                {/if}
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+        </div>
+      {:else}
+        <p class="meta">no usage data for this project</p>
+      {/if}
+    {/if}
+    {#if sessions && sessions.length > 0}
+    <h2>Sessions</h2>
+    <div class="panel tablewrap fadein">
+      <div class="shead">
+        <span>date</span>
+        <span>title</span>
+        <span class="r">messages</span>
+        <span class="r">size</span>
+      </div>
+      <div class="slist">
+        <VirtualList items={sessions} itemHeight={32}>
+          {#snippet row(s)}
+            <button
+              class="srow"
+              onclick={() => {
+                openSession(s.id, undefined, 'projects');
+                go('viewer');
+              }}
+              title={s.title || s.id}
+            >
+              <span class="muted">{fmtDate(s.started_at)}</span>
+              <span class="title">{s.title || idPrefix(s.id)}</span>
+              <span class="r">{fmtInt(s.messages)}</span>
+              <span class="r muted">{fmtBytes(s.size_bytes)}</span>
             </button>
           {/snippet}
         </VirtualList>
       </div>
-      <p class="meta">{fmtInt(list.length)} projects</p>
-    {:else if !progress}
-      <p class="meta">no sessions recorded for this agent</p>
-    {/if}
-  {:else if !error && !progress}
-    <p class="meta">loading…</p>
-  {/if}
-{:else}
-  <div class="top">
-    <div>
-      <h1 class="proj">{projectsNav.project || '-'}</h1>
-      <p class="meta">{projectsNav.agent} · token usage by model</p>
-    </div>
-    <button class="btn" onclick={closeProject}>← All projects</button>
-  </div>
-  <Notes {notes} />
-  {#if progress}
-    <div class="progress">
-      <span>scanning… {progress.scanned} sessions</span>
-      <button onclick={cancel}>Cancel</button>
-    </div>
-  {/if}
-  {#if error}<p class="err">{error}</p>{/if}
-  {#if modelRows}
-    {#if modelRows.length > 0}
-      <table>
-        <thead>
-          <tr>
-            <th>model</th>
-            <th class="r">sessions</th>
-            <th class="r">messages</th>
-            <th class="r">input</th>
-            <th class="r">output</th>
-            <th class="r">reasoning</th>
-            <th class="r">cache read</th>
-            <th class="r">cache write</th>
-            <th class="r total">total</th>
-            {#if hasCost}<th class="r">cost usd</th>{/if}
-          </tr>
-        </thead>
-        <tbody>
-          {#each modelRows as row}
-            <tr>
-              <td class="key">{row.key}</td>
-              <td class="r">{fmtInt(row.sessions)}</td>
-              <td class="r">{fmtInt(row.messages)}</td>
-              <td class="r">{fmtInt(row.tokens.input)}</td>
-              <td class="r">{fmtInt(row.tokens.output)}</td>
-              <td class="r">{fmtInt(row.tokens.reasoning)}</td>
-              <td class="r">{fmtInt(row.tokens.cache_read)}</td>
-              <td class="r">{fmtInt(row.tokens.cache_write)}</td>
-              <td class="r total">
-                <span class="bar" style="width: {(row.tokens.total / maxModelTotal) * 100}%"></span>
-                <span class="num">{fmtInt(row.tokens.total)}</span>
-              </td>
-              {#if hasCost}
-                <td class="r">{row.cost_usd === null ? '-' : row.cost_usd.toFixed(2)}</td>
-              {/if}
-            </tr>
-          {/each}
-        </tbody>
-      </table>
-    {:else if !progress}
-      <p class="meta">no usage data for this project</p>
-    {/if}
-  {/if}
-  {#if sessions && sessions.length > 0}
-    <h2>Sessions</h2>
-    <div class="shead">
-      <span>date</span>
-      <span>title</span>
-      <span class="r">messages</span>
-      <span class="r">size</span>
-    </div>
-    <div class="slist">
-      <VirtualList items={sessions} itemHeight={30}>
-        {#snippet row(s)}
-          <button
-            class="srow"
-            onclick={() => {
-              openSession(s.id);
-              go('viewer');
-            }}
-            title={s.title || s.id}
-          >
-            <span class="muted">{fmtDate(s.started_at)}</span>
-            <span class="title">{s.title || idPrefix(s.id)}</span>
-            <span class="r">{fmtInt(s.messages)}</span>
-            <span class="r muted">{fmtBytes(s.size_bytes)}</span>
-          </button>
-        {/snippet}
-      </VirtualList>
     </div>
     <p class="meta">{fmtInt(sessions.length)} sessions</p>
+  {/if}
   {/if}
 {/if}
 
 <style>
   .toolbar {
     display: flex;
-    gap: 14px;
+    gap: 16px;
     align-items: end;
-    padding-bottom: 6px;
+    padding-bottom: 4px;
   }
   label {
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    font-size: 12px;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
     color: var(--muted);
   }
   select {
-    background: var(--panel);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 5px 8px;
-    min-width: 160px;
+    min-width: 170px;
+  }
+  .tablewrap {
+    margin-top: 12px;
+    padding: 4px 16px 8px;
   }
   .head,
   .prow {
     display: grid;
     grid-template-columns: minmax(160px, 1fr) 80px 90px 110px 110px 110px;
-    gap: 8px;
+    gap: 10px;
     padding: 0 4px;
     align-items: center;
   }
@@ -277,29 +319,40 @@
     grid-template-columns: minmax(160px, 1fr) 80px 90px 110px 110px 110px 90px;
   }
   .head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
     color: var(--muted);
-    font-size: 12px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    padding: 8px 14px 7px 4px; /* +10px: the list's reserved scrollbar lane */
+    background: var(--panel);
     border-bottom: 1px solid var(--border);
   }
   .plist {
-    height: calc(100vh - 340px);
+    height: calc(100vh - 360px);
     min-height: 180px;
   }
   .prow {
     width: 100%;
+    height: 100%;
     background: none;
     border: 0;
-    border-bottom: 1px solid var(--border);
     color: var(--text);
     font: inherit;
     text-align: left;
     cursor: pointer;
+    transition: background var(--speed) ease;
   }
   .prow:hover {
-    background: var(--panel);
+    background: var(--panel-hover);
   }
   .key {
-    color: var(--accent);
+    color: var(--text-2);
+    font-family: var(--mono);
+    font-size: 12px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -308,9 +361,14 @@
     text-align: right;
     font-variant-numeric: tabular-nums;
     color: var(--muted);
+    font-size: 12.5px;
   }
   .strong {
     color: var(--text);
+    font-weight: 600;
+  }
+  .crumb {
+    margin-bottom: 12px;
   }
   .top {
     display: flex;
@@ -319,125 +377,84 @@
     gap: 12px;
   }
   .proj {
+    font-family: var(--mono);
+    font-size: 15px;
     overflow-wrap: anywhere;
   }
-  .btn {
-    background: var(--panel);
+  td.key {
     color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 6px 12px;
-    cursor: pointer;
-    font: inherit;
-    flex-shrink: 0;
-  }
-  .btn:hover {
-    border-color: var(--accent);
-  }
-  table {
-    border-collapse: collapse;
-    margin-top: 10px;
-    width: 100%;
-  }
-  th,
-  td {
-    padding: 6px 12px 6px 0;
-    border-bottom: 1px solid var(--border);
-    font-size: 13px;
-  }
-  th {
-    color: var(--muted);
-    font-size: 12px;
-    text-align: right;
-  }
-  th:first-child {
-    text-align: left;
+    font-weight: 600;
   }
   td.r {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-  }
-  td.key {
-    color: var(--accent);
+    color: var(--text-2);
   }
   .total {
     position: relative;
-    min-width: 140px;
+    min-width: 150px;
   }
   .bar {
     position: absolute;
-    right: 0;
-    top: 25%;
-    height: 50%;
-    background: color-mix(in srgb, var(--accent) 25%, transparent);
-    border-radius: 2px;
+    right: 14px;
+    top: 20%;
+    height: 60%;
+    background: linear-gradient(90deg, var(--accent-soft), var(--accent-glow) 70%);
+    border-radius: 3px;
   }
   .num {
     position: relative;
-  }
-  h2 {
-    margin-top: 22px;
-    font-size: 16px;
+    color: var(--text);
+    font-weight: 600;
   }
   .shead,
   .srow {
     display: grid;
     grid-template-columns: 130px minmax(160px, 1fr) 90px 80px;
-    gap: 8px;
+    gap: 10px;
     padding: 0 4px;
     align-items: center;
   }
   .shead {
+    position: sticky;
+    top: 0;
+    z-index: 1;
     color: var(--muted);
-    font-size: 12px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    padding: 8px 14px 7px 4px; /* +10px: the list's reserved scrollbar lane */
+    background: var(--panel);
     border-bottom: 1px solid var(--border);
   }
   .slist {
-    height: calc(100vh - 560px);
+    height: calc(100vh - 600px);
     min-height: 140px;
   }
   .srow {
     width: 100%;
+    height: 100%;
     background: none;
     border: 0;
-    border-bottom: 1px solid var(--border);
     color: var(--text);
     font: inherit;
     text-align: left;
     cursor: pointer;
+    transition: background var(--speed) ease;
   }
   .srow:hover {
-    background: var(--panel);
+    background: var(--panel-hover);
   }
   .srow .title {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    color: var(--text-2);
+  }
+  .srow .muted {
+    font-family: var(--mono);
+    font-size: 11.5px;
   }
   .muted {
     color: var(--muted);
-  }
-  .progress {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin: 8px 0;
-    color: var(--muted);
-    font-size: 12px;
-  }
-  .progress button {
-    background: var(--panel);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 4px 10px;
-    cursor: pointer;
-  }
-  .meta {
-    color: var(--muted);
-    font-size: 12px;
-  }
-  .err {
-    color: #f87171;
   }
 </style>

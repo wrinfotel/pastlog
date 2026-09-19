@@ -10,6 +10,7 @@
   import { go } from '../lib/stores.svelte';
   import { viewer } from '../lib/viewer.svelte';
   import Notes from '../components/Notes.svelte';
+  import Loader from '../components/Loader.svelte';
 
   type Entry = { kind: string; role: string; text: string; timestamp: string | null };
   type Outcome = {
@@ -24,7 +25,9 @@
 
   let outcome = $state<Outcome | null>(null);
   let error = $state('');
-  let loading = $state(false);
+  // start in the loading state when opened with a target id, so the very
+  // first paint shows the spinner instead of a blank frame
+  let loading = $state(viewer.id !== '');
   let listEl: HTMLDivElement | undefined = $state();
   let hitIdx = $state(-1);
 
@@ -106,13 +109,41 @@
     : kind === 'tool_result' ? 'tool result'
     : kind === 'summary' ? 'summary'
     : role || 'message';
+
+  // the back affordance returns to wherever the session was opened from —
+  // a project page keeps its selection in the module store
+  const backLabel = $derived(
+    viewer.from === 'projects' ? 'back to project'
+    : viewer.from === 'search' ? 'back to search'
+    : 'back to sessions',
+  );
+
+  const roleClass = (kind: string, role: string) =>
+    kind === 'message' ? `role-${role || 'message'}` : '';
 </script>
 
+<div class="crumb">
+  <button class="btn" onclick={() => go(viewer.from)}>
+    <svg
+      viewBox="0 0 24 24"
+      width="13"
+      height="13"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    >
+      <path d="m15 18-6-6 6-6" />
+    </svg>
+    {backLabel}
+  </button>
+</div>
+
 {#if loading}
-  <p class="meta">loading…</p>
+  <Loader label="loading session…" />
 {:else if error}
   <p class="err">{error}</p>
-  <button class="btn" onclick={() => go('sessions')}>Back to sessions</button>
 {:else if outcome?.status === 'ambiguous' && outcome.candidates}
   <h1>Ambiguous session id</h1>
   <p class="meta">several sessions match — pick one:</p>
@@ -132,25 +163,77 @@
   <div class="top">
     <div>
       <h1>{outcome.session.title || `session ${idPrefix(outcome.session.id)}`}</h1>
-      <p class="meta">
-        {outcome.session.agent} · {outcome.session.id} · {outcome.session.project || '-'} ·
-        {fmtDate(outcome.session.started_at)} · {fmtInt(outcome.session.messages)} messages ·
-        {fmtBytes(outcome.session.size_bytes)}
+      <p class="meta facts">
+        <span class="chip">{outcome.session.agent}</span>
+        <span class="fact">{outcome.session.id}</span>
+        <span class="fact">{outcome.session.project || '-'}</span>
+        <span class="fact">{fmtDate(outcome.session.started_at)}</span>
+        <span class="fact">{fmtInt(outcome.session.messages)} messages</span>
+        <span class="fact">{fmtBytes(outcome.session.size_bytes)}</span>
       </p>
     </div>
     <div class="actions">
-      <button class="btn" onclick={() => exportSession('json')}>Export JSON</button>
-      <button class="btn" onclick={() => exportSession('md')}>Export MD</button>
+      <button class="btn" onclick={() => exportSession('json')}>
+        <svg
+          viewBox="0 0 24 24"
+          width="13"
+          height="13"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        JSON
+      </button>
+      <button class="btn" onclick={() => exportSession('md')}>
+        <svg
+          viewBox="0 0 24 24"
+          width="13"
+          height="13"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        MD
+      </button>
     </div>
   </div>
   <Notes notes={outcome.notes ?? []} />
-  <div class="transcript" bind:this={listEl}>
+  <div class="transcript fadein" bind:this={listEl}>
     {#each entries as ev, i}
-      <div class="entry" class:hit={i === hitIdx} data-idx={i}>
+      <div
+        class="entry"
+        class:tool={ev.entry.kind !== 'message' && ev.entry.kind !== 'summary'}
+        class:hit={i === hitIdx}
+        data-idx={i}
+      >
         <div class="ehead">
-          <button class="lbl" class:tool={ev.entry.kind !== 'message'} onclick={() => toggle(i)}>
+          <button class="lbl {roleClass(ev.entry.kind, ev.entry.role)}" onclick={() => toggle(i)}>
             {#if ev.entry.kind !== 'message' && ev.entry.kind !== 'summary'}
-              <span class="tri">{ev.expanded ? '▾' : '▸'}</span>
+              <svg
+                class="tri"
+                viewBox="0 0 24 24"
+                width="10"
+                height="10"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.4"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d={ev.expanded ? 'm6 9 6 6 6-6' : 'm9 6 6 6-6 6'} />
+              </svg>
             {/if}
             {label(ev.entry.kind, ev.entry.role)}
           </button>
@@ -170,45 +253,69 @@
 {/if}
 
 <style>
+  .crumb {
+    margin-bottom: 12px;
+  }
   .top {
     display: flex;
     justify-content: space-between;
     align-items: start;
     gap: 12px;
   }
+  .top h1 {
+    margin-bottom: 6px;
+  }
+  .facts {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .fact {
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+  .fact + .fact::before {
+    content: '·';
+    margin-right: 8px;
+    color: var(--faint);
+  }
   .actions {
     display: flex;
     gap: 8px;
     flex-shrink: 0;
   }
-  .btn {
-    background: var(--panel);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 6px 12px;
-    cursor: pointer;
-    font: inherit;
-  }
-  .btn:hover {
-    border-color: var(--accent);
-  }
   .transcript {
-    margin-top: 10px;
+    margin-top: 14px;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    max-height: calc(100vh - 220px);
+    max-height: calc(100vh - 212px);
     overflow-y: auto;
+    padding-right: 2px;
   }
   .entry {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 6px 10px;
+    border-radius: var(--radius);
+    box-shadow:
+      var(--hairline),
+      var(--shadow-1);
+    padding: 8px 12px;
+    transition:
+      border-color var(--speed) ease,
+      box-shadow var(--speed) ease;
+  }
+  .entry.tool {
+    background: var(--inset);
+    border-color: var(--border-subtle);
+    box-shadow: none;
   }
   .entry.hit {
     border-color: var(--accent);
+    box-shadow:
+      var(--shadow-1),
+      0 0 0 3px var(--accent-soft);
   }
   .ehead {
     display: flex;
@@ -216,59 +323,96 @@
     gap: 10px;
   }
   .lbl {
-    background: none;
-    border: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--accent-soft);
     color: var(--accent);
+    font-family: var(--mono);
+    font-size: 11px;
     font-weight: 600;
+    border: 0;
+    border-radius: 5px;
+    padding: 2px 8px;
     cursor: pointer;
-    padding: 2px 0;
-    font: inherit;
   }
-  .lbl.tool {
+  .lbl:hover {
+    background: var(--accent-soft-2);
+  }
+  .lbl.role-user {
+    background: var(--panel-hover);
+    color: var(--text-2);
+  }
+  .entry.tool .lbl {
+    background: none;
     color: var(--muted);
+    padding: 2px 2px;
+  }
+  .entry.tool .lbl:hover {
+    color: var(--text-2);
   }
   .tri {
-    display: inline-block;
-    width: 12px;
+    flex-shrink: 0;
   }
   .time {
     color: var(--muted);
-    font-size: 12px;
+    font-family: var(--mono);
+    font-size: 11px;
   }
   .copy {
     margin-left: auto;
     background: none;
-    border: 1px solid var(--border);
-    border-radius: 4px;
+    border: 1px solid transparent;
+    border-radius: 5px;
     color: var(--muted);
     font-size: 11px;
+    padding: 1px 7px;
     cursor: pointer;
+    transition:
+      color var(--speed) ease,
+      border-color var(--speed) ease,
+      background var(--speed) ease;
   }
   .copy:hover {
-    color: var(--text);
+    color: var(--text-2);
+    border-color: var(--border);
+    background: var(--panel-hover);
   }
   .body {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    margin: 6px 0 2px;
-    font-size: 13.5px;
+    margin: 8px 0 4px;
+    font-size: 13px;
+    color: var(--text-2);
+  }
+  .entry.tool .body {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
   }
   .body.md {
     white-space: normal;
+    color: var(--text-2);
   }
   .body.md :global(pre) {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 8px;
+    background: var(--inset);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-s);
+    padding: 10px 12px;
     overflow-x: auto;
   }
   .body.md :global(code) {
-    font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
-    font-size: 12.5px;
+    font-family: var(--mono);
+    font-size: 12px;
   }
   .body.md :global(a) {
     color: var(--accent);
+  }
+  .body.md :global(h1),
+  .body.md :global(h2),
+  .body.md :global(h3) {
+    font-size: 14px;
+    margin: 14px 0 6px;
   }
   .cands {
     list-style: none;
@@ -276,12 +420,5 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-  }
-  .meta {
-    color: var(--muted);
-    font-size: 12px;
-  }
-  .err {
-    color: #f87171;
   }
 </style>

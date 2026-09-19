@@ -4,6 +4,13 @@
 
 export const projectsNav = $state({ agent: '', project: '' });
 
+// openProjects is the sidebar/section entry: it always lands on the list.
+// A previously opened project detail is kept only for the viewer's back trip,
+// which navigates without going through here.
+export function openProjects() {
+  projectsNav.project = '';
+}
+
 // openAgentProjects enters the list view for one agent (Home card click).
 export function openAgentProjects(agent: string) {
   projectsNav.agent = agent;
