@@ -1,0 +1,26 @@
+# nfpm packaging for the pastlog Desktop .deb (TASK-DESKTOP.md §8): the
+# package manager resolves the webkit/gtk runtime the wails linux build
+# needs, which is the documented zero-install story on Linux (spec §3.1).
+# Rendered by the release workflow: ARCH=amd64|arm64, VERSION=<tag minus v>.
+name: pastlog-desktop
+arch: "${ARCH}"
+version: "${VERSION}"
+section: utils
+priority: optional
+maintainer: "pastlog contributors"
+description: |
+  Browse, search and inspect the session history of AI coding agents
+  (Claude Code, Codex CLI, Gemini CLI, OpenCode) — 100% local, read-only,
+  zero telemetry. GUI companion to the pastlog CLI.
+homepage: https://github.com/wrinfotel/pastlog
+license: MIT
+depends:
+  - libgtk-3-0
+  - libwebkit2gtk-4.1-0
+contents:
+  - src: "./pastlog-desktop"
+    dst: "/usr/bin/pastlog-desktop"
+  - src: "./pastlog-desktop.desktop"
+    dst: "/usr/share/applications/pastlog-desktop.desktop"
+  - src: "./pastlog-desktop.png"
+    dst: "/usr/share/icons/hicolor/256x256/apps/pastlog-desktop.png"

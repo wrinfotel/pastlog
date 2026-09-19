@@ -3,12 +3,16 @@
 # checksums and publishes the GitHub Release with an auto-generated
 # changelog. Package-manager taps are unconfigured placeholders — see
 # .goreleaser.yaml.
+#
+# Desktop releases (TASK-DESKTOP.md §8) ride the same workflow on
+# `desktop-v*` tags (R-D2): the CLI's `v*` releases stay untouched.
 name: release
 
 on:
   push:
     tags:
       - 'v*'
+      - 'desktop-v*'
 
 permissions:
   contents: write # GoReleaser creates the release and uploads its artifacts
@@ -16,6 +20,7 @@ permissions:
 jobs:
   release:
     name: GoReleaser release
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -42,3 +47,99 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  desktop:
+    name: desktop (${{ matrix.name }})
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows/amd64
+            os: windows-latest
+            platform: windows/amd64
+            wailsargs: -webview2 embed -nsis
+          - name: windows/arm64
+            os: windows-latest
+            platform: windows/arm64
+            wailsargs: -webview2 embed
+          - name: linux/amd64
+            os: ubuntu-latest
+            platform: linux/amd64
+          - name: linux/arm64
+            os: ubuntu-24.04-arm
+            platform: linux/arm64
+          - name: darwin/amd64
+            os: macos-15-intel
+            platform: darwin/amd64
+          - name: darwin/arm64
+            os: macos-latest
+            platform: darwin/arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Install webkit/gtk dev packages (linux platform glue, R-D8)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Install wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.16.0
+
+      - name: Build
+        run: wails build -platform ${{ matrix.platform }} ${{ matrix.wailsargs }}
+
+      - name: Package .deb (linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
+          tag="${GITHUB_REF_NAME#desktop-v}"
+          cp desktop/packaging/pastlog-desktop.desktop desktop/build/bin/
+          cp desktop/build/appicon.png desktop/build/bin/pastlog-desktop.png
+          cd desktop/build/bin
+          ARCH=amd64 VERSION="$tag" nfpm package -f ../../packaging/nfpm.yaml -p deb \
+            -t "pastlog-desktop_${tag}_amd64.deb"
+          cd ../..
+
+      - name: Package .dmg (darwin)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME#desktop-v}"
+          hdiutil create -volname pastlog-desktop -srcfolder desktop/build/bin/pastlog-desktop.app \
+            -ov -format UDZO "pastlog-desktop-${tag}.dmg"
+
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p dist-desktop
+          tag="${GITHUB_REF_NAME#desktop-v}"
+          find desktop/build/bin -maxdepth 1 \( -name '*.exe' -o -name '*.deb' -o -name '*.dmg' -o -name '*.app' \) \
+            ! -name '*-dev*' -exec cp {} dist-desktop/ \; || true
+          cp pastlog-desktop-*.dmg dist-desktop/ 2>/dev/null || true
+          ls -la dist-desktop/
+
+      - name: Upload to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist-desktop/*
+          body: |
+            pastlog Desktop — the windowed twin of the pastlog CLI.
+            100% local, read-only, zero telemetry.
+
+            **Windows:** unsigned (SmartScreen may warn — same honesty as the CLI).
+            WebView2 is preinstalled on Windows 11 and virtually all Windows 10
+            devices; the amd64 installer embeds Microsoft's silent bootstrapper
+            for the rare builds without it.
+            **macOS:** unsigned — remove quarantine with
+            `xattr -d com.apple.quarantine ./pastlog\ Desktop.app`.
+            **Linux:** the .deb declares libgtk-3 / libwebkit2gtk dependencies;
+            the package manager resolves them (spec §3.1).

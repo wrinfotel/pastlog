@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=pastlog Desktop
+GenericName=AI session history
+Comment=Browse, search and inspect AI coding-agent session history — 100% local
+Exec=pastlog-desktop
+Icon=pastlog-desktop
+Categories=Development;Utility;
+Keywords=pastlog;agents;sessions;search;
