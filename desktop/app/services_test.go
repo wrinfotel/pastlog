@@ -16,8 +16,6 @@ import (
 // Synthetic homes built from the adapter testdata fixtures (same pattern as
 // internal/adapters/claudecode/adapter_test.go buildHome).
 
-const claudeFixtureSession = "3f9c81a2-1111-4222-8333-cccccccccccc"
-
 func fixture(t *testing.T, agent, name string) []byte {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join("..", "..", "internal", "adapters", agent, "testdata", name))

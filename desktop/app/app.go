@@ -55,8 +55,8 @@ func New(options ...Option) *App {
 // Settings is the persisted settings surface plus the about box (spec §2.4:
 // the only user-facing knobs are the home override and the theme).
 type Settings struct {
-	Home    string `json:"home"`    // persisted override; "" = auto-discover
-	Theme   string `json:"theme"`   // "" | "system" | "dark" | "light"
+	Home    string `json:"home"`  // persisted override; "" = auto-discover
+	Theme   string `json:"theme"` // "" | "system" | "dark" | "light"
 	Version string `json:"version"`
 	Commit  string `json:"commit"`
 	Date    string `json:"date"`
