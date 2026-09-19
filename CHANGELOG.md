@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **pastlog Desktop (0.1.0, `desktop-v*` releases)** — the GUI companion to
+  the CLI, built with Wails over the same Go engine. Home/Diagnostics
+  summaries, virtualized Sessions with the full CLI filter set, live Search
+  with progress + cancel and highlighted hits, a transcript viewer with
+  collapsible tool calls and sanitized markdown, token Stats with plain-CSS
+  bars, Settings (home override, theme). JSON export is byte-identical to
+  the CLI's `--json` (tested); read-only, 100% local, zero telemetry; strict
+  CSP; frontend embedded in the binary, no external assets. Windows
+  (installer + portable, embedded WebView2 bootstrapper fallback), macOS
+  (.dmg), Linux (.deb with declared webkit dependencies).
+
+### Changed
+
+- `internal/render` JSON shapes are now exported types (same tags and order
+  — schemas unchanged) so the CLI and the desktop app share one definition.
+- `TestNoNetworkDeps` scopes the no-network audit to the data path plus the
+  desktop service glue (`cmd/...`, `internal/...`, `desktop/app`); the wails
+  webview shell is excluded by design, the frontend is audited by a bundle
+  scan instead.
+
 ## [0.1.0] - 2026-09-18
 
 Initial MVP release: a single static, 100%-local, read-only binary that

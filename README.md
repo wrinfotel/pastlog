@@ -19,6 +19,7 @@ Supported agents: **Claude Code** · **Codex CLI** · **Gemini CLI** · **OpenCo
 
 - [Install](#install)
 - [Quickstart](#quickstart)
+- [pastlog Desktop](#pastlog-desktop)
 - [Exit codes](#exit-codes)
 - [How it finds your data](#how-it-finds-your-data)
 - [Performance](#performance)
@@ -435,6 +436,63 @@ Colors: matches and agent names are highlighted on a TTY; `--no-color`,
 `NO_COLOR`, and non-TTY output (pipes, redirects) disable color. Non-standard
 setups: `--home <dir>` points pastlog at any home directory.
 
+## pastlog Desktop
+
+**Prefer a window to a terminal?** pastlog Desktop is the GUI companion to
+the CLI: the same engine, the same guarantees, the same view of your data —
+browse and search the full history of all four agents across all projects,
+read transcripts comfortably (collapsible tool calls, markdown-rendered
+assistant messages), inspect token-usage statistics, and export anything to
+JSON or markdown.
+
+| CLI | Desktop |
+|---|---|
+| `pastlog` (summary) | Home |
+| `pastlog agents` | Diagnostics |
+| `pastlog sessions` | Sessions (virtualized, all filters) |
+| `pastlog search` | Search (live, progress + cancel, click a hit to open the session) |
+| `pastlog show` | Session viewer (with `--export md`/`--json` parity) |
+| `pastlog stats` | Stats |
+| `pastlog version` | About (in Settings) |
+
+Every GUI JSON export is byte-identical to the CLI's `--json` output —
+proven by tests that run both against the same data.
+
+### Desktop install
+
+Grab a `desktop-v*` release from the
+[releases page](https://github.com/wrinfotel/pastlog/releases) — one artifact
+per platform, ~15–20 MB each:
+
+| Platform | Artifact |
+|---|---|
+| Windows, Intel/AMD 64-bit | `pastlog-desktop-amd64-installer.exe` (or the portable exe) |
+| Windows on ARM | `pastlog-desktop-arm64-portable.exe` |
+| macOS, Apple Silicon / Intel | `pastlog-desktop-<tag>.dmg` |
+| Linux | `pastlog-desktop_<version>_amd64.deb` |
+
+- **Windows:** unsigned in v0.1 (SmartScreen may warn — same honesty as the
+  CLI). WebView2 is preinstalled on Windows 11 and virtually all Windows 10
+  devices; the installer embeds Microsoft's silent Evergreen bootstrapper for
+  the rare builds without it. Nothing else is installed.
+- **macOS:** unsigned — remove the quarantine flag with
+  `xattr -d com.apple.quarantine ./pastlog\ Desktop.app` after mounting the
+  dmg.
+- **Linux:** the `.deb` declares `libgtk-3-0` and `libwebkit2gtk-4.1-0`; your
+  package manager resolves them automatically.
+
+### What the desktop app does NOT do
+
+No telemetry, no auto-update checks, no network calls in its own operation
+(the frontend is embedded in the binary and loads zero external assets; a
+strict CSP is enforced). It never writes to agent storage — its only writes
+are your chosen export destination and its own settings file in the OS
+app-config dir (theme + home override). Session content is rendered as text
+or sanitized markdown only; nothing shown is ever executable, and links open
+in your system browser, never inside the app.
+
+<!-- TODO: desktop screenshots (Home / Search / Viewer / Stats) -->
+
 ## Exit codes
 
 grep-style, on every command:
@@ -500,6 +558,15 @@ the shape of your agent data. Two caveats worth knowing before comparing:
    ~0.11 s) — that figure is **not** reproducible via `go test -bench`, which
    reports the file-read-inclusive 368–395 MB/s `BenchmarkPrefilterRaw` row
    above.
+
+### Desktop binding-layer numbers
+
+The GUI adds one serialization hop between the Go core and the webview.
+`BenchmarkMarshalSessions10k`
+([`desktop/app/export_test.go`](desktop/app/export_test.go)) marshals the
+10,000-session JSON payload the Sessions view receives: **≈ 5.8 ms** on the
+same dev machine (windows/amd64) — negligible against the scan itself, and
+the reason the virtualized lists stay smooth at 10k+ rows.
 
 ## How pastlog compares
 
