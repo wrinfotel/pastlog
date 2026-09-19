@@ -96,17 +96,27 @@ jobs:
       - name: Build
         run: wails build -platform ${{ matrix.platform }} ${{ matrix.wailsargs }}
 
+      - name: Name the portable exe by arch (both windows legs share one outputfilename)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          arch="${{ matrix.platform }}"; arch="${arch#windows/}"
+          mv desktop/build/bin/pastlog-desktop.exe "desktop/build/bin/pastlog-desktop-${arch}.exe"
+
       - name: Package .deb (linux)
         if: runner.os == 'Linux'
         shell: bash
         run: |
           go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
           tag="${GITHUB_REF_NAME#desktop-v}"
+          # the arch follows the matrix leg: the arm64 runner must pack (and
+          # name) arm64, or the two legs collide on one asset
+          arch="${{ matrix.platform }}"; arch="${arch#linux/}"
           cp desktop/packaging/pastlog-desktop.desktop desktop/build/bin/
           cp desktop/build/appicon.png desktop/build/bin/pastlog-desktop.png
           cd desktop/build/bin
-          ARCH=amd64 VERSION="$tag" nfpm package -f ../../packaging/nfpm.yaml -p deb \
-            -t "pastlog-desktop_${tag}_amd64.deb"
+          ARCH="$arch" VERSION="$tag" nfpm package -f ../../packaging/nfpm.yaml -p deb \
+            -t "pastlog-desktop_${tag}_${arch}.deb"
           cd ../..
 
       - name: Package .dmg (darwin)
@@ -114,8 +124,10 @@ jobs:
         shell: bash
         run: |
           tag="${GITHUB_REF_NAME#desktop-v}"
+          # the arch suffix keeps the two darwin legs from colliding on one asset
+          arch="${{ matrix.platform }}"; arch="${arch#darwin/}"
           hdiutil create -volname pastlog-desktop -srcfolder desktop/build/bin/pastlog-desktop.app \
-            -ov -format UDZO "pastlog-desktop-${tag}.dmg"
+            -ov -format UDZO "pastlog-desktop-${tag}-${arch}.dmg"
 
       - name: Collect artifacts
         shell: bash
