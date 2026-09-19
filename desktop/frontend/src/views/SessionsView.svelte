@@ -4,6 +4,7 @@
   import { api, emptyFilter, type FilterOptions, type ListOutcome } from '../lib/api';
   import { fmtBytes, fmtDate, fmtInt, idPrefix } from '../lib/format';
   import { debounce } from '../lib/debounce';
+  import { go } from '../lib/stores.svelte';
   import { openSession } from '../lib/viewer.svelte';
   import FilterBar from '../components/FilterBar.svelte';
   import Notes from '../components/Notes.svelte';
@@ -36,6 +37,7 @@
 
   function open(id: string) {
     openSession(id);
+    go('viewer');
   }
 </script>
 
