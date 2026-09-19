@@ -1,11 +1,23 @@
 package agentlog
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 	"time"
 )
+
+// Progress is an optional streaming hook for long collections (the desktop
+// GUI, ruling R-D6): called after each scanned session with the running
+// count; returning false stops the collection and the partial selection is
+// returned, mirroring the best-effort notes path. The CLI passes no hook and
+// sees no behavior change.
+type Progress func(done int) bool
+
+// errStopCollect is how a Progress hook aborts the streaming pass; it never
+// reaches the caller and must not trip the unreadable-storage note.
+var errStopCollect = errors.New("pastlog/agentlog: collection stopped by progress hook")
 
 // SessionFilter selects sessions for listing.
 type SessionFilter struct {
@@ -127,8 +139,10 @@ func CollectSessions(adapters []Adapter, f SessionFilter, note func(string)) []S
 // contribute nothing, without a note (stats is an aggregate; a model-less
 // agent is not an error). A failing UsageSource scan notes at most one
 // UnreadableNote per adapter (best effort, spec §8) and keeps the partial
-// results — the exit code is unchanged.
-func CollectUsage(adapters []Adapter, f SessionFilter, modelFilter string, note func(string)) []SessionUsage {
+// results — the exit code is unchanged. The optional progress hooks (R-D6)
+// report the running session count and may stop the collection, returning
+// the partial selection.
+func CollectUsage(adapters []Adapter, f SessionFilter, modelFilter string, note func(string), progress ...Progress) []SessionUsage {
 	var out []SessionUsage
 	for _, a := range adapters {
 		if f.Agent != "" && a.Name() != f.Agent {
@@ -145,15 +159,27 @@ func CollectUsage(adapters []Adapter, f SessionFilter, modelFilter string, note 
 				note(UnreadableNote(a.Name(), err))
 			}
 		}
+		done := 0
+		stopped := false
 		err := us.SessionsUsage(func(su SessionUsage) error {
 			su.Agent = a.Name()
 			if f.Match(su.Session) && matchesModel(su.Model, modelFilter) {
 				out = append(out, su)
 			}
+			done++
+			for _, p := range progress {
+				if !p(done) {
+					stopped = true
+					return errStopCollect
+				}
+			}
 			return nil
 		})
-		if err != nil {
+		if err != nil && !errors.Is(err, errStopCollect) {
 			noteOnce(err) // scan errors leave partial results; stats is best effort
+		}
+		if stopped {
+			break // cancelled (R-D6): return the partial selection
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool {
