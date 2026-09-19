@@ -18,3 +18,10 @@ coverage.txt
 
 # Demo: the OpenCode store is generated at demo render time (demo/genopencode)
 /demo/fixture-home/.local/share/opencode/
+
+# Desktop app (Wails) build outputs
+/desktop/frontend/node_modules/
+/desktop/frontend/dist/*
+!/desktop/frontend/dist/.gitkeep
+/desktop/frontend/wailsjs/
+/desktop/build/bin/
