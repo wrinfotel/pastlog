@@ -1,6 +1,6 @@
 // App state stores (Svelte 5 runes at module scope live in .svelte.ts).
 
-export type ViewName = 'home' | 'search' | 'sessions' | 'stats' | 'viewer' | 'diagnostics' | 'settings';
+export type ViewName = 'home' | 'projects' | 'search' | 'sessions' | 'stats' | 'viewer' | 'diagnostics' | 'settings';
 
 export const view = $state({ current: 'home' as ViewName });
 

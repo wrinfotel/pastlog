@@ -441,18 +441,19 @@ setups: `--home <dir>` points pastlog at any home directory.
 **Prefer a window to a terminal?** pastlog Desktop is the GUI companion to
 the CLI: the same engine, the same guarantees, the same view of your data —
 browse and search the full history of all four agents across all projects,
-read transcripts comfortably (collapsible tool calls, markdown-rendered
-assistant messages), inspect token-usage statistics, and export anything to
-JSON or markdown.
+click an agent on Home to drill into its projects and see which models each
+one used and at what token cost, read transcripts comfortably (collapsible
+tool calls, markdown-rendered assistant messages), inspect token-usage
+statistics, and export anything to JSON or markdown.
 
 | CLI | Desktop |
 |---|---|
-| `pastlog` (summary) | Home |
+| `pastlog` (summary) | Home (agent cards drill into their projects) |
 | `pastlog agents` | Diagnostics |
 | `pastlog sessions` | Sessions (virtualized, all filters) |
 | `pastlog search` | Search (live, progress + cancel, click a hit to open the session) |
 | `pastlog show` | Session viewer (with `--export md`/`--json` parity) |
-| `pastlog stats` | Stats |
+| `pastlog stats` | Stats · Projects (per-agent project list → per-model usage of one project + its sessions) |
 | `pastlog version` | About (in Settings) |
 
 Every GUI JSON export is byte-identical to the CLI's `--json` output —

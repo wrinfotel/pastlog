@@ -173,7 +173,7 @@ func TestOutcomesNeverMarshalNullLists(t *testing.T) {
 	a := homeApp(t, t.TempDir())
 	check := func(name string, raw []byte) {
 		t.Helper()
-		for _, key := range []string{"warnings", "notes", "agents", "sessions"} {
+		for _, key := range []string{"warnings", "notes", "agents", "sessions", "rows"} {
 			if strings.Contains(string(raw), `"`+key+`":null`) {
 				t.Errorf("%s marshals %s as null: %s", name, key, raw)
 			}
@@ -198,6 +198,24 @@ func TestOutcomesNeverMarshalNullLists(t *testing.T) {
 		t.Fatal(err)
 	}
 	check("ListOutcome", sess)
+	proj, err := a.Projects("claude-code")
+	if err != nil {
+		t.Fatalf("Projects: %v", err)
+	}
+	pj, err := json.Marshal(proj)
+	if err != nil {
+		t.Fatal(err)
+	}
+	check("ProjectsOutcome", pj)
+	pstat, err := a.ProjectStats("claude-code", "")
+	if err != nil {
+		t.Fatalf("ProjectStats: %v", err)
+	}
+	ps, err := json.Marshal(pstat)
+	if err != nil {
+		t.Fatal(err)
+	}
+	check("ProjectStatsOutcome", ps)
 }
 
 func TestSessionsFilterErrors(t *testing.T) {

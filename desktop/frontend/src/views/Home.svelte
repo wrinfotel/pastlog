@@ -4,6 +4,7 @@
   import { api, type OverviewOutcome } from '../lib/api';
   import { fmtBytes, fmtInt } from '../lib/format';
   import { go } from '../lib/stores.svelte';
+  import { openAgentProjects } from '../lib/projects.svelte';
   import Notes from '../components/Notes.svelte';
 
   let data = $state<OverviewOutcome | null>(null);
@@ -36,7 +37,17 @@
   {:else}
     <div class="cards">
       {#each data.agents as agent}
-        <div class="card" class:off={!agent.detected}>
+        <!-- detected agents drill into their project list; the rest stay inert -->
+        <button
+          class="card"
+          class:off={!agent.detected}
+          disabled={!agent.detected}
+          title={agent.detected ? `show ${agent.name} projects` : 'not detected'}
+          onclick={() => {
+            openAgentProjects(agent.name);
+            go('projects');
+          }}
+        >
           <div class="name">{agent.name}</div>
           {#if agent.detected}
             <div class="num">{fmtInt(agent.sessions)} sessions</div>
@@ -44,7 +55,7 @@
           {:else}
             <div class="meta">not found</div>
           {/if}
-        </div>
+        </button>
       {/each}
     </div>
     <Notes notes={data.warnings} />
@@ -64,6 +75,15 @@
     border-radius: 10px;
     padding: 14px 18px;
     min-width: 190px;
+    text-align: left;
+    font: inherit;
+    color: var(--text);
+  }
+  .card:not(:disabled) {
+    cursor: pointer;
+  }
+  .card:not(:disabled):hover {
+    border-color: var(--accent);
   }
   .card.off {
     opacity: 0.55;

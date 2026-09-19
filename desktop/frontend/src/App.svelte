@@ -5,6 +5,7 @@
   import { api } from './lib/api';
   import { applyTheme, go, view, type ViewName } from './lib/stores.svelte';
   import Home from './views/Home.svelte';
+  import ProjectsView from './views/ProjectsView.svelte';
   import SearchView from './views/SearchView.svelte';
   import SessionsView from './views/SessionsView.svelte';
   import StatsView from './views/StatsView.svelte';
@@ -16,6 +17,7 @@
     { name: 'home', label: 'Home' },
     { name: 'search', label: 'Search' },
     { name: 'sessions', label: 'Sessions' },
+    { name: 'projects', label: 'Projects' },
     { name: 'stats', label: 'Stats' },
     { name: 'diagnostics', label: 'Diagnostics' },
     { name: 'settings', label: 'Settings' },
@@ -56,6 +58,8 @@
       <SearchView />
     {:else if view.current === 'sessions'}
       <SessionsView />
+    {:else if view.current === 'projects'}
+      <ProjectsView />
     {:else if view.current === 'stats'}
       <StatsView />
     {:else if view.current === 'viewer'}

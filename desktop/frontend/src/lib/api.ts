@@ -52,6 +52,35 @@ export type ListOutcome = {
   notes: string[];
 };
 
+export type StatsRow = {
+  key: string;
+  sessions: number;
+  messages: number;
+  tokens: { input: number; output: number; reasoning: number; cache_read: number; cache_write: number; total: number };
+  cost_usd: number | null;
+};
+
+export type ProjectRow = {
+  project: string;
+  sessions: number;
+  messages: number;
+  tokens: { input: number; output: number; reasoning: number; cache_read: number; cache_write: number; total: number };
+  cost_usd: number | null;
+};
+
+export type ProjectsOutcome = {
+  agent: string;
+  rows: ProjectRow[];
+  notes: string[];
+};
+
+export type ProjectStatsOutcome = {
+  agent: string;
+  project: string;
+  rows: StatsRow[];
+  notes: string[];
+};
+
 export const api = {
   overview: bindings.Overview,
   diagnostics: bindings.Diagnostics,
@@ -59,6 +88,8 @@ export const api = {
   search: bindings.Search,
   entries: bindings.Entries,
   stats: bindings.Stats,
+  projects: bindings.Projects,
+  projectStats: bindings.ProjectStats,
   cancel: bindings.Cancel,
   getSettings: bindings.GetSettings,
   setHome: bindings.SetHome,

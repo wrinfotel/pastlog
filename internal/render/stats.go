@@ -41,9 +41,20 @@ type StatsRow struct {
 // come back in ascending key order — deterministic, and chronological for
 // --by day.
 func GroupStats(home, by string, rows []agentlog.SessionUsage) []StatsRow {
+	return GroupStatsKeys(func(su agentlog.SessionUsage) string {
+		return statsKey(home, by, su)
+	}, rows)
+}
+
+// GroupStatsKeys is the raw-key accumulator behind GroupStats: rows are
+// grouped by whatever key the caller derives (GroupStats derives the display
+// form of --by; the desktop Projects view groups by the raw project path,
+// whose exact value is its drill-down key). Same accumulation semantics and
+// ascending key order as GroupStats.
+func GroupStatsKeys(keyOf func(agentlog.SessionUsage) string, rows []agentlog.SessionUsage) []StatsRow {
 	grouped := map[string]*StatsRow{}
 	for _, su := range rows {
-		key := statsKey(home, by, su)
+		key := keyOf(su)
 		g, ok := grouped[key]
 		if !ok {
 			g = &StatsRow{Key: key}

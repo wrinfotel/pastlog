@@ -19,9 +19,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CSP; frontend embedded in the binary, no external assets. Windows
   (installer + portable, embedded WebView2 bootstrapper fallback), macOS
   (.dmg), Linux (.deb with declared webkit dependencies).
+- Desktop: clickable agent cards on Home drill into a Projects view — one
+  agent's projects with their usage aggregates (`stats --by project`
+  in-process, keyed by the exact project path), and a per-project page with
+  the per-model token/cost breakdown (`stats --by model` narrowed to the
+  project's own sessions) plus the project's session list. Scans stream
+  progress and are cancellable.
 
 ### Changed
 
+- `render.GroupStatsKeys`: the raw-key accumulator behind `GroupStats`,
+  exported for callers that group by an untransformed key (the desktop
+  Projects view groups by the stored project path, not the tilde-shortened
+  display form). CLI behavior unchanged.
 - `internal/render` JSON shapes are now exported types (same tags and order
   — schemas unchanged) so the CLI and the desktop app share one definition.
 - `TestNoNetworkDeps` scopes the no-network audit to the data path plus the
