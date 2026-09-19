@@ -483,7 +483,8 @@ is [desktop-v0.1.0](https://github.com/wrinfotel/pastlog/releases/tag/desktop-v0
 | macOS, Intel | `pastlog-desktop-<version>-amd64.dmg` |
 | Linux, amd64 / arm64 | `pastlog-desktop_<version>_amd64.deb` / `pastlog-desktop_<version>_arm64.deb` |
 
-Every desktop release ships a `checksums.txt` with SHA256 sums.
+Every desktop release ships a per-platform `checksums-<platform>.txt` with
+SHA256 sums of its artifacts.
 
 - **Windows:** unsigned in v0.1 (SmartScreen may warn — same honesty as the
   CLI). WebView2 is preinstalled on Windows 11 and virtually all Windows 10

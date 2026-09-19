@@ -68,9 +68,12 @@ jobs:
           - name: linux/amd64
             os: ubuntu-latest
             platform: linux/amd64
+            # ubuntu 24.04 ships webkit2gtk-4.1 only (the deb declares it too)
+            wailsargs: -tags webkit2_41
           - name: linux/arm64
             os: ubuntu-24.04-arm
             platform: linux/arm64
+            wailsargs: -tags webkit2_41
           - name: darwin/amd64
             os: macos-15-intel
             platform: darwin/amd64
@@ -92,6 +95,10 @@ jobs:
 
       - name: Install wails CLI
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.16.0
+
+      - name: Install NSIS (only the amd64 leg builds the installer)
+        if: matrix.platform == 'windows/amd64'
+        run: choco install nsis -y --no-progress
 
       - name: Build
         # wails needs the project dir (wails.json) as its cwd; every later
@@ -139,10 +146,13 @@ jobs:
             ! -name '*-dev*' ! -name '*.exe~' -exec cp {} dist-desktop/ \; || true
           [ -d pastlog-desktop.app ] && ditto -c -k pastlog-desktop.app dist-desktop/pastlog-desktop.app.zip || true
           [ -f pastlog-desktop-*.dmg ] && mv pastlog-desktop-*.dmg dist-desktop/ || true
+          slug="${{ matrix.platform }}"; slug="${slug%/*}-${slug#*/}"
           cd dist-desktop
-          sha256sum * > checksums.txt
+          # per-leg checksum files: the matrix legs upload independently, so a
+          # single checksums.txt would be overwritten by whichever leg finishes last
+          sha256sum * > "checksums-${slug}.txt"
           cd ..
-          echo "artifact sizes:" && du -b dist-desktop/* | sort
+          echo "artifact sizes:" && ls -l dist-desktop/
 
       - name: Upload to the release
         uses: softprops/action-gh-release@v2
