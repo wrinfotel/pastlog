@@ -16,9 +16,8 @@ import (
 // encoder, and the GUI export paths call the render writers directly.
 
 var (
-	jtZero = time.Time{}
-	jt1    = time.Date(2026, 1, 2, 10, 30, 0, 0, time.UTC)
-	jt2    = time.Date(2026, 3, 4, 23, 59, 0, 0, time.UTC)
+	jt1 = time.Date(2026, 1, 2, 10, 30, 0, 0, time.UTC)
+	jt2 = time.Date(2026, 3, 4, 23, 59, 0, 0, time.UTC)
 )
 
 func encode(t *testing.T, w func(*bytes.Buffer) error) string {
@@ -32,8 +31,10 @@ func encode(t *testing.T, w func(*bytes.Buffer) error) string {
 
 func TestSessionJSONMatchesSessionsRenderer(t *testing.T) {
 	metas := []agentlog.SessionMeta{
-		{Session: agentlog.Session{ID: "aaaa", Agent: "opencode", Project: "/h/p", Title: "t",
-			StartedAt: jt1, EndedAt: jt2, SizeBytes: 42}, Messages: 3},
+		{Session: agentlog.Session{
+			ID: "aaaa", Agent: "opencode", Project: "/h/p", Title: "t",
+			StartedAt: jt1, EndedAt: jt2, SizeBytes: 42,
+		}, Messages: 3},
 		{Session: agentlog.Session{ID: "bbbb", Agent: "codex"}, Messages: 0},
 	}
 	viaRenderer := encode(t, func(b *bytes.Buffer) error { return SessionsJSON(b, metas) })
@@ -44,8 +45,10 @@ func TestSessionJSONMatchesSessionsRenderer(t *testing.T) {
 }
 
 func TestShowDocMatchesShowRenderer(t *testing.T) {
-	meta := agentlog.SessionMeta{Session: agentlog.Session{ID: "cccc", Agent: "claude-code",
-		Project: "/h/p", StartedAt: jt1}, Messages: 2}
+	meta := agentlog.SessionMeta{Session: agentlog.Session{
+		ID: "cccc", Agent: "claude-code",
+		Project: "/h/p", StartedAt: jt1,
+	}, Messages: 2}
 	entries := []agentlog.Entry{
 		{Kind: agentlog.Message, Role: "user", Text: "hello", Timestamp: jt1},
 		{Kind: agentlog.ToolCall, Role: "tool", Text: "ls -la"},
@@ -64,8 +67,10 @@ func TestSearchResultJSONMatchesSearchRenderer(t *testing.T) {
 	line := "héllo wörld ünicode jwt"
 	start := len([]byte(line[:strings.IndexByte(line, 'j')]))
 	results := []search.Result{{
-		Session: agentlog.SessionMeta{Session: agentlog.Session{ID: "dddd", Agent: "codex",
-			Project: "/h/p", StartedAt: jt1}, Messages: 5},
+		Session: agentlog.SessionMeta{Session: agentlog.Session{
+			ID: "dddd", Agent: "codex",
+			Project: "/h/p", StartedAt: jt1,
+		}, Messages: 5},
 		Hits: []search.Hit{{
 			Entry:      agentlog.Entry{Kind: agentlog.Message, Role: "assistant", Timestamp: jt1},
 			Context:    "previous line",
@@ -83,10 +88,14 @@ func TestSearchResultJSONMatchesSearchRenderer(t *testing.T) {
 
 func TestStatsRowJSONMatchesStatsRenderer(t *testing.T) {
 	rows := []StatsRow{
-		{Key: "opencode", Sessions: 2, Messages: 7,
-			Usage: agentlog.Usage{Input: 100, Output: 20, Reasoning: 5, CacheRead: 9, CacheWrite: 11, HasCost: true, CostUSD: 0.5}},
-		{Key: "codex", Sessions: 1, Messages: 1,
-			Usage: agentlog.Usage{Input: 10}},
+		{
+			Key: "opencode", Sessions: 2, Messages: 7,
+			Usage: agentlog.Usage{Input: 100, Output: 20, Reasoning: 5, CacheRead: 9, CacheWrite: 11, HasCost: true, CostUSD: 0.5},
+		},
+		{
+			Key: "codex", Sessions: 1, Messages: 1,
+			Usage: agentlog.Usage{Input: 10},
+		},
 	}
 	viaRenderer := encode(t, func(b *bytes.Buffer) error { return StatsJSON(b, rows) })
 	viaTypes := encode(t, func(b *bytes.Buffer) error { return writeJSON(b, NewStatsRows(rows)) })
