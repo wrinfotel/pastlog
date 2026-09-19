@@ -53,7 +53,11 @@ func (a *App) Overview() OverviewOutcome {
 		return OverviewOutcome{Error: err.Error()}
 	}
 	rows, warnings := agentRows(cli.NewRegistry(home).Adapters())
-	return OverviewOutcome{Home: home, Agents: render.AgentRowsJSON(rows), Warnings: warnings}
+	return OverviewOutcome{
+		Home:     home,
+		Agents:   render.AgentRowsJSON(rows),
+		Warnings: warnings,
+	}
 }
 
 // Diagnostics returns the `agents` data with the CLI's stderr conditions
@@ -99,10 +103,11 @@ func (a *App) Sessions(f FilterOptions) (ListOutcome, error) {
 // agentRows mirrors the `pastlog agents` row computation (cli/agents.go):
 // one row per adapter, detected storages counted in a streaming pass,
 // shared-file adapters reporting their on-disk footprint via TotalSizer.
-// Glue only — the counting semantics live in the adapters.
+// Glue only — the counting semantics live in the adapters. Slices always
+// come back non-nil so the JSON never says null (frontend contract).
 func agentRows(adapters []agentlog.Adapter) ([]render.AgentRow, []string) {
 	rows := make([]render.AgentRow, len(adapters))
-	var warnings []string
+	warnings := []string{}
 	for i, a := range adapters {
 		row := render.AgentRow{Name: a.Name()}
 		if ps, ok := a.(agentlog.PathSource); ok {
@@ -130,7 +135,7 @@ func agentRows(adapters []agentlog.Adapter) ([]render.AgentRow, []string) {
 // combineNotes mirrors the CLI's stderr summary order (cli noteStderr):
 // locked-storage warnings, then the unreadable-lines total, then scan notes.
 func (a *App) combineNotes(adapters []agentlog.Adapter, noteLines []string) []string {
-	var out []string
+	out := []string{}
 	for _, a := range adapters {
 		if ws, ok := a.(agentlog.WarningSource); ok {
 			if msg := ws.Warning(); msg != "" {

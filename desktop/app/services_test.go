@@ -166,6 +166,40 @@ func TestSessionsParityWithCLI(t *testing.T) {
 	}
 }
 
+// TestOutcomesNeverMarshalNullLists pins the frontend contract: list fields
+// of every outcome are [] when empty, never null (a null list crashed the
+// first GUI build — D1 finding).
+func TestOutcomesNeverMarshalNullLists(t *testing.T) {
+	a := homeApp(t, t.TempDir())
+	check := func(name string, raw []byte) {
+		t.Helper()
+		for _, key := range []string{"warnings", "notes", "agents", "sessions"} {
+			if strings.Contains(string(raw), `"`+key+`":null`) {
+				t.Errorf("%s marshals %s as null: %s", name, key, raw)
+			}
+		}
+	}
+	ov, err := json.Marshal(a.Overview())
+	if err != nil {
+		t.Fatal(err)
+	}
+	check("Overview", ov)
+	diag, err := json.Marshal(a.Diagnostics())
+	if err != nil {
+		t.Fatal(err)
+	}
+	check("Diagnostics", diag)
+	out, err := a.Sessions(FilterOptions{})
+	if err != nil {
+		t.Fatalf("Sessions: %v", err)
+	}
+	sess, err := json.Marshal(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	check("ListOutcome", sess)
+}
+
 func TestSessionsFilterErrors(t *testing.T) {
 	a := homeApp(t, claudeHome(t, "realistic.jsonl"))
 	if _, err := a.Sessions(FilterOptions{Agent: "nope"}); err == nil ||
