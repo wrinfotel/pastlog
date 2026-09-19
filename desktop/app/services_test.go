@@ -60,8 +60,8 @@ func TestOverviewDetectsClaudeFixture(t *testing.T) {
 	if out.Home == "" {
 		t.Error("home must be populated")
 	}
-	if len(out.Agents) != 4 {
-		t.Fatalf("agent rows = %d, want 4", len(out.Agents))
+	if len(out.Agents) != 5 {
+		t.Fatalf("agent rows = %d, want 5", len(out.Agents))
 	}
 	detected := 0
 	for _, row := range out.Agents {
@@ -221,7 +221,7 @@ func TestOutcomesNeverMarshalNullLists(t *testing.T) {
 func TestSessionsFilterErrors(t *testing.T) {
 	a := homeApp(t, claudeHome(t, "realistic.jsonl"))
 	if _, err := a.Sessions(FilterOptions{Agent: "nope"}); err == nil ||
-		err.Error() != `unknown agent "nope" (available: claude-code, codex, gemini-cli, opencode)` {
+		err.Error() != `unknown agent "nope" (available: claude-code, codex, gemini-cli, opencode, zcode)` {
 		t.Errorf("unknown agent error = %v", err)
 	}
 	if _, err := a.Sessions(FilterOptions{Limit: -1}); err == nil ||

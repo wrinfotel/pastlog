@@ -7,7 +7,7 @@ import "time"
 
 type Session struct {
 	ID        string
-	Agent     string // "claude-code" | "codex" | "gemini-cli" | "opencode"
+	Agent     string // "claude-code" | "codex" | "gemini-cli" | "opencode" | "zcode"
 	Project   string // working dir, "" if unknown
 	Title     string // optional
 	StartedAt time.Time

@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- ZCode adapter (agent `zcode`) — pastlog now reads ZCode's session store at
+  `~/.zcode/cli/db/db.sqlite` in both the CLI and the desktop app. Sessions
+  (including subagent children), transcripts (messages, tool calls and
+  outputs, reasoning) and per-session token usage aggregated from ZCode's
+  `model_usage` table (model = the latest request's model; ZCode reports no
+  cost). Read-only (`mode=ro`), streaming, locked-DB fallback: one warning,
+  other agents unaffected. Documented in
+  `internal/adapters/zcode/SCHEMA.md`.
 - **pastlog Desktop (0.1.0, `desktop-v*` releases)** — the GUI companion to
   the CLI, built with Wails over the same Go engine. Home/Diagnostics
   summaries, virtualized Sessions with the full CLI filter set, live Search

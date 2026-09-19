@@ -25,8 +25,9 @@ over agent storage — if any step writes outside the export target, FAIL.
 
 3. Launch `pastlog-desktop.exe` → the window opens with a dark (or system)
    theme and the **Home** view.
-4. Home shows four agent cards; **opencode** shows the real session count
-   (cross-check `pastlog agents` in a terminal — numbers must match).
+4. Home shows five agent cards; **opencode** shows the real session count
+   (cross-check `pastlog agents` in a terminal — numbers must match). With
+   ZCode installed, **zcode** shows its real count too.
 5. Empty-state check: Settings → set the home override to `C:\smoke-home`
    → Save → Home now shows "nothing found — install an agent or set the
    home override". Clear the override → Home recovers.

@@ -160,7 +160,7 @@ func TestProjectStatsExactProjectNotSubstring(t *testing.T) {
 
 func TestProjectsValidation(t *testing.T) {
 	a := homeApp(t, claudeHome(t, "usage.jsonl"))
-	want := `unknown agent "nope" (available: claude-code, codex, gemini-cli, opencode)`
+	want := `unknown agent "nope" (available: claude-code, codex, gemini-cli, opencode, zcode)`
 	if _, err := a.Projects("nope"); err == nil || err.Error() != want {
 		t.Errorf("Projects unknown agent error = %v, want %q", err, want)
 	}
