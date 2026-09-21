@@ -2,6 +2,8 @@
 
 **Search the full history of your AI coding agents — 100% local, one binary.**
 
+**[Project site & live demo →](https://wrinfotel.github.io/pastlog/)**
+
 pastlog indexes nothing, uploads nothing, and configures nothing: it streams
 the session logs that Claude Code, Codex CLI, Gemini CLI, OpenCode and ZCode
 already
