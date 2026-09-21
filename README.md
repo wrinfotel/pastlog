@@ -71,6 +71,14 @@ sudo install pastlog /usr/local/bin/
 pastlog version                             # sanity check
 ```
 
+> **Windows code signing:** pastlog Windows binaries are built and signed
+> automatically in CI through [SignPath Foundation](https://signpath.org)'s
+> free code signing program for open source projects — the signature
+> certifies that the binary was built from this repository's source.
+> SmartScreen reputation accumulates per file, so a freshly released build
+> can still trigger a one-time "unknown publisher" prompt, and the v0.1.0
+> assets predate the signing pipeline.
+
 > **macOS Gatekeeper:** release binaries are not notarized (out of scope for
 > v0.1), so macOS may refuse to run a downloaded binary with "cannot be
 > opened because the developer cannot be verified". Either allow it under
@@ -486,10 +494,13 @@ is [desktop-v0.1.0](https://github.com/wrinfotel/pastlog/releases/tag/desktop-v0
 Every desktop release ships a per-platform `checksums-<platform>.txt` with
 SHA256 sums of its artifacts.
 
-- **Windows:** unsigned in v0.1 (SmartScreen may warn — same honesty as the
-  CLI). WebView2 is preinstalled on Windows 11 and virtually all Windows 10
-  devices; the installer embeds Microsoft's silent Evergreen bootstrapper for
-  the rare builds without it. Nothing else is installed.
+- **Windows:** code-signed in CI via [SignPath
+  Foundation](https://signpath.org)'s free open-source signing program (the
+  v0.1.0 assets predate the signing pipeline — see the note in
+  [Install](#1-download-a-release-binary-recommended)). WebView2 is
+  preinstalled on Windows 11 and virtually all Windows 10 devices; the
+  installer embeds Microsoft's silent Evergreen bootstrapper for the rare
+  builds without it. Nothing else is installed.
 - **macOS:** unsigned — remove the quarantine flag with
   `xattr -d com.apple.quarantine ./pastlog\ Desktop.app` after mounting the
   dmg.
