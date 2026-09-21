@@ -15,8 +15,7 @@ accounts, zero telemetry, strictly read-only.
 
 Supported agents: **Claude Code** · **Codex CLI** · **Gemini CLI** · **OpenCode** · **ZCode**
 
-<!-- TODO: render demo.gif from demo/demo.tape -->
-<!-- <p align="center"><img src="demo/demo.gif" alt="pastlog demo"></p> -->
+<p align="center"><img src="https://github.com/wrinfotel/pastlog/releases/download/v0.1.0/demo.gif" alt="pastlog demo: agents, sessions, search and show against fixture data" width="100%"></p>
 
 ## Contents
 
