@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pastlog — search everything your AI coding agents ever did</title>
+<meta name="description" content="pastlog searches the full history of your AI coding agents — Claude Code, Codex CLI, Gemini CLI, OpenCode, ZCode — across every project. 100% local, read-only, one static binary. No index, no server, no telemetry.">
+<meta property="og:title" content="pastlog — search everything your AI coding agents ever did">
+<meta property="og:description" content="100% local search across Claude Code, Codex CLI, Gemini CLI, OpenCode and ZCode session logs. One static binary, zero telemetry, strictly read-only.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://wrinfotel.github.io/pastlog/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0d12'/%3E%3Cpath d='M14 20l12 12-12 12' stroke='%233ddc97' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Crect x='32' y='40' width='18' height='6' rx='3' fill='%233ddc97'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0d12;
+    --surface:#10131a;
+    --surface2:#151926;
+    --border:#1f2532;
+    --border-soft:#181d28;
+    --ink:#e9edf3;
+    --muted:#9aa4b5;
+    --faint:#6b7484;
+    --accent:#3ddc97;
+    --accent-dim:#2aa97350;
+    --amber:#e8b45a;
+    --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:'Space Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg);color:var(--ink);
+    font-family:var(--sans);font-size:17px;line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--accent);color:var(--bg)}
+  a{color:inherit}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+  .mono{font-family:var(--mono)}
+
+  /* ── nav ─────────────────────────────── */
+  nav{
+    position:sticky;top:0;z-index:50;
+    background:color-mix(in srgb,var(--bg) 88%,transparent);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--border-soft);
+  }
+  .nav-in{display:flex;align-items:center;gap:28px;height:60px}
+  .brand{font-family:var(--mono);font-weight:600;font-size:17px;text-decoration:none;display:flex;align-items:center;gap:2px}
+  .brand .cursor{display:inline-block;width:9px;height:19px;background:var(--accent);margin-left:5px;animation:blink 1.1s steps(1) infinite}
+  .nav-links{display:flex;gap:22px;margin-left:auto}
+  .nav-links a{font-size:14.5px;color:var(--muted);text-decoration:none}
+  .nav-links a:hover{color:var(--ink)}
+  .gh-btn{
+    font-family:var(--mono);font-size:13.5px;text-decoration:none;
+    border:1px solid var(--border);border-radius:8px;padding:7px 14px;color:var(--ink);
+    display:inline-flex;align-items:center;gap:7px;transition:border-color .15s;
+  }
+  .gh-btn:hover{border-color:var(--accent)}
+  .gh-btn svg{width:15px;height:15px;fill:currentColor}
+  @keyframes blink{50%{opacity:0}}
+
+  /* ── hero ────────────────────────────── */
+  .hero{padding:84px 0 72px;border-bottom:1px solid var(--border-soft)}
+  .hero-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,560px);gap:56px;align-items:center}
+  .pill{
+    display:inline-flex;align-items:center;gap:9px;
+    font-family:var(--mono);font-size:12.5px;color:var(--accent);
+    border:1px solid var(--accent-dim);border-radius:99px;padding:5px 14px;margin-bottom:26px;
+  }
+  .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 2.2s ease infinite}
+  @keyframes pulse{50%{opacity:.35}}
+  h1{font-size:clamp(34px,5vw,54px);line-height:1.08;font-weight:700;letter-spacing:-.02em;text-wrap:balance}
+  h1 em{font-style:normal;color:var(--accent)}
+  .hero p.sub{margin:22px 0 30px;color:var(--muted);font-size:18px;max-width:52ch;text-wrap:pretty}
+  .hero p.sub strong{color:var(--ink);font-weight:500}
+  .install-box{
+    display:flex;align-items:center;gap:12px;
+    font-family:var(--mono);font-size:13.5px;
+    background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    padding:13px 16px;max-width:560px;
+  }
+  .install-box .ps{color:var(--accent)}
+  .install-box code{flex:1;overflow-x:auto;white-space:nowrap;color:var(--ink)}
+  .install-box::-webkit-scrollbar,pre::-webkit-scrollbar{height:0}
+  .copy-btn{
+    font-family:var(--mono);font-size:12px;color:var(--muted);cursor:pointer;
+    background:none;border:1px solid var(--border);border-radius:6px;padding:5px 10px;
+    transition:color .15s,border-color .15s;flex-shrink:0;
+  }
+  .copy-btn:hover{color:var(--accent);border-color:var(--accent)}
+  .hero .alt-install{margin-top:14px;font-size:14px;color:var(--faint)}
+  .hero .alt-install a{color:var(--muted)}
+
+  /* ── terminal ────────────────────────── */
+  .term{
+    background:#080a0e;border:1px solid var(--border);border-radius:12px;
+    box-shadow:0 24px 60px -24px #000000cc;
+    overflow:hidden;font-family:var(--mono);font-size:13px;line-height:1.75;
+  }
+  .term-bar{display:flex;align-items:center;gap:7px;padding:11px 14px;border-bottom:1px solid var(--border-soft);background:var(--surface)}
+  .term-bar i{width:11px;height:11px;border-radius:50%}
+  .term-bar i:nth-child(1){background:#ff5f56}.term-bar i:nth-child(2){background:#ffbd2e}.term-bar i:nth-child(3){background:#27c93f}
+  .term-bar span{margin-left:8px;font-size:11.5px;color:var(--faint)}
+  .term-body{padding:18px 20px;min-height:348px;color:#c4ccd8}
+  .term-body .ln{white-space:pre;overflow-x:auto}
+  .t-ps{color:var(--accent);font-weight:600}
+  .t-dim{color:var(--faint)}
+  .t-agent{color:#7fb3ff}
+  mark{background:color-mix(in srgb,var(--amber) 22%,transparent);color:var(--amber);border-radius:3px;padding:0 3px}
+  .caret{display:inline-block;width:8px;height:15px;background:var(--accent);vertical-align:-2px;animation:blink 1s steps(1) infinite}
+  .term-cap{margin-top:12px;font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+
+  /* ── sections ────────────────────────── */
+  section{padding:76px 0;border-bottom:1px solid var(--border-soft)}
+  .sec-tag{font-family:var(--mono);font-size:12.5px;color:var(--accent);letter-spacing:.14em;text-transform:uppercase;margin-bottom:14px}
+  h2{font-size:clamp(26px,3.4vw,36px);font-weight:700;letter-spacing:-.015em;line-height:1.15;margin-bottom:14px;text-wrap:balance}
+  .sec-sub{color:var(--muted);max-width:62ch;margin-bottom:44px;text-wrap:pretty}
+
+  .why-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 40px}
+  .why{display:grid;grid-template-columns:52px 1fr;gap:16px;padding:20px 0;border-top:1px solid var(--border-soft)}
+  .why .n{font-family:var(--mono);font-size:13px;color:var(--accent);padding-top:4px}
+  .why h3{font-size:18px;font-weight:500;margin-bottom:6px}
+  .why p{color:var(--muted);font-size:15.5px;text-wrap:pretty}
+  .why p code{font-family:var(--mono);font-size:13px;background:var(--surface2);border:1px solid var(--border-soft);border-radius:5px;padding:1px 6px;color:var(--ink)}
+
+  .agents{display:flex;flex-wrap:wrap;gap:12px}
+  .agent-chip{
+    font-family:var(--mono);font-size:14px;color:var(--ink);
+    border:1px solid var(--border);border-radius:9px;padding:10px 18px;background:var(--surface);
+  }
+  .agent-chip b{color:var(--accent);font-weight:600}
+  .agents-note{margin-top:18px;color:var(--faint);font-size:14px}
+  .agents-note code{font-family:var(--mono);font-size:13px;color:var(--muted)}
+
+  .desktop-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:56px;align-items:start}
+  .desktop-feats{list-style:none;display:grid;gap:14px;margin-top:8px}
+  .desktop-feats li{display:flex;gap:12px;color:var(--muted);font-size:15.5px}
+  .desktop-feats li::before{content:"❯";color:var(--accent);font-family:var(--mono);flex-shrink:0}
+  .desktop-feats li strong{color:var(--ink);font-weight:500}
+  .desktop-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px}
+  .desktop-panel h3{font-family:var(--mono);font-size:15px;margin-bottom:16px}
+  .dl-row{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px}
+  .dl-chip{font-family:var(--mono);font-size:12.5px;color:var(--muted);border:1px solid var(--border-soft);border-radius:7px;padding:6px 11px}
+  .desktop-note{font-size:13.5px;color:var(--faint);border-top:1px solid var(--border-soft);padding-top:16px}
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;text-decoration:none;
+    font-family:var(--mono);font-size:14px;font-weight:600;
+    background:var(--accent);color:var(--bg);border-radius:9px;padding:11px 18px;
+    transition:filter .15s;
+  }
+  .btn:hover{filter:brightness(1.08)}
+  .btn-ghost{
+    display:inline-flex;align-items:center;gap:8px;text-decoration:none;
+    font-family:var(--mono);font-size:14px;color:var(--ink);
+    border:1px solid var(--border);border-radius:9px;padding:11px 18px;transition:border-color .15s;
+  }
+  .btn-ghost:hover{border-color:var(--accent)}
+
+  .inst-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+  .inst-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px}
+  .inst-card h3{font-family:var(--mono);font-size:13.5px;color:var(--accent);font-weight:600;margin-bottom:6px}
+  .inst-card p{font-size:14px;color:var(--muted);margin-bottom:14px;min-height:42px}
+  .inst-card pre{font-family:var(--mono);font-size:12px;line-height:1.7;color:#c4ccd8;background:#080a0e;border:1px solid var(--border-soft);border-radius:8px;padding:12px 14px;overflow-x:auto;white-space:pre}
+  .inst-card pre .c{color:var(--faint)}
+  .inst-foot{margin-top:22px;font-size:14px;color:var(--faint)}
+  .inst-foot a{color:var(--muted)}
+
+  details{border-top:1px solid var(--border-soft);padding:4px 0}
+  details:last-of-type{border-bottom:1px solid var(--border-soft)}
+  summary{
+    cursor:pointer;list-style:none;display:flex;align-items:center;gap:16px;
+    padding:20px 0;font-size:17.5px;font-weight:500;
+  }
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"+";font-family:var(--mono);color:var(--accent);font-size:19px;width:18px;flex-shrink:0;transition:transform .15s}
+  details[open] summary::before{transform:rotate(45deg)}
+  details .a{padding:0 0 22px 34px;color:var(--muted);font-size:15.5px;max-width:70ch;text-wrap:pretty}
+  details .a code{font-family:var(--mono);font-size:13px;background:var(--surface2);border:1px solid var(--border-soft);border-radius:5px;padding:1px 6px;color:var(--ink)}
+  details .a a{color:var(--accent)}
+
+  footer{padding:44px 0 56px;color:var(--faint);font-size:14px}
+  .foot-in{display:flex;flex-wrap:wrap;gap:14px 32px;align-items:baseline}
+  .foot-in a{color:var(--muted)}
+  .foot-road{margin-top:16px;font-family:var(--mono);font-size:12.5px}
+  .foot-road b{color:var(--muted);font-weight:400}
+
+  @media(max-width:960px){
+    .hero-grid,.desktop-grid{grid-template-columns:1fr}
+    .why-grid{grid-template-columns:1fr}
+    .inst-grid{grid-template-columns:1fr}
+    .nav-links a:not(.gh-btn){display:none}
+    .hero{padding:56px 0}
+    section{padding:56px 0}
+  }
+  @media(prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    .brand .cursor,.pill .dot,.caret{animation:none}
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap nav-in">
+    <a class="brand" href="#top">pastlog<span class="cursor"></span></a>
+    <div class="nav-links">
+      <a href="#why">Why</a>
+      <a href="#desktop">Desktop</a>
+      <a href="#install">Install</a>
+      <a href="#faq">FAQ</a>
+      <a class="gh-btn" href="https://github.com/wrinfotel/pastlog" rel="noopener">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        Star
+      </a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="pill"><span class="dot"></span>100% local · read-only · zero config</span>
+      <h1>Everything your AI coding agents ever did, <em>one search away</em>.</h1>
+      <p class="sub">pastlog streams the session logs <strong>Claude Code</strong>, <strong>Codex CLI</strong>, <strong>Gemini CLI</strong>, <strong>OpenCode</strong> and <strong>ZCode</strong> already wrote on your machine — and makes them searchable across every project: user and assistant messages, tool calls and tool outputs included.</p>
+      <div class="install-box">
+        <span class="ps">$</span>
+        <code id="install-cmd">go install github.com/wrinfotel/pastlog/cmd/pastlog@latest</code>
+        <button class="copy-btn" data-copy="go install github.com/wrinfotel/pastlog/cmd/pastlog@latest">copy</button>
+      </div>
+      <p class="alt-install">No Go? <a href="https://github.com/wrinfotel/pastlog/releases/tag/v0.1.0">Grab a prebuilt binary</a> — Windows, macOS, Linux · amd64 + arm64.</p>
+    </div>
+    <div>
+      <div class="term" id="demo-term" aria-label="Animated terminal demo of pastlog commands">
+        <div class="term-bar"><i></i><i></i><i></i><span>pastlog — zsh</span></div>
+        <div class="term-body" id="term-body"></div>
+      </div>
+      <p class="term-cap">Excerpt of real output · v0.1.0 binary · fixture data</p>
+    </div>
+  </div>
+</header>
+
+<section id="why">
+  <div class="wrap">
+    <p class="sec-tag">// why pastlog</p>
+    <h2>Built on one bet: your agent history is worth searching.</h2>
+    <p class="sec-sub">Weeks of decisions, fixes and context are buried in JSONL files and SQLite databases across five different tools. pastlog reads them all — without an index, a server, or a single network call.</p>
+    <div class="why-grid">
+      <div class="why"><span class="n">01</span><div>
+        <h3>Five agents, one search</h3>
+        <p>Claude Code, Codex CLI, Gemini CLI, OpenCode and ZCode — one query fans out across every project on the machine. It reads tool calls and tool outputs too, not just the chat.</p>
+      </div></div>
+      <div class="why"><span class="n">02</span><div>
+        <h3>Nothing leaves your machine</h3>
+        <p>The binary contains no network code at all — no HTTP client, no TLS. A build-time test (<code>TestNoNetworkDeps</code>) fails the moment one appears in the dependency graph.</p>
+      </div></div>
+      <div class="why"><span class="n">03</span><div>
+        <h3>Read-only, enforced</h3>
+        <p>pastlog never writes to agent storage. SQLite sources open strictly with <code>mode=ro</code>, and the guarantee is backed by tests, not good intentions.</p>
+      </div></div>
+      <div class="why"><span class="n">04</span><div>
+        <h3>No index to babysit</h3>
+        <p>Pure streaming search — nothing to build, update or store. Measured at ≈178 MB/s over a 500 MB corpus on a dev machine; run it once, get an answer now.</p>
+      </div></div>
+      <div class="why"><span class="n">05</span><div>
+        <h3>First-class Windows</h3>
+        <p>Not an afterthought: race-enabled CI on Windows, amd64 + arm64 release binaries, path handling normalized on every command.</p>
+      </div></div>
+      <div class="why"><span class="n">06</span><div>
+        <h3>One static binary</h3>
+        <p>No runtime, no dependencies, no config files, no accounts. Drop it on your <code>PATH</code> and it just finds your data — <code>pastlog stats</code> shows where your tokens go.</p>
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<section id="agents" style="padding-top:60px;padding-bottom:60px">
+  <div class="wrap">
+    <div class="agents">
+      <span class="agent-chip"><b>❯</b> claude-code</span>
+      <span class="agent-chip"><b>❯</b> codex</span>
+      <span class="agent-chip"><b>❯</b> gemini-cli</span>
+      <span class="agent-chip"><b>❯</b> opencode</span>
+      <span class="agent-chip"><b>❯</b> zcode</span>
+    </div>
+    <p class="agents-note">Auto-detected from their default storage locations. Check what pastlog sees on your machine with <code>pastlog agents</code> — it lists sessions and on-disk footprints per agent.</p>
+  </div>
+</section>
+
+<section id="desktop">
+  <div class="wrap desktop-grid">
+    <div>
+      <p class="sec-tag">// pastlog desktop</p>
+      <h2>Prefer a window to a terminal?</h2>
+      <p class="sec-sub" style="margin-bottom:24px">pastlog Desktop is the GUI companion: the same engine, the same guarantees, the same view of your data.</p>
+      <ul class="desktop-feats">
+        <li><span><strong>Live search</strong> with progress and cancel — click a hit to open the session.</span></li>
+        <li><span><strong>Readable transcripts</strong> — collapsible tool calls, markdown-rendered assistant messages.</span></li>
+        <li><span><strong>Token stats</strong> per agent, project and model, drill down from Home.</span></li>
+        <li><span><strong>Export anything</strong> to JSON or markdown — byte-identical to the CLI's output.</span></li>
+        <li><span><strong>Hardened by default</strong> — frontend embedded in the binary, strict CSP, zero external assets, links open in your browser, never in-app.</span></li>
+      </ul>
+    </div>
+    <div class="desktop-panel">
+      <h3>pastlog Desktop v0.1.0</h3>
+      <div class="dl-row">
+        <span class="dl-chip">Windows · installer / portable</span>
+        <span class="dl-chip">macOS · dmg (arm64, amd64)</span>
+        <span class="dl-chip">Linux · .deb</span>
+      </div>
+      <a class="btn" href="https://github.com/wrinfotel/pastlog/releases/tag/desktop-v0.1.0" rel="noopener">Download Desktop</a>
+      <p style="height:12px"></p>
+      <a class="btn-ghost" href="https://github.com/wrinfotel/pastlog#pastlog-desktop" rel="noopener">CLI ↔ Desktop feature map</a>
+      <p class="desktop-note">~15–20 MB per platform. Unsigned in v0.1 — SmartScreen or Gatekeeper may ask on first run; the README explains the one-liner to proceed.</p>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <p class="sec-tag">// install</p>
+    <h2>Three ways in. All under a minute.</h2>
+    <p class="sec-sub">pastlog ships as a single static binary — no runtime, no dependencies, no config files.</p>
+    <div class="inst-grid">
+      <div class="inst-card">
+        <h3>1 · Release binary</h3>
+        <p>Prebuilt for six platform targets, SHA256 checksums included.</p>
+        <pre>tar xzf pastlog_0.1.0_linux_amd64.tar.gz
+sudo install pastlog /usr/local/bin/
+pastlog version</pre>
+      </div>
+      <div class="inst-card">
+        <h3>2 · Go install</h3>
+        <p>Any platform with Go 1.27+.</p>
+        <pre>go install \
+  github.com/wrinfotel/pastlog/cmd/pastlog@latest</pre>
+      </div>
+      <div class="inst-card">
+        <h3>3 · From source</h3>
+        <p>Clone and build — produces a single binary.</p>
+        <pre>git clone https://github.com/wrinfotel/pastlog
+cd pastlog
+go build ./cmd/pastlog</pre>
+      </div>
+    </div>
+    <p class="inst-foot">Homebrew and Scoop formulas are planned — see the <a href="https://github.com/wrinfotel/pastlog#roadmap">roadmap</a>. macOS note: release binaries are not notarized in v0.1; if Gatekeeper objects, run <span class="mono" style="font-size:12.5px">xattr -d com.apple.quarantine ./pastlog</span> or allow it in System Settings.</p>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap" style="max-width:840px">
+    <p class="sec-tag">// faq</p>
+    <h2>The questions that actually matter.</h2>
+    <p class="sec-sub" style="margin-bottom:36px"></p>
+    <details open>
+      <summary>Is anything uploaded?</summary>
+      <div class="a">No. There is no network code in the binary at all — no HTTP client, no TLS, no telemetry, no update checks. The project's own test suite fails the build if <code>net/http</code>, <code>crypto/tls</code> or any third-party HTTP package ever appears in the dependency graph.</div>
+    </details>
+    <details>
+      <summary>Does it modify my logs?</summary>
+      <div class="a">No — read-only by design and enforced by tests. Adapters only open files for reading, and SQLite-backed sources (OpenCode, ZCode) open with <code>mode=ro</code>; a write attempt is refused by the driver.</div>
+    </details>
+    <details>
+      <summary>Is Windows really supported?</summary>
+      <div class="a">Yes, first-class: CI runs the race-enabled test suite on Windows, releases include <code>windows/amd64</code> and <code>windows/arm64</code> binaries, and <code>--project</code> matches forward and back slashes alike.</div>
+    </details>
+    <details>
+      <summary>How fast is it, really?</summary>
+      <div class="a">No index, pure streaming: ≈178 MB/s literal search and ≈71 MB/s regex over a 500 MB corpus on a dev machine (warm cache). Full benchmark table and caveats are in the README's <a href="https://github.com/wrinfotel/pastlog#performance">Performance</a> section.</div>
+    </details>
+    <details>
+      <summary>What does it cost?</summary>
+      <div class="a">Nothing. MIT-licensed open source — clone it, fork it, ship it.</div>
+    </details>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-in">
+      <span>MIT License · © 2026 pastlog contributors</span>
+      <a href="https://github.com/wrinfotel/pastlog">GitHub</a>
+      <a href="https://github.com/wrinfotel/pastlog/issues">Issues</a>
+      <a href="https://github.com/wrinfotel/pastlog/releases">Releases</a>
+    </div>
+    <p class="foot-road"><b>roadmap:</b> MCP server (let your agent search its own history) · TUI · Homebrew / Scoop · optional index</p>
+  </div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  var body=document.getElementById("term-body");
+  var reduced=window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var PS='<span class="t-ps">$ </span>';
+
+  function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+  function hi(s){ // highlight every "jwt refresh" occurrence
+    return esc(s).replace(/jwt refresh/g,'<mark>jwt refresh</mark>');
+  }
+
+  var scenes=[
+    {cmd:'pastlog search "jwt refresh"',out:[
+      hi('codex · dev/myapp · 2026-08-02 · sess 9b2d4c1e'),
+      hi('  → the jwt refresh endpoint returns 401 after an hour'),
+      '',
+      hi('claude-code · dev/myapp · 2026-08-02 · sess 3f9c81a2'),
+      hi('  → Fix jwt refresh token rotation'),
+      hi('  → the jwt refresh kept failing because the old token was'),
+      hi('    still accepted — moving it to an httpOnly cookie…'),
+      '',
+      hi('gemini-cli · dev/myapp · 2026-08-02 · sess e4a7f2b3'),
+      hi('  → can you add a jwt refresh regression test?')
+    ]},
+    {cmd:'pastlog agents',out:[
+      'claude-code  2 sessions  1.7 KB   ~/.claude/projects',
+      'codex        1 session   664 B    ~/.codex/sessions',
+      'gemini-cli   1 session   548 B    ~/.gemini/tmp',
+      'opencode     2 sessions  28.0 KB  ~/.local/share/opencode',
+      'zcode        0 sessions  (not found)'
+    ]},
+    {cmd:'pastlog stats',out:[
+      'agent        sessions  input  output  total  cost usd',
+      'claude-code         3    120      45    165         -',
+      'codex               2    300      90    415         -',
+      'gemini-cli          2    200      60    270         -',
+      'opencode            2  1,833     507  2,447      0.50'
+    ]}
+  ];
+
+  function line(html,cls){
+    var d=document.createElement("div");
+    d.className="ln"+(cls?" "+cls:"");
+    d.innerHTML=html||"&nbsp;";
+    body.appendChild(d);return d;
+  }
+
+  function renderStatic(){
+    scenes.forEach(function(s){
+      line(PS+esc(s.cmd));
+      s.out.forEach(function(l){line(l)});
+      line("&nbsp;");
+    });
+    line('<span class="caret"></span>');
+  }
+
+  function typeCmd(text,done){
+    var el=line("");el.innerHTML=PS+'<span class="caret"></span>';
+    var span=null,i=0;
+    function tick(){
+      i++;
+      span=document.createElement("span");span.textContent=text.slice(0,i);
+      el.innerHTML=PS+span.outerHTML+'<span class="caret"></span>';
+      if(i<text.length){setTimeout(tick,26+Math.random()*34)}
+      else{setTimeout(done,260)}
+    }
+    tick();
+  }
+
+  function playScene(idx){
+    var s=scenes[idx];
+    body.innerHTML="";
+    typeCmd(s.cmd,function(){
+      var j=0;
+      (function next(){
+        if(j<s.out.length){line(s.out[j]);j++;setTimeout(next,64)}
+        else{setTimeout(function(){playScene((idx+1)%scenes.length)},2600)}
+      })();
+    });
+  }
+
+  if(reduced){renderStatic()}
+  else{playScene(0)}
+
+  // copy buttons
+  document.querySelectorAll(".copy-btn").forEach(function(b){
+    b.addEventListener("click",function(){
+      var t=b.getAttribute("data-copy");
+      function ok(){b.textContent="copied ✓";setTimeout(function(){b.textContent="copy"},1600)}
+      if(navigator.clipboard&&navigator.clipboard.writeText){
+        navigator.clipboard.writeText(t).then(ok,function(){fallback()});
+      }else{fallback()}
+      function fallback(){
+        var ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);
+        ta.select();try{document.execCommand("copy");ok()}catch(e){}document.body.removeChild(ta);
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>
