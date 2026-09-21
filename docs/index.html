@@ -35,6 +35,7 @@
     background:var(--bg);color:var(--ink);
     font-family:var(--sans);font-size:17px;line-height:1.6;
     -webkit-font-smoothing:antialiased;
+    overflow-x:clip;
   }
   ::selection{background:var(--accent);color:var(--bg)}
   a{color:inherit}
@@ -84,8 +85,8 @@
     padding:13px 16px;max-width:560px;
   }
   .install-box .ps{color:var(--accent)}
-  .install-box code{flex:1;overflow-x:auto;white-space:nowrap;color:var(--ink)}
-  .install-box::-webkit-scrollbar,pre::-webkit-scrollbar{height:0}
+  .install-box code{flex:1;min-width:0;overflow-x:auto;white-space:nowrap;color:var(--ink);scrollbar-width:none}
+  .install-box code::-webkit-scrollbar,pre::-webkit-scrollbar{height:0}
   .copy-btn{
     font-family:var(--mono);font-size:12px;color:var(--muted);cursor:pointer;
     background:none;border:1px solid var(--border);border-radius:6px;padding:5px 10px;
@@ -189,9 +190,9 @@
   .foot-road b{color:var(--muted);font-weight:400}
 
   @media(max-width:960px){
-    .hero-grid,.desktop-grid{grid-template-columns:1fr}
-    .why-grid{grid-template-columns:1fr}
-    .inst-grid{grid-template-columns:1fr}
+    .hero-grid,.desktop-grid{grid-template-columns:minmax(0,1fr)}
+    .why-grid{grid-template-columns:minmax(0,1fr)}
+    .inst-grid{grid-template-columns:minmax(0,1fr)}
     .nav-links a:not(.gh-btn){display:none}
     .hero{padding:56px 0}
     section{padding:56px 0}
