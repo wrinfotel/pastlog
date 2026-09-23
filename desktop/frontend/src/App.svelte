@@ -68,6 +68,7 @@
       </span>
       <span class="word">pastlog<em>desktop</em></span>
     </div>
+    <div class="nav-label">Workspace</div>
     {#each nav as item}
       {#if !item.hidden}
         <button
@@ -91,7 +92,8 @@
         <rect x="3" y="11" width="18" height="11" rx="2" />
         <path d="M7 11V7a5 5 0 0 1 10 0v4" />
       </svg>
-      local &middot; read-only
+      <span>Local workspace</span>
+      <small>Read-only</small>
     </div>
   </nav>
   <main>
@@ -121,11 +123,11 @@
     height: 100vh;
   }
   nav {
-    width: 188px;
+    width: 224px;
     flex-shrink: 0;
     background: var(--bg-deep);
     border-right: 1px solid var(--border);
-    padding: 16px 12px 14px;
+    padding: 20px 14px 16px;
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -134,18 +136,18 @@
     display: flex;
     align-items: center;
     gap: 9px;
-    padding: 2px 6px 14px;
-    margin-bottom: 6px;
+    padding: 2px 8px 18px;
+    margin-bottom: 16px;
     border-bottom: 1px solid var(--border-subtle);
   }
   .logo {
     display: grid;
     place-items: center;
-    width: 27px;
-    height: 27px;
+    width: 30px;
+    height: 30px;
     border-radius: 8px;
     color: var(--accent-ink);
-    background: linear-gradient(135deg, var(--accent) 0%, #0e7490 130%);
+    background: var(--accent);
     box-shadow:
       0 0 14px var(--accent-glow),
       inset 0 1px 0 rgba(255, 255, 255, 0.25);
@@ -174,8 +176,8 @@
     background: none;
     border: 0;
     color: var(--text-2);
-    padding: 7px 10px;
-    border-radius: 8px;
+    padding: 9px 11px;
+    border-radius: 7px;
     font-size: 13px;
     font-weight: 500;
     transition:
@@ -189,6 +191,7 @@
   nav button.active {
     color: var(--accent);
     background: var(--accent-soft);
+    box-shadow: inset 3px 0 0 var(--accent);
   }
   nav button svg {
     flex-shrink: 0;
@@ -199,15 +202,33 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 10px 6px 2px;
+    padding: 12px 8px 2px;
     border-top: 1px solid var(--border-subtle);
     color: var(--muted);
     font-size: 10.5px;
     letter-spacing: 0.02em;
+    flex-wrap: wrap;
+  }
+  .foot span {
+    color: var(--text-2);
+  }
+  .foot small {
+    width: 100%;
+    padding-left: 17px;
+    color: var(--muted);
+    font-size: 10px;
+  }
+  .nav-label {
+    padding: 0 11px 8px;
+    color: var(--faint);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
   }
   main {
     flex: 1;
     overflow-y: auto;
-    padding: 22px 28px 34px;
+    padding: 30px clamp(28px, 4vw, 64px) 42px;
   }
 </style>

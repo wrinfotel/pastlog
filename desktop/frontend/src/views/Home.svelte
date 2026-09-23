@@ -27,7 +27,19 @@
   const detected = $derived(data?.agents.filter((a) => a.detected) ?? []);
 </script>
 
-<h1>Home</h1>
+<header class="page-head">
+  <div>
+    <div class="eyebrow">Overview</div>
+    <h1>Local activity</h1>
+    <p class="lede">A quick view of agent sessions stored on this machine.</p>
+  </div>
+  {#if data && !data.error}
+    <div class="location">
+      <span class="dot"></span>
+      <div><strong>Local workspace</strong><small>{data.home}</small></div>
+    </div>
+  {/if}
+</header>
 {#if loading}
   <Loader label="loading overview…" />
 {:else if error}
@@ -44,6 +56,12 @@
       <button class="btn primary" onclick={() => go('settings')}>Open settings</button>
     </div>
   {:else}
+    <div class="summary-row fadein">
+      <div class="summary panel"><span>Detected agents</span><strong>{detected.length}</strong><small>available sources</small></div>
+      <div class="summary panel"><span>Total sessions</span><strong>{fmtInt(detected.reduce((sum, agent) => sum + agent.sessions, 0))}</strong><small>across all agents</small></div>
+      <div class="summary panel"><span>Storage</span><strong>{fmtBytes(detected.reduce((sum, agent) => sum + agent.bytes, 0))}</strong><small>indexed locally</small></div>
+    </div>
+    <div class="section-head"><div><h2>Connected agents</h2><p>Choose a source to browse its projects and sessions.</p></div><span class="section-count">{data.agents.length} sources</span></div>
     <div class="cards fadein">
       {#each data.agents as agent}
         <!-- detected agents drill into their project list; the rest stay inert -->
@@ -93,18 +111,63 @@
   .cards {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(215px, 1fr));
-    gap: 14px;
+    gap: 12px;
   }
+  .page-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 30px;
+  }
+  .eyebrow {
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  h1 {
+    margin-bottom: 5px;
+    font-size: 25px;
+    letter-spacing: -0.025em;
+  }
+  .lede, .section-head p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .location {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 220px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-s);
+    background: var(--panel);
+  }
+  .location div { display: grid; gap: 1px; }
+  .location strong { font-size: 12px; font-weight: 600; }
+  .location small { color: var(--muted); font: 10px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+  .summary-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 34px; }
+  .summary { padding: 15px 17px; display: grid; gap: 3px; }
+  .summary span, .summary small { color: var(--muted); font-size: 11px; }
+  .summary strong { font-size: 23px; font-weight: 650; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .section-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+  .section-head h2 { margin-bottom: 3px; color: var(--text); font-size: 13px; letter-spacing: 0; text-transform: none; }
+  .section-count { color: var(--muted); font-size: 11px; }
   .card {
     position: relative;
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: var(--radius-l);
+    border-radius: var(--radius-s);
     box-shadow:
       var(--hairline),
       var(--shadow-1);
     padding: 16px 18px 14px;
-    min-height: 118px;
+    min-height: 132px;
     text-align: left;
     font: inherit;
     color: var(--text);
