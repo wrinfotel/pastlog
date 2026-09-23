@@ -110,7 +110,14 @@
 </script>
 
 {#if projectsNav.project === ''}
-  <h1>Projects</h1>
+  <header class="page-head">
+    <div>
+      <div class="eyebrow">Browse / 02</div>
+      <h1>Projects</h1>
+      <p class="lede">Compare activity across projects and drill into model usage.</p>
+    </div>
+    <div class="page-mark">PROJECT CATALOG<br /><strong>READ-ONLY</strong></div>
+  </header>
   <div class="toolbar">
     <label>
       agent
@@ -167,7 +174,7 @@
     {/if}
   {/if}
 {:else}
-  <div class="crumb">
+  <div class="crumb page-crumb">
     <button class="btn" onclick={closeProject}>
       <svg
         viewBox="0 0 24 24"
@@ -184,12 +191,14 @@
       All projects
     </button>
   </div>
-  <div class="top">
+  <header class="page-head project-head">
     <div>
+      <div class="eyebrow">Project detail / 02</div>
       <h1 class="proj">{projectsNav.project || '-'}</h1>
       <p class="meta"><span class="chip">{projectsNav.agent}</span> &middot; token usage by model</p>
     </div>
-  </div>
+    <div class="page-mark">PROJECT DETAIL<br /><strong>MODEL USAGE</strong></div>
+  </header>
   <Notes notes={!loading ? notes : []} />
   {#if progress}
     <div class="progress">
@@ -283,6 +292,27 @@
 {/if}
 
 <style>
+  .page-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 22px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .eyebrow {
+    margin-bottom: 7px;
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  h1 { margin-bottom: 5px; font-size: 25px; letter-spacing: -0.025em; }
+  .lede { margin: 0; color: var(--muted); font-size: 13px; }
+  .page-mark { color: var(--faint); font: 10px/1.6 var(--mono); letter-spacing: 0.08em; text-align: right; }
+  .page-mark strong { color: var(--accent); font-weight: 600; }
   .toolbar {
     display: flex;
     gap: 16px;
@@ -369,12 +399,6 @@
   }
   .crumb {
     margin-bottom: 12px;
-  }
-  .top {
-    display: flex;
-    justify-content: space-between;
-    align-items: start;
-    gap: 12px;
   }
   .proj {
     font-family: var(--mono);

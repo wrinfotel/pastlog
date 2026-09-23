@@ -52,10 +52,18 @@
   }
 </script>
 
-<h1>Settings</h1>
+<header class="page-head">
+  <div>
+    <div class="eyebrow">System / 05</div>
+    <h1>Settings</h1>
+    <p class="lede">Control local storage discovery, appearance, and application details.</p>
+  </div>
+  <div class="page-mark">PREFERENCES<br /><strong>ON THIS DEVICE</strong></div>
+</header>
 
 {#if settings}
   <section class="panel">
+    <div class="section-kicker">01 / Storage</div>
     <h2>Agent storage home</h2>
     <p class="meta">the directory holding the agent data (the CLI's --home). Empty = auto-discover.</p>
     <div class="row">
@@ -66,6 +74,7 @@
   </section>
 
   <section class="panel">
+    <div class="section-kicker">02 / Appearance</div>
     <h2>Theme</h2>
     <div class="seg">
       {#each ['system', 'dark', 'light'] as t}
@@ -83,6 +92,7 @@
   </section>
 
   <section class="panel">
+    <div class="section-kicker">03 / About</div>
     <h2>About</h2>
     <p class="meta">
       pastlog Desktop {settings.version} (commit {settings.commit}, date {settings.date})<br />
@@ -96,11 +106,26 @@
 {/if}
 
 <style>
+  .page-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 22px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .eyebrow { margin-bottom: 7px; color: var(--accent); font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+  h1 { margin-bottom: 5px; font-size: 25px; letter-spacing: -0.025em; }
+  .lede { margin: 0; color: var(--muted); font-size: 13px; }
+  .page-mark { color: var(--faint); font: 10px/1.6 var(--mono); letter-spacing: 0.08em; text-align: right; }
+  .page-mark strong { color: var(--accent); font-weight: 600; }
   section {
     margin: 0 0 14px;
     padding: 16px 18px;
     max-width: 640px;
   }
+  .section-kicker { margin-bottom: 5px; color: var(--accent); font: 10px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
   section .meta {
     margin: 0 0 12px;
   }

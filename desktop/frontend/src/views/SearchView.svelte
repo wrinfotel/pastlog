@@ -93,7 +93,14 @@
   const running = $derived(progress !== null);
 </script>
 
-<h1>Search</h1>
+<header class="page-head">
+  <div>
+    <div class="eyebrow">Explore / 01</div>
+    <h1>Search sessions</h1>
+    <p class="lede">Find messages and inspect the exact session context around each match.</p>
+  </div>
+  <div class="page-mark">LOCAL INDEX<br /><strong>LIVE QUERY</strong></div>
+</header>
 <div class="queryrow">
   <div class="searchwrap">
     <svg
@@ -169,6 +176,27 @@
   <div class="empty">no matches</div>
 {/if}
 <style>
+  .page-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 22px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .eyebrow {
+    margin-bottom: 7px;
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  h1 { margin-bottom: 5px; font-size: 25px; letter-spacing: -0.025em; }
+  .lede { margin: 0; color: var(--muted); font-size: 13px; }
+  .page-mark { color: var(--faint); font: 10px/1.6 var(--mono); letter-spacing: 0.08em; text-align: right; }
+  .page-mark strong { color: var(--accent); font-weight: 600; }
   .queryrow {
     display: flex;
     gap: 12px;
