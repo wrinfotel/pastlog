@@ -68,14 +68,31 @@
       </span>
       <span class="word">pastlog<em>desktop</em></span>
     </div>
-    <div class="nav-label">Workspace</div>
-    {#each nav as item}
+    <div class="nav-label">Browse</div>
+    {#each nav.slice(0, 4) as item}
       {#if !item.hidden}
         <button
           class:active={view.current === item.name}
           onclick={() => {
             // the sidebar always lands on a section root: a drilled-in project
             // detail is restored only via the viewer's back button
+            if (item.name === 'projects') openProjects();
+            go(item.name);
+          }}
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+            {@html icons[item.name]}
+          </svg>
+          {item.label}
+        </button>
+      {/if}
+    {/each}
+    <div class="nav-label secondary">Analyze</div>
+    {#each nav.slice(4) as item}
+      {#if !item.hidden}
+        <button
+          class:active={view.current === item.name}
+          onclick={() => {
             if (item.name === 'projects') openProjects();
             go(item.name);
           }}
@@ -148,9 +165,7 @@
     border-radius: 8px;
     color: var(--accent-ink);
     background: var(--accent);
-    box-shadow:
-      0 0 14px var(--accent-glow),
-      inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
   }
   .word {
     font-size: 14.5px;

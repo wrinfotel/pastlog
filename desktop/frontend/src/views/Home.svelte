@@ -28,10 +28,10 @@
 </script>
 
 <header class="page-head">
-  <div>
-    <div class="eyebrow">Overview</div>
-    <h1>Local activity</h1>
-    <p class="lede">A quick view of agent sessions stored on this machine.</p>
+  <div class="masthead">
+    <div class="issue">Issue 01 <span>·</span> Local archive</div>
+    <h1>Pastlog <em>index</em></h1>
+    <p class="lede">A considered view of the sessions stored on this machine.</p>
   </div>
   {#if data && !data.error}
     <div class="location">
@@ -57,13 +57,14 @@
     </div>
   {:else}
     <div class="summary-row fadein">
-      <div class="summary panel"><span>Detected agents</span><strong>{detected.length}</strong><small>available sources</small></div>
-      <div class="summary panel"><span>Total sessions</span><strong>{fmtInt(detected.reduce((sum, agent) => sum + agent.sessions, 0))}</strong><small>across all agents</small></div>
-      <div class="summary panel"><span>Storage</span><strong>{fmtBytes(detected.reduce((sum, agent) => sum + agent.bytes, 0))}</strong><small>indexed locally</small></div>
+      <div class="summary"><span>Sources</span><strong>{detected.length}</strong><small>connected agents</small></div>
+      <div class="summary"><span>Sessions</span><strong>{fmtInt(detected.reduce((sum, agent) => sum + agent.sessions, 0))}</strong><small>indexed entries</small></div>
+      <div class="summary"><span>Footprint</span><strong>{fmtBytes(detected.reduce((sum, agent) => sum + agent.bytes, 0))}</strong><small>local storage</small></div>
+      <div class="summary edition"><span>Edition</span><strong>2026</strong><small>read-only archive</small></div>
     </div>
-    <div class="section-head"><div><h2>Connected agents</h2><p>Choose a source to browse its projects and sessions.</p></div><span class="section-count">{data.agents.length} sources</span></div>
+    <div class="section-head"><div><span class="section-kicker">01 / Sources</span><h2>Connected agents</h2><p>Choose a source to browse its projects and sessions.</p></div><span class="section-count">{data.agents.length} sources</span></div>
     <div class="cards fadein">
-      {#each data.agents as agent}
+      {#each data.agents as agent, index}
         <!-- detected agents drill into their project list; the rest stay inert -->
         <button
           class="card"
@@ -76,6 +77,7 @@
           }}
         >
           <div class="row1">
+            <span class="index">{String(index + 1).padStart(2, '0')}</span>
             <span class="name">{agent.name}</span>
             <span class="dot" class:off={!agent.detected}></span>
           </div>
@@ -118,21 +120,27 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 24px;
-    margin-bottom: 30px;
+    margin-bottom: 28px;
+    padding-bottom: 22px;
+    border-bottom: 1px solid var(--border);
   }
-  .eyebrow {
+  .masthead { position: relative; }
+  .issue, .section-kicker {
     color: var(--accent);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.14em;
+    font: 10px var(--mono);
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    margin-bottom: 8px;
   }
+  .issue { margin-bottom: 9px; }
+  .issue span { color: var(--faint); padding: 0 4px; }
   h1 {
     margin-bottom: 5px;
-    font-size: 25px;
-    letter-spacing: -0.025em;
+    font-family: var(--display);
+    font-size: 31px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
   }
+  h1 em { color: var(--accent); font-style: normal; }
   .lede, .section-head p {
     margin: 0;
     color: var(--muted);
@@ -151,23 +159,24 @@
   .location div { display: grid; gap: 1px; }
   .location strong { font-size: 12px; font-weight: 600; }
   .location small { color: var(--muted); font: 10px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
-  .summary-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 34px; }
-  .summary { padding: 15px 17px; display: grid; gap: 3px; }
-  .summary span, .summary small { color: var(--muted); font-size: 11px; }
-  .summary strong { font-size: 23px; font-weight: 650; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .summary-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-bottom: 34px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .summary { padding: 12px 16px 13px 0; margin-right: 16px; display: grid; gap: 3px; border-right: 1px solid var(--border); }
+  .summary:last-child { border-right: 0; }
+  .summary span, .summary small { color: var(--muted); font-size: 10.5px; }
+  .summary strong { font-size: 22px; font-weight: 650; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .summary.edition strong { color: var(--accent); font-family: var(--display); font-weight: 500; }
   .section-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
-  .section-head h2 { margin-bottom: 3px; color: var(--text); font-size: 13px; letter-spacing: 0; text-transform: none; }
-  .section-count { color: var(--muted); font-size: 11px; }
+  .section-head h2 { margin: 3px 0; color: var(--text); font-family: var(--display); font-size: 18px; font-weight: 500; letter-spacing: -0.01em; text-transform: none; }
+  .section-head p { margin: 0; }
+  .section-count { color: var(--muted); font: 10px var(--mono); }
   .card {
     position: relative;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-s);
-    box-shadow:
-      var(--hairline),
-      var(--shadow-1);
-    padding: 16px 18px 14px;
-    min-height: 132px;
+    background: transparent;
+    border: 0;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+    padding: 15px 12px 15px 0;
+    min-height: 102px;
     text-align: left;
     font: inherit;
     color: var(--text);
@@ -182,12 +191,9 @@
     cursor: pointer;
   }
   .card:not(:disabled):hover {
-    transform: translateY(-2px);
-    border-color: var(--border-strong);
-    box-shadow:
-      var(--hairline),
-      var(--shadow-2),
-      0 0 0 1px var(--accent-soft);
+    transform: translateX(5px);
+    border-color: var(--accent);
+    background: var(--accent-soft);
   }
   .card.off {
     opacity: 0.62;
@@ -195,8 +201,9 @@
   .row1 {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
   }
+  .index { color: var(--accent); font: 10px var(--mono); width: 22px; }
   .name {
     font-weight: 650;
     font-size: 14px;
