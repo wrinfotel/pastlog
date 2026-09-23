@@ -7,41 +7,41 @@
 */
 :root {
   /* surfaces */
-  --bg: #111313; /* app canvas */
-  --bg-deep: #0c0e0e; /* sidebar, recessed toolbars */
-  --panel: #171a19; /* cards, fields */
-  --panel-hover: #202422; /* raised hover layer */
-  --inset: #0d1110; /* wells, code blocks, tool entries */
+  --bg: #0d1117; /* app canvas */
+  --bg-deep: #0a0e14; /* sidebar, recessed toolbars */
+  --panel: #131a23; /* cards, fields */
+  --panel-hover: #19222d; /* raised hover layer */
+  --inset: #0b1118; /* wells, code blocks, tool entries */
 
   /* text */
-  --text: #f1eee5;
-  --text-2: #c1c0b7;
-  --muted: #8e9189;
-  --faint: #656b64;
+  --text: #edf3f8;
+  --text-2: #b7c3cf;
+  --muted: #81909f;
+  --faint: #5f6d7b;
 
   /* lines */
-  --border: #2a302d;
-  --border-strong: #414943;
-  --border-subtle: #1d2320;
+  --border: #24303d;
+  --border-strong: #354454;
+  --border-subtle: #19232d;
 
-  /* accent (cyan) */
-  --accent: #d6a85c;
-  --accent-strong: #e4bd78;
-  --accent-ink: #19140b; /* text on solid accent */
-  --accent-soft: rgba(214, 168, 92, 0.12);
-  --accent-soft-2: rgba(214, 168, 92, 0.2);
-  --accent-glow: rgba(214, 168, 92, 0.2);
+  /* accent (steel blue) */
+  --accent: #7aa7c7;
+  --accent-strong: #a0c7df;
+  --accent-ink: #0b141d; /* text on solid accent */
+  --accent-soft: rgba(122, 167, 199, 0.12);
+  --accent-soft-2: rgba(122, 167, 199, 0.2);
+  --accent-glow: rgba(122, 167, 199, 0.2);
 
   /* semantic */
-  --ok: #91b27d;
-  --ok-soft: rgba(145, 178, 125, 0.12);
+  --ok: #4ade80;
+  --ok-soft: rgba(74, 222, 128, 0.12);
   --danger: #f87171;
   --danger-soft: rgba(248, 113, 113, 0.1);
   --warn: #fbbf24;
   --warn-soft: rgba(251, 191, 36, 0.09);
 
   /* search-hit mark */
-  --match: #51411e;
+  --match: #5a470f;
 
   /* elevation */
   --shadow-1: 0 1px 2px rgba(3, 6, 12, 0.45);
@@ -55,7 +55,6 @@
   --speed: 140ms;
 
   --mono: ui-monospace, 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
-  --display: Georgia, 'Times New Roman', serif;
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme='dark']) {
@@ -74,12 +73,12 @@
     --border-strong: #c6d0dd;
     --border-subtle: #e9edf3;
 
-    --accent: #0891b2;
-    --accent-strong: #0e7490;
+    --accent: #3d6f94;
+    --accent-strong: #315b7a;
     --accent-ink: #ffffff;
-    --accent-soft: rgba(8, 145, 178, 0.09);
-    --accent-soft-2: rgba(8, 145, 178, 0.16);
-    --accent-glow: rgba(8, 145, 178, 0.22);
+    --accent-soft: rgba(61, 111, 148, 0.1);
+    --accent-soft-2: rgba(61, 111, 148, 0.16);
+    --accent-glow: rgba(61, 111, 148, 0.18);
 
     --ok: #16a34a;
     --ok-soft: rgba(22, 163, 74, 0.1);
