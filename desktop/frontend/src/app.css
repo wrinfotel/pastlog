@@ -1,36 +1,37 @@
 /*
   pastlog Desktop — design system.
-  Layered graphite surfaces + a single cyan accent, dark-first with an
+  Layered near-black surfaces + one mint accent, dark-first with an
   equally deliberate light theme. Components consume tokens only; the
   shared controls (buttons, fields, panels, empty states) are defined once
   here so every view inherits the same rhythm.
 */
 :root {
   /* surfaces */
-  --bg: #0d1117; /* app canvas */
-  --bg-deep: #0a0e14; /* sidebar, recessed toolbars */
-  --panel: #131a23; /* cards, fields */
-  --panel-hover: #19222d; /* raised hover layer */
-  --inset: #0b1118; /* wells, code blocks, tool entries */
+  --bg: #0a0a0c; /* app canvas */
+  --bg-deep: #10131a; /* sidebar */
+  --panel: #10131a; /* cards, fields */
+  --panel-hover: #141720; /* raised hover layer */
+  --inset: #0c0e13; /* wells, code blocks, tool entries */
 
   /* text */
-  --text: #edf3f8;
-  --text-2: #b7c3cf;
-  --muted: #81909f;
-  --faint: #5f6d7b;
+  --text: #ededed;
+  --text-2: #9aa4b5;
+  --muted: #6b7689;
+  --faint: #4d5568;
 
   /* lines */
-  --border: #24303d;
-  --border-strong: #354454;
-  --border-subtle: #19232d;
+  --border: #232936;
+  --border-strong: #2d3345;
+  --border-subtle: #1a1f29;
 
-  /* accent (steel blue) */
-  --accent: #7aa7c7;
-  --accent-strong: #a0c7df;
-  --accent-ink: #0b141d; /* text on solid accent */
-  --accent-soft: rgba(122, 167, 199, 0.12);
-  --accent-soft-2: rgba(122, 167, 199, 0.2);
-  --accent-glow: rgba(122, 167, 199, 0.2);
+  /* accent (mint) */
+  --accent: #42e09a;
+  --accent-strong: #6dffba;
+  --accent-vivid: #00e599; /* dots, bars, solid CTAs */
+  --accent-ink: #003822; /* text on solid accent */
+  --accent-soft: rgba(0, 229, 153, 0.09);
+  --accent-soft-2: rgba(0, 229, 153, 0.16);
+  --accent-glow: rgba(0, 229, 153, 0.28);
 
   /* semantic */
   --ok: #4ade80;
@@ -49,36 +50,37 @@
   --hairline: inset 0 1px 0 rgba(148, 163, 184, 0.05);
 
   /* shape + motion */
-  --radius-s: 6px;
-  --radius: 10px;
-  --radius-l: 14px;
+  --radius-s: 4px;
+  --radius: 6px;
+  --radius-l: 8px;
   --speed: 140ms;
 
   --mono: ui-monospace, 'Cascadia Code', 'JetBrains Mono', Consolas, monospace;
 }
 @media (prefers-color-scheme: light) {
   :root:not([data-theme='dark']) {
-    --bg: #f3f5f9;
-    --bg-deep: #eaeef4;
+    --bg: #f2f4f7;
+    --bg-deep: #e9edf2;
     --panel: #ffffff;
-    --panel-hover: #f7f9fc;
-    --inset: #f1f4f8;
+    --panel-hover: #f4f7fa;
+    --inset: #eef1f5;
 
-    --text: #161c26;
-    --text-2: #3f4959;
-    --muted: #67707f;
-    --faint: #a2abb8;
+    --text: #14181f;
+    --text-2: #3d4657;
+    --muted: #66707f;
+    --faint: #9aa3b2;
 
-    --border: #dfe4ec;
-    --border-strong: #c6d0dd;
-    --border-subtle: #e9edf3;
+    --border: #d8dee7;
+    --border-strong: #c3ccd9;
+    --border-subtle: #e8ecf1;
 
-    --accent: #3d6f94;
-    --accent-strong: #315b7a;
+    --accent: #06966c;
+    --accent-strong: #047a56;
+    --accent-vivid: #00b582;
     --accent-ink: #ffffff;
-    --accent-soft: rgba(61, 111, 148, 0.1);
-    --accent-soft-2: rgba(61, 111, 148, 0.16);
-    --accent-glow: rgba(61, 111, 148, 0.18);
+    --accent-soft: rgba(0, 180, 130, 0.1);
+    --accent-soft-2: rgba(0, 180, 130, 0.16);
+    --accent-glow: rgba(0, 180, 130, 0.2);
 
     --ok: #16a34a;
     --ok-soft: rgba(22, 163, 74, 0.1);
@@ -235,13 +237,15 @@ select {
   border-color: var(--border-strong);
 }
 .btn.primary {
-  background: var(--accent);
+  background: var(--accent-vivid);
   color: var(--accent-ink);
   border-color: transparent;
   font-weight: 600;
+  box-shadow: 0 0 16px var(--accent-glow);
 }
 .btn.primary:hover {
   background: var(--accent-strong);
+  color: var(--accent-ink);
 }
 
 /* card surface */
@@ -279,11 +283,11 @@ select {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--ok);
-  box-shadow: 0 0 6px var(--ok-soft);
+  background: var(--accent-vivid);
+  box-shadow: 0 0 8px var(--accent-glow);
 }
 .dot.off {
-  background: var(--faint);
+  background: var(--warn);
   box-shadow: none;
 }
 
@@ -336,8 +340,8 @@ select {
 .fill {
   height: 100%;
   border-radius: 4px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-strong));
-  box-shadow: 0 0 10px var(--accent-glow);
+  background: var(--accent-vivid);
+  box-shadow: 0 0 8px var(--accent-glow);
   transition: width 0.2s ease;
 }
 

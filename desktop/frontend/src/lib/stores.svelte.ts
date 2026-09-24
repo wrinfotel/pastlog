@@ -4,6 +4,10 @@ export type ViewName = 'home' | 'projects' | 'search' | 'sessions' | 'stats' | '
 
 export const view = $state({ current: 'home' as ViewName });
 
+// Build metadata, filled once by the shell from getSettings — headers stamp
+// the version without each view re-fetching it.
+export const appMeta = $state({ version: '' });
+
 export function go(v: ViewName) {
   view.current = v;
 }
