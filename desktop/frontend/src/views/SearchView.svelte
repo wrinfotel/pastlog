@@ -78,9 +78,18 @@
   }
   const runDebounced = debounce(run, 250);
 
-  function onInput() {
+  // single live-search trigger: query text, toggles and max hits reassign
+  // their $state, while the filter bar binds mutate `filters` properties in
+  // place — stringify is what tracks those, a bare reference read would not
+  $effect(() => {
+    void JSON.stringify(filters);
+    void query;
+    void caseSensitive;
+    void regex;
+    void maxHits;
     runDebounced(query);
-  }
+  });
+
   function onEnter() {
     void run(query);
   }
@@ -101,38 +110,44 @@
   </div>
   <div class="page-mark">LOCAL INDEX<br /><strong>LIVE QUERY</strong></div>
 </header>
-<div class="queryrow">
-  <div class="searchwrap">
-    <svg
-      class="sicon"
-      viewBox="0 0 24 24"
-      width="15"
-      height="15"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.8"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    >
-      <circle cx="11" cy="11" r="7" />
-      <path d="m21 21-4.3-4.3" />
-    </svg>
-    <input
-      class="query"
-      type="text"
-      bind:value={query}
-      oninput={onInput}
-      onkeydown={(e) => e.key === 'Enter' && onEnter()}
-      placeholder="search all session entries across agents"
-    />
-  </div>
-  <label class="toggle"><input type="checkbox" bind:checked={caseSensitive} oninput={onInput} /> Aa</label>
-  <label class="toggle"><input type="checkbox" bind:checked={regex} oninput={onInput} /> .*</label>
-  <label class="toggle cap">
-    max hits <input class="maxhits" type="number" min="0" bind:value={maxHits} oninput={onInput} />
+<FilterBar {agents} bind:filters>
+  <label class="queryfield">
+    query
+    <div class="searchwrap">
+      <svg
+        class="sicon"
+        viewBox="0 0 24 24"
+        width="15"
+        height="15"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <circle cx="11" cy="11" r="7" />
+        <path d="m21 21-4.3-4.3" />
+      </svg>
+      <input
+        class="query"
+        type="text"
+        bind:value={query}
+        onkeydown={(e) => e.key === 'Enter' && onEnter()}
+        placeholder="search all session entries across agents"
+      />
+    </div>
   </label>
-</div>
-<FilterBar {agents} bind:filters />
+  <label class="toggle" title="case sensitive">
+    <input type="checkbox" bind:checked={caseSensitive} /> Aa
+  </label>
+  <label class="toggle" title="regular expression">
+    <input type="checkbox" bind:checked={regex} /> .*
+  </label>
+  <label class="capfield">
+    max hits
+    <input class="maxhits" type="number" min="0" bind:value={maxHits} />
+  </label>
+</FilterBar>
 {#if !searching}<Notes notes={outcome?.notes ?? []} />{/if}
 
 {#if running}
@@ -176,15 +191,25 @@
   <div class="empty">no matches</div>
 {/if}
 <style>
-  .queryrow {
+  /* snippet controls live inside FilterBar's bar but keep this view's scope —
+     mirror the bar's own field metrics so the row reads as one */
+  .queryfield {
+    flex: 1 1 300px;
+  }
+  .queryfield,
+  .capfield {
     display: flex;
-    gap: 12px;
-    align-items: center;
-    margin-bottom: 6px;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
   }
   .searchwrap {
     position: relative;
-    flex: 1;
+    width: 100%;
   }
   .sicon {
     position: absolute;
@@ -196,15 +221,16 @@
   }
   .query {
     width: 100%;
-    padding: 9px 12px 9px 34px;
-    font-size: 14px;
-    box-shadow: var(--shadow-1);
+    height: 30px;
+    padding: 0 12px 0 32px;
+    font-size: 13px;
+    background: var(--panel);
   }
   .toggle {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
+    height: 30px;
+    padding: 0 12px;
     border: 1px solid var(--border);
     border-radius: 999px;
     color: var(--muted);
@@ -236,17 +262,13 @@
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
-  .toggle.cap {
-    font-family: inherit;
-    gap: 7px;
-    color: var(--text-2);
-  }
   .maxhits {
     width: 58px;
-    padding: 2px 6px;
+    height: 30px;
+    padding: 0 8px;
     font-family: var(--mono);
     font-size: 12px;
-    background: var(--inset);
+    background: var(--panel);
   }
   .cards {
     display: flex;

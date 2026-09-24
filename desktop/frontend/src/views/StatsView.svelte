@@ -65,7 +65,9 @@
   const loadDebounced = debounce(load, 250);
 
   $effect(() => {
-    void filters;
+    // bind:value mutates filter fields in place — stringify is what tracks
+    // those; by/model reassignments are tracked by the bare reads
+    void JSON.stringify(filters);
     void by;
     void model;
     loadDebounced();
