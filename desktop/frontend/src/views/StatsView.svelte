@@ -85,7 +85,7 @@
   </div>
   <div class="page-mark">USAGE REPORT<br /><strong>LOCAL DATA</strong></div>
 </header>
-<div class="byrow">
+<FilterBar {agents} bind:filters>
   <label>
     by
     <select bind:value={by} onchange={loadDebounced}>
@@ -99,8 +99,7 @@
     model
     <input type="text" bind:value={model} placeholder="substring" oninput={loadDebounced} />
   </label>
-</div>
-<FilterBar {agents} bind:filters />
+</FilterBar>
 {#if !loading}<Notes {notes} />{/if}
 
 {#if progress}
@@ -181,21 +180,29 @@
   .lede { margin: 0; color: var(--muted); font-size: 13px; }
   .page-mark { color: var(--faint); font: 10px/1.6 var(--mono); letter-spacing: 0.08em; text-align: right; }
   .page-mark strong { color: var(--accent); font-weight: 600; }
-  .byrow {
-    display: flex;
-    gap: 16px;
-    align-items: end;
-    margin-bottom: 4px;
-  }
+  /* snippet controls live inside FilterBar's bar but keep this view's scope —
+     mirror the bar's own field metrics so the row reads as one */
   label {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 600;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--muted);
+  }
+  select,
+  input {
+    height: 30px;
+    min-width: 150px;
+    padding: 0 9px;
+    font-size: 12.5px;
+    background: var(--panel);
+  }
+  select {
+    min-width: 110px;
+    padding-right: 26px;
   }
   .tablewrap {
     margin-top: 12px;

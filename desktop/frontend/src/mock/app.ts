@@ -170,7 +170,9 @@ const delay = (ms = 120) => new Promise((r) => setTimeout(r, ms));
 
 export async function Overview() {
   await delay();
-  return { home: 'C:\\Users\\dev', agents, warnings: ['opencode: storage schema v2 not supported yet — skipped 3 files'] };
+  // warnings stay empty: the banner is real-backend-only, the mock must not
+  // invent adapter conditions
+  return { home: 'C:\\Users\\dev', agents, warnings: [] };
 }
 
 export async function Diagnostics() {

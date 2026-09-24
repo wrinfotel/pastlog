@@ -1,12 +1,21 @@
 <script lang="ts">
   // The shared filter bar: agent / project / since / until / limit — the CLI
-  // filter set 1:1 (TASK-DESKTOP.md §4.2). Owned by the parent view.
+  // filter set 1:1 (TASK-DESKTOP.md §4.2). Owned by the parent view. The
+  // optional children snippet lets a view prepend its own controls (Stats:
+  // the aggregation dimension and model filter) into the same bar so all
+  // fields share one rhythm.
+  import type { Snippet } from 'svelte';
   import type { FilterOptions } from '../lib/api';
 
-  let { agents = [], filters = $bindable() }: { agents?: string[]; filters: FilterOptions } = $props();
+  let {
+    agents = [],
+    filters = $bindable(),
+    children,
+  }: { agents?: string[]; filters: FilterOptions; children?: Snippet } = $props();
 </script>
 
 <div class="bar">
+  {#if children}{@render children()}{/if}
   <label>
     agent
     <select bind:value={filters.agent}>
