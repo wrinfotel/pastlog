@@ -5,6 +5,8 @@
   import { api, emptyFilter, onProgress, type FilterOptions } from '../lib/api';
   import { fmtInt } from '../lib/format';
   import { debounce } from '../lib/debounce';
+  import { go } from '../lib/stores.svelte';
+  import { openAgentProjects } from '../lib/projects.svelte';
   import FilterBar from '../components/FilterBar.svelte';
   import Notes from '../components/Notes.svelte';
   import Loader from '../components/Loader.svelte';
@@ -75,13 +77,20 @@
   function cancel() {
     void api.cancel();
   }
+
+  // agent rows drill into that agent's project page — the only entry into
+  // projects besides the Home cards
+  function openAgent(name: string) {
+    openAgentProjects(name);
+    go('projects');
+  }
 </script>
 
 <header class="page-head">
   <div>
     <div class="kicker">// 05 · STATISTICS</div>
     <h1>Statistics</h1>
-    <p class="lede">Aggregate local usage by agent, project, day, or model.</p>
+    <p class="lede">Aggregate local usage by agent, project, day, or model — agent rows open that agent's projects.</p>
   </div>
   <div class="page-mark">USAGE REPORT<br /><strong>LOCAL DATA</strong></div>
 </header>
@@ -134,7 +143,15 @@
       <tbody>
         {#each rows as row}
           <tr>
-            <td class="key">{row.key}</td>
+            <td class="key">
+              {#if by === 'agent'}
+                <button class="alink" onclick={() => openAgent(row.key)} title={`open ${row.key} projects`}>
+                  {row.key}<span class="go">→</span>
+                </button>
+              {:else}
+                {row.key}
+              {/if}
+            </td>
             <td class="r">{fmtInt(row.sessions)}</td>
             <td class="r">{fmtInt(row.messages)}</td>
             <td class="r">{fmtInt(row.tokens.input)}</td>
@@ -190,6 +207,34 @@
   .key {
     color: var(--text);
     font-weight: 600;
+  }
+  .alink {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0;
+    background: none;
+    border: 0;
+    color: var(--text);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color var(--speed) ease;
+  }
+  .alink:hover {
+    color: var(--accent);
+  }
+  .go {
+    color: var(--faint);
+    font-family: var(--mono);
+    font-size: 11px;
+    transition:
+      color var(--speed) ease,
+      transform var(--speed) ease;
+  }
+  .alink:hover .go {
+    color: var(--accent);
+    transform: translateX(2px);
   }
   .r {
     text-align: right;

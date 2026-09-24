@@ -15,7 +15,6 @@
   import VirtualList from '../components/VirtualList.svelte';
   import Loader from '../components/Loader.svelte';
 
-  let agents = $state<string[]>([]);
   let list = $state<ProjectRow[] | null>(null);
   let modelRows = $state<StatsRow[] | null>(null);
   let sessions = $state<SessionRow[] | null>(null);
@@ -24,7 +23,6 @@
   let progress = $state<{ scanned: number } | null>(null);
   let loading = $state(true);
 
-  api.diagnostics().then((d) => (agents = d.agents.map((a) => a.name)));
   const stopProgress = onProgress((e) => {
     if (e.op === 'projects') progress = { scanned: e.scanned };
   });
@@ -85,17 +83,16 @@
   $effect(() => {
     const ag = projectsNav.agent;
     const proj = projectsNav.project;
+    if (ag === '') {
+      // every real entry (Home card, Stats row) names an agent first; this
+      // only keeps the page from spinning forever if that ever fails to hold
+      loading = false;
+      return;
+    }
     if (proj === '') {
-      if (ag !== '') void loadList(ag);
+      void loadList(ag);
     } else {
       void loadDetail(ag, proj);
-    }
-  });
-
-  // first entry via the nav (no agent chosen yet): default to the first
-  $effect(() => {
-    if (projectsNav.agent === '' && agents.length > 0) {
-      projectsNav.agent = agents[0] ?? '';
     }
   });
 
@@ -113,21 +110,11 @@
   <header class="page-head">
     <div>
       <div class="kicker">// 04 · PROJECTS</div>
-      <h1>Projects</h1>
-      <p class="lede">Compare activity across projects and drill into model usage.</p>
+      <h1 class="agent">{projectsNav.agent || 'Projects'}</h1>
+      <p class="lede">Projects on record for this agent — open one for per-model token usage.</p>
     </div>
-    <div class="page-mark">PROJECT CATALOG<br /><strong>READ-ONLY</strong></div>
+    <div class="page-mark">AGENT ARCHIVE<br /><strong>READ-ONLY</strong></div>
   </header>
-  <div class="toolbar">
-    <label>
-      agent
-      <select bind:value={projectsNav.agent}>
-        {#each agents as name}
-          <option value={name}>{name}</option>
-        {/each}
-      </select>
-    </label>
-  </div>
   <Notes notes={!loading ? notes : []} />
   {#if progress}
     <div class="progress">
@@ -292,24 +279,10 @@
 {/if}
 
 <style>
-  .toolbar {
-    display: flex;
-    gap: 16px;
-    align-items: end;
-    padding-bottom: 4px;
-  }
-  label {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
-  select {
-    min-width: 170px;
+  .agent {
+    font-family: var(--mono);
+    font-size: 18px;
+    letter-spacing: -0.01em;
   }
   .tablewrap {
     margin-top: 12px;

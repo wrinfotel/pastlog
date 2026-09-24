@@ -4,7 +4,6 @@
   // (spec §4.4).
   import { api } from './lib/api';
   import { appMeta, applyTheme, go, view, type ViewName } from './lib/stores.svelte';
-  import { openProjects } from './lib/projects.svelte';
   import Home from './views/Home.svelte';
   import ProjectsView from './views/ProjectsView.svelte';
   import SearchView from './views/SearchView.svelte';
@@ -24,7 +23,6 @@
         // kept out of the sidebar for now; the view itself stays reachable and
         // the viewer's back button can still return to it
         { name: 'sessions', label: 'Sessions', hint: 'log', hidden: true },
-        { name: 'projects', label: 'Projects', hint: '/src' },
       ],
     },
     {
@@ -76,12 +74,7 @@
           {#if !item.hidden}
             <button
               class:active={view.current === item.name}
-              onclick={() => {
-                // the sidebar always lands on a section root: a drilled-in project
-                // detail is restored only via the viewer's back button
-                if (item.name === 'projects') openProjects();
-                go(item.name);
-              }}
+              onclick={() => go(item.name)}
             >
               <span class="lead"><span class="nav-dot" class:on={view.current === item.name}></span>{item.label}</span>
               <span class="hint">{item.hint}</span>
