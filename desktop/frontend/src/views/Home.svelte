@@ -117,7 +117,7 @@
             disabled={!agent.detected}
             title={agent.detected ? `show ${agent.name} projects` : 'not detected'}
             onclick={() => {
-              openAgentProjects(agent.name);
+              openAgentProjects(agent.name, 'home');
               go('projects');
             }}
           >

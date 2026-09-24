@@ -81,7 +81,7 @@
   // agent rows drill into that agent's project page — the only entry into
   // projects besides the Home cards
   function openAgent(name: string) {
-    openAgentProjects(name);
+    openAgentProjects(name, 'stats');
     go('projects');
   }
 </script>

@@ -107,6 +107,23 @@
 </script>
 
 {#if projectsNav.project === ''}
+  <div class="crumb page-crumb">
+    <button class="btn" onclick={() => go(projectsNav.from)}>
+      <svg
+        viewBox="0 0 24 24"
+        width="13"
+        height="13"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="m15 18-6-6 6-6" />
+      </svg>
+      {projectsNav.from === 'home' ? 'Back to home' : 'Back to stats'}
+    </button>
+  </div>
   <header class="page-head">
     <div>
       <div class="kicker">// 04 · PROJECTS</div>
