@@ -254,6 +254,28 @@ select {
   font-weight: 600;
 }
 
+/* back strip — the one way-back affordance, identical on every view that has
+   one: an inset rail clearly separated from the page header below it */
+.backbar {
+  display: flex;
+  margin-bottom: 16px;
+  padding: 5px;
+  background: var(--inset);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+}
+.backbar .btn {
+  border: 0;
+  background: none;
+  padding: 5px 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.backbar .btn:hover {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
 /* ghost button — the default affordance everywhere */
 .btn {
   display: inline-flex;

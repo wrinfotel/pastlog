@@ -107,7 +107,7 @@
 </script>
 
 {#if projectsNav.project === ''}
-  <div class="crumb page-crumb">
+  <div class="backbar">
     <button class="btn" onclick={() => go(projectsNav.from)}>
       <svg
         viewBox="0 0 24 24"
@@ -178,7 +178,7 @@
     {/if}
   {/if}
 {:else}
-  <div class="crumb page-crumb">
+  <div class="backbar">
     <button class="btn" onclick={closeProject}>
       <svg
         viewBox="0 0 24 24"
@@ -365,9 +365,6 @@
   .strong {
     color: var(--text);
     font-weight: 600;
-  }
-  .crumb {
-    margin-bottom: 12px;
   }
   .proj {
     font-family: var(--mono);

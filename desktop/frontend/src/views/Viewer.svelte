@@ -113,16 +113,16 @@
   // the back affordance returns to wherever the session was opened from —
   // a project page keeps its selection in the module store
   const backLabel = $derived(
-    viewer.from === 'projects' ? 'back to project'
-    : viewer.from === 'search' ? 'back to search'
-    : 'back to sessions',
+    viewer.from === 'projects' ? 'Back to project'
+    : viewer.from === 'search' ? 'Back to search'
+    : 'Back to sessions',
   );
 
   const roleClass = (kind: string, role: string) =>
     kind === 'message' ? `role-${role || 'message'}` : '';
 </script>
 
-<div class="crumb">
+<div class="backbar">
   <button class="btn" onclick={() => go(viewer.from)}>
     <svg
       viewBox="0 0 24 24"
@@ -254,9 +254,6 @@
 {/if}
 
 <style>
-  .crumb {
-    margin-bottom: 12px;
-  }
   .top {
     display: flex;
     justify-content: space-between;
