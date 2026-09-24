@@ -162,6 +162,7 @@
 {:else if outcome?.session}
   <div class="top">
     <div>
+      <div class="kicker">// SESSION</div>
       <h1>{outcome.session.title || `session ${idPrefix(outcome.session.id)}`}</h1>
       <p class="meta facts">
         <span class="chip">{outcome.session.agent}</span>
@@ -264,6 +265,9 @@
   }
   .top h1 {
     margin-bottom: 6px;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.015em;
   }
   .facts {
     display: flex;
@@ -296,11 +300,8 @@
   }
   .entry {
     background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow:
-      var(--hairline),
-      var(--shadow-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-l);
     padding: 8px 12px;
     transition:
       border-color var(--speed) ease,

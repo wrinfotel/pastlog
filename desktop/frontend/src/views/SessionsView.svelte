@@ -52,7 +52,14 @@
   }
 </script>
 
-<h1>Sessions</h1>
+<header class="page-head">
+  <div>
+    <div class="kicker">// 03 · SESSIONS</div>
+    <h1>Sessions</h1>
+    <p class="lede">Every indexed session across agents, newest first.</p>
+  </div>
+  <div class="page-mark">SESSION LIST<br /><strong>READ-ONLY</strong></div>
+</header>
 <FilterBar {agents} bind:filters />
 {#if !loading}
   <Notes notes={data?.notes ?? []} />

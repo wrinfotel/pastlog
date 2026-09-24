@@ -95,7 +95,7 @@
 
 <header class="page-head">
   <div>
-    <div class="eyebrow">Explore / 01</div>
+    <div class="kicker">// 02 · SEARCH</div>
     <h1>Search sessions</h1>
     <p class="lede">Find messages and inspect the exact session context around each match.</p>
   </div>
@@ -176,27 +176,6 @@
   <div class="empty">no matches</div>
 {/if}
 <style>
-  .page-head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 24px;
-    margin-bottom: 22px;
-    padding-bottom: 20px;
-    border-bottom: 1px solid var(--border);
-  }
-  .eyebrow {
-    margin-bottom: 7px;
-    color: var(--accent);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-  }
-  h1 { margin-bottom: 5px; font-size: 25px; letter-spacing: -0.025em; }
-  .lede { margin: 0; color: var(--muted); font-size: 13px; }
-  .page-mark { color: var(--faint); font: 10px/1.6 var(--mono); letter-spacing: 0.08em; text-align: right; }
-  .page-mark strong { color: var(--accent); font-weight: 600; }
   .queryrow {
     display: flex;
     gap: 12px;
@@ -277,12 +256,13 @@
   }
   .card {
     background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow:
-      var(--hairline),
-      var(--shadow-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-l);
     padding: 12px 16px;
+    transition: border-color var(--speed) ease;
+  }
+  .card:hover {
+    border-color: var(--border);
   }
   .head {
     display: flex;

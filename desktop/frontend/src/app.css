@@ -213,6 +213,47 @@ select {
 }
 
 /* ---- shared pieces --------------------------------------------------- */
+
+/* secondary page header — every view below Home opens with it: the topbar's
+   mono issue language continued (kicker, title, lede, right-hand mark) */
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 22px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.page-head h1 {
+  margin: 0 0 6px;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.kicker {
+  margin-bottom: 7px;
+  color: var(--accent);
+  font: 600 11px var(--mono);
+  letter-spacing: 0.04em;
+}
+.lede {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.page-mark {
+  color: var(--faint);
+  font: 10px/1.6 var(--mono);
+  letter-spacing: 0.08em;
+  text-align: right;
+  white-space: nowrap;
+}
+.page-mark strong {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 /* ghost button — the default affordance everywhere */
 .btn {
   display: inline-flex;

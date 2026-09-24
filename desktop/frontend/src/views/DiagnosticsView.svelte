@@ -26,13 +26,13 @@
 </script>
 
 {#if loading}
-  <header class="page-head"><div><div class="eyebrow">System / 04</div><h1>Diagnostics</h1><p class="lede">Check detected sources, storage paths, and collection health.</p></div><div class="page-mark">SYSTEM CHECK<br /><strong>LOCAL ONLY</strong></div></header>
+  <header class="page-head"><div><div class="kicker">// 06 · DIAGNOSTICS</div><h1>Diagnostics</h1><p class="lede">Check detected sources, storage paths, and collection health.</p></div><div class="page-mark">SYSTEM CHECK<br /><strong>LOCAL ONLY</strong></div></header>
   <Loader label="probing agents…" />
 {:else if error}
-  <header class="page-head"><div><div class="eyebrow">System / 04</div><h1>Diagnostics</h1><p class="lede">Check detected sources, storage paths, and collection health.</p></div><div class="page-mark">SYSTEM CHECK<br /><strong>LOCAL ONLY</strong></div></header>
+  <header class="page-head"><div><div class="kicker">// 06 · DIAGNOSTICS</div><h1>Diagnostics</h1><p class="lede">Check detected sources, storage paths, and collection health.</p></div><div class="page-mark">SYSTEM CHECK<br /><strong>LOCAL ONLY</strong></div></header>
   <p class="err">{error}</p>
 {:else if data}
-  <header class="page-head"><div><div class="eyebrow">System / 04</div><h1>Diagnostics</h1><p class="lede">Check detected sources, storage paths, and collection health.</p></div><div class="page-mark">SYSTEM CHECK<br /><strong>LOCAL ONLY</strong></div></header>
+  <header class="page-head"><div><div class="kicker">// 06 · DIAGNOSTICS</div><h1>Diagnostics</h1><p class="lede">Check detected sources, storage paths, and collection health.</p></div><div class="page-mark">SYSTEM CHECK<br /><strong>LOCAL ONLY</strong></div></header>
   {#if data.error}
     <p class="err">{data.error}</p>
   {:else}
@@ -62,20 +62,6 @@
 {/if}
 
 <style>
-  .page-head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 24px;
-    margin-bottom: 22px;
-    padding-bottom: 20px;
-    border-bottom: 1px solid var(--border);
-  }
-  .eyebrow { margin-bottom: 7px; color: var(--accent); font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
-  h1 { margin-bottom: 5px; font-size: 25px; letter-spacing: -0.025em; }
-  .lede { margin: 0; color: var(--muted); font-size: 13px; }
-  .page-mark { color: var(--faint); font: 10px/1.6 var(--mono); letter-spacing: 0.08em; text-align: right; }
-  .page-mark strong { color: var(--accent); font-weight: 600; }
   .tablewrap {
     margin-top: 4px;
     padding: 6px 16px 8px;

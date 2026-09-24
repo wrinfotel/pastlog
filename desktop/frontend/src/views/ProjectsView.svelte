@@ -112,7 +112,7 @@
 {#if projectsNav.project === ''}
   <header class="page-head">
     <div>
-      <div class="eyebrow">Browse / 02</div>
+      <div class="kicker">// 04 · PROJECTS</div>
       <h1>Projects</h1>
       <p class="lede">Compare activity across projects and drill into model usage.</p>
     </div>
@@ -193,7 +193,7 @@
   </div>
   <header class="page-head project-head">
     <div>
-      <div class="eyebrow">Project detail / 02</div>
+      <div class="kicker">// 04 · PROJECT DETAIL</div>
       <h1 class="proj">{projectsNav.project || '-'}</h1>
       <p class="meta"><span class="chip">{projectsNav.agent}</span> &middot; token usage by model</p>
     </div>
@@ -292,27 +292,6 @@
 {/if}
 
 <style>
-  .page-head {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 24px;
-    margin-bottom: 22px;
-    padding-bottom: 20px;
-    border-bottom: 1px solid var(--border);
-  }
-  .eyebrow {
-    margin-bottom: 7px;
-    color: var(--accent);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-  }
-  h1 { margin-bottom: 5px; font-size: 25px; letter-spacing: -0.025em; }
-  .lede { margin: 0; color: var(--muted); font-size: 13px; }
-  .page-mark { color: var(--faint); font: 10px/1.6 var(--mono); letter-spacing: 0.08em; text-align: right; }
-  .page-mark strong { color: var(--accent); font-weight: 600; }
   .toolbar {
     display: flex;
     gap: 16px;
@@ -402,7 +381,8 @@
   }
   .proj {
     font-family: var(--mono);
-    font-size: 15px;
+    font-size: 16px;
+    letter-spacing: 0;
     overflow-wrap: anywhere;
   }
   td.key {
