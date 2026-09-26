@@ -159,3 +159,19 @@ above. `SessionsMeta` provides message counts in the same pass.
 `EntriesFiltered` additionally accepts a raw-line predicate so the search
 engine can skip JSON parsing entirely for lines that cannot contain the query
 (spec §7 hot path); prefilter-rejected lines are not counted as skipped.
+
+## Context analysis (`pastlog context`, SPEC-context-analysis)
+
+The adapter implements `agentlog.CtxSource` (`ctxextract.go`): one streaming
+pass over the rollout maps records onto the normalized `CtxEvent` IR.
+
+- `token_count` → one TurnStart per turn with **exact** tokens:
+  `last_token_usage` is the per-request usage, so Input+CacheRead is that
+  turn's window proxy (Input/Cached map like the stats view above). Rollouts
+  without `last_token_usage` fall back to the cumulative totals' diff
+  (negatives clamp to 0 after compaction resets).
+- `compacted` → a Compact event **in the context flow only**; the
+  listing/stats flows keep counting the type as skipped (see above).
+- `function_call`/`function_call_output` → ToolCall/ToolResult, correlated
+  via `call_id` (FIFO fallback for id-less pairs). Codex exposes no error
+  flag, so R3 runs on the uniform error-shape regex (SPEC §2.2).
