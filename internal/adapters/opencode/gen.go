@@ -2,9 +2,11 @@ package opencode
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	// the generator builds fixture databases with the same pure-Go driver the
 	// adapter reads with (CGO off)
@@ -188,4 +190,109 @@ func seed(db *sql.DB) error {
 		}
 	}
 	return nil
+}
+
+// GenerateContextFixtureDB creates a database holding the SPEC §6.6 golden
+// context session under the given id: exact per-turn usage, a repeated read
+// (R2), an oversized tool result (R1), an error loop (R3), a compaction
+// boundary (R4), and a big-turn jump (R5). The per-turn window sums mirror
+// the claude-code fixture in internal/cli/context_test.go (1500, 2700,
+// 3100, 60000, 62000, 64000, 18000, 19000) so the cross-agent parity test
+// in internal/cli can assert identical findings for all five agents. It
+// creates <dir> when needed and returns the created database path.
+func GenerateContextFixtureDB(dir, sessionID string) (string, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, dbName)
+	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path))
+	if err != nil {
+		return "", err
+	}
+	defer db.Close()
+	if _, err := db.Exec(schema); err != nil {
+		return "", fmt.Errorf("create schema: %w", err)
+	}
+	stmt := func(q string) error {
+		_, err := db.Exec(q)
+		return err
+	}
+	step := func(input int64) string {
+		return fmt.Sprintf(`{"type":"step-finish","tokens":{"input":%d,"output":40,"cache":{"read":0,"write":0}}}`, input)
+	}
+	tool := func(name, inputJSON, output, status string) string {
+		return fmt.Sprintf(`{"type":"tool","tool":"%s","state":{"status":"%s","input":%s,"output":%s}}`,
+			name, status, inputJSON, quoteJSONString(output))
+	}
+	giant := strings.Repeat("building package github.com/dev/app/internal ...\n", 400)
+	fail := "FAIL github.com/dev/app 0.5s\nbuild failed: undefined: Config"
+
+	ms := 1786220990000
+	next := func() int { ms += 500; return ms }
+	partN := 0
+	msg := func(id, role string, parts ...string) error {
+		next()
+		if err := stmt(fmt.Sprintf(`INSERT INTO message (id, session_id, time_created, time_updated, data)
+			VALUES ('%s', '%s', %d, %d, '{"role":"%s"}')`, id, sessionID, ms, ms, role)); err != nil {
+			return err
+		}
+		for _, data := range parts {
+			next()
+			partN++
+			if err := stmt(fmt.Sprintf(`INSERT INTO part (id, message_id, session_id, time_created, time_updated, data)
+				VALUES ('prt_ctx%03d', '%s', '%s', %d, %d, '%s')`, partN, id, sessionID, ms, ms, data)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	if err := stmt(`INSERT INTO session (id, project_id, slug, directory, title, version, time_created, time_updated)
+		VALUES ('` + sessionID + `', 'proj_ctx', 'ctx-fixture', '/home/dev/app', 'Debug flaky build', '1.0', 1786220990000, 1786220995000)`); err != nil {
+		return "", err
+	}
+	turns := []struct {
+		msg   string
+		tool  string
+		input string
+		out   string
+		st    string
+		step  int64
+	}{
+		{"msg_ctx02", "Read", `{"file_path":"/home/dev/app/main.go"}`, "package main\nfunc main() {}\n", "completed", 1500},
+		{"msg_ctx03", "Bash", `{"command":"go test ./..."}`, fail, "completed", 2700},
+		{"msg_ctx04", "Bash", `{"command":"go build -v ./... 2>&1 | tee /tmp/build.log; cat /tmp/build.log"}`, giant, "completed", 3100},
+		{"msg_ctx05", "Bash", `{"command":"go test ./..."}`, fail, "error", 60000},
+		{"msg_ctx06", "Bash", `{"command":"go test ./..."}`, fail, "error", 62000},
+		{"msg_ctx07", "Bash", `{"command":"go test ./..."}`, fail, "error", 64000},
+		{"msg_ctx09", "Read", `{"file_path":"/home/dev/app/main.go"}`, "package main\nfunc main() { config := Config() }\n", "completed", 19000},
+	}
+	if err := msg("msg_ctx01", "user", `{"type":"text","text":"build is failing, look into it"}`); err != nil {
+		return "", err
+	}
+	for _, t := range turns[:6] {
+		if err := msg(t.msg, "assistant", tool(t.tool, t.input, t.out, t.st), step(t.step)); err != nil {
+			return "", err
+		}
+	}
+	// compaction part, then usage drops (R4)
+	if err := msg("msg_ctx08", "assistant", `{"type":"compaction"}`, step(18000)); err != nil {
+		return "", err
+	}
+	// re-read of main.go after edits (R2: turn gap between t1 and t9)
+	if err := msg("msg_ctx09", "assistant",
+		tool("Read", `{"file_path":"/home/dev/app/main.go"}`, "package main\nfunc main() { config := Config() }\n", "completed"),
+		step(19000)); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// quoteJSONString encodes s as one JSON string literal.
+func quoteJSONString(s string) string {
+	b, err := json.Marshal(s)
+	if err != nil {
+		return `""`
+	}
+	return string(b)
 }
