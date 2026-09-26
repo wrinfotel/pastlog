@@ -44,11 +44,14 @@ type ctxMsgRecord struct {
 
 // ctxBlock mirrors one typed content block plus its raw encoding (the
 // tool_use/tool_result id is only needed for call↔result correlation).
+// IsError is a pointer: is_error is documented but may be absent — absent
+// falls back to the uniform error-shape regex (SPEC §2.2), while an
+// explicit false is trusted as-is.
 type ctxBlock struct {
 	Type    string          `json:"type"`
 	Text    string          `json:"text"`
 	Name    string          `json:"name"`
-	IsError bool            `json:"is_error"`
+	IsError *bool           `json:"is_error"`
 	Raw     json.RawMessage `json:"-"`
 }
 
@@ -133,8 +136,8 @@ func (a *Adapter) ContextEvents(s agentlog.Session) ([]agentlog.CtxEvent, error)
 				}
 				events = append(events, agentlog.CtxEvent{
 					Seq: next(), At: ts, Kind: agentlog.CtxToolCall, Role: role,
-					Tool: b.Name, ArgsKey: ctxArgsKey(b.Name, rawField(b.Raw, "input")),
-					Label: ctxCallLabel(rawField(b.Raw, "input"), b.Name),
+					Tool: b.Name, ArgsKey: agentlog.CanonArgsKey(b.Name, rawField(b.Raw, "input")),
+					Label: agentlog.ToolLabel(b.Name, rawField(b.Raw, "input")),
 				})
 			case "tool_result":
 				// result blocks reference their call via tool_use_id
@@ -144,9 +147,9 @@ func (a *Adapter) ContextEvents(s agentlog.Session) ([]agentlog.CtxEvent, error)
 				text := ctxResultText(b.Raw)
 				ev := agentlog.CtxEvent{
 					Seq: next(), At: ts, Kind: agentlog.CtxToolResult, Role: "tool",
-					Err:      b.IsError,
+					Err:      ctxIsError(b.IsError, text),
 					ResBytes: len(text),
-					Head:     firstLine(text),
+					Head:     agentlog.FirstLine(text),
 				}
 				if known {
 					ev.Tool = call.tool
@@ -304,94 +307,12 @@ func ctxResultText(raw json.RawMessage) string {
 	return ""
 }
 
-// firstLine returns the first non-empty line of s, capped at 120 runes.
-func firstLine(s string) string {
-	for _, ln := range strings.Split(s, "\n") {
-		ln = strings.TrimSpace(ln)
-		if ln == "" {
-			continue
-		}
-		if len(ln) > 120 {
-			return ln[:119] + "…"
-		}
-		return ln
+// ctxIsError applies SPEC §2.2 for Claude Code: is_error is exact when the
+// field is present; when it is absent (may-be-absent shapes), the uniform
+// error-shape regex on the result text keeps R3 alive.
+func ctxIsError(isError *bool, text string) bool {
+	if isError != nil {
+		return *isError
 	}
-	return ""
-}
-
-// ctxArgsKey normalizes a call's identity for repeat detection (SPEC §1.1):
-// tool name + canonical JSON of the input (keys sorted, noise keys dropped).
-func ctxArgsKey(tool string, rawInput json.RawMessage) string {
-	return tool + "\x00" + ctxCanonical(rawInput)
-}
-
-// ctxCallLabel picks a short human label for a call: the natural field when
-// the tool has one (path, command, pattern, …), else compact canonical JSON,
-// else the tool name.
-func ctxCallLabel(rawInput json.RawMessage, tool string) string {
-	for _, name := range []string{"file_path", "path", "notebook_path", "command", "pattern", "url", "query"} {
-		if v := rawString(rawInput, name); v != "" {
-			return v
-		}
-	}
-	if c := ctxCanonical(rawInput); c != "{}" {
-		return c
-	}
-	return tool
-}
-
-// ctxCanonical sorts object keys recursively, drops known-noise keys, and
-// renders compactly. Strings render bare (no quotes) to keep labels short.
-func ctxCanonical(raw json.RawMessage) string {
-	trimmed := bytes.TrimSpace(raw)
-	if len(trimmed) == 0 {
-		return "{}"
-	}
-	var v any
-	if err := json.Unmarshal(trimmed, &v); err != nil {
-		return string(trimmed)
-	}
-	return ctxCanonValue(v)
-}
-
-func ctxCanonValue(v any) string {
-	switch t := v.(type) {
-	case map[string]any:
-		keys := make([]string, 0, len(t))
-		for k := range t {
-			keys = append(keys, k)
-		}
-		for i := 1; i < len(keys); i++ { // insertion sort; arg objects are tiny
-			for j := i; j > 0 && keys[j] < keys[j-1]; j-- {
-				keys[j], keys[j-1] = keys[j-1], keys[j]
-			}
-		}
-		parts := make([]string, 0, len(keys))
-		for _, k := range keys {
-			if ctxNoiseKey(k) {
-				continue
-			}
-			parts = append(parts, k+"="+ctxCanonValue(t[k]))
-		}
-		return "{" + strings.Join(parts, ",") + "}"
-	case []any:
-		parts := make([]string, 0, len(t))
-		for _, e := range t {
-			parts = append(parts, ctxCanonValue(e))
-		}
-		return "[" + strings.Join(parts, ",") + "]"
-	case string:
-		return t
-	default:
-		return fmt.Sprint(t)
-	}
-}
-
-// ctxNoiseKey reports keys that never define what a call asked for.
-func ctxNoiseKey(k string) bool {
-	switch k {
-	case "session_id", "sessionId", "call_id", "callId", "id", "uuid", "timestamp":
-		return true
-	}
-	return false
+	return agentlog.ErrShaped(text)
 }
