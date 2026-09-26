@@ -5,8 +5,9 @@ export type ViewName = 'home' | 'projects' | 'search' | 'sessions' | 'stats' | '
 export const view = $state({ current: 'home' as ViewName });
 
 // Build metadata, filled once by the shell from getSettings — headers stamp
-// the version without each view re-fetching it.
-export const appMeta = $state({ version: '' });
+// the version without each view re-fetching it. home mirrors the saved home
+// override so the sidebar reflects Settings changes without a restart.
+export const appMeta = $state({ version: '', home: '' });
 
 export function go(v: ViewName) {
   view.current = v;

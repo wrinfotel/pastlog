@@ -57,6 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the snippet line by substring failed for windowed or synthesized lines —
   most real hits, and every tool hit. The CLI `--json` search schema is
   unchanged; the field exists on the GUI surface only.
+- Desktop: the sidebar's Local workspace path follows the Settings home
+  override immediately instead of waiting for an app restart.
 
 ## [0.1.0] - 2026-09-18
 

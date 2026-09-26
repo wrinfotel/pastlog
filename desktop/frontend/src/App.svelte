@@ -34,12 +34,10 @@
     },
   ];
 
-  let home = $state('');
-
   $effect(() => {
     api.getSettings().then((s) => {
       applyTheme((s.theme || 'system') as never);
-      home = s.home ?? '';
+      appMeta.home = s.home ?? '';
       appMeta.version = s.version ?? '';
     });
   });
@@ -93,7 +91,7 @@
         </span>
       </div>
       <div class="ws-path">
-        <span>{home || 'auto-discovery'}</span>
+        <span>{appMeta.home || 'auto-discovery'}</span>
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
         </svg>

@@ -2,7 +2,7 @@
   // Settings + About: the only knobs the app offers (spec §2.4) — the home
   // override (the CLI's --home equivalent) and the theme.
   import { api } from '../lib/api';
-  import { applyTheme, type Theme } from '../lib/stores.svelte';
+  import { appMeta, applyTheme, type Theme } from '../lib/stores.svelte';
 
   type Settings = { home: string; theme: string; version: string; commit: string; date: string };
 
@@ -23,6 +23,7 @@
     message = '';
     try {
       settings = (await api.setHome(homeInput)) as Settings;
+      appMeta.home = settings.home ?? ''; // the sidebar tracks the override live
       message = 'home override saved';
     } catch (e) {
       error = String(e);
@@ -35,6 +36,7 @@
     try {
       settings = (await api.setHome('')) as Settings;
       homeInput = settings.home ?? '';
+      appMeta.home = settings.home ?? '';
       message = 'home override cleared — auto-discovery';
     } catch (e) {
       error = String(e);
