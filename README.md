@@ -38,7 +38,7 @@ config files. Three ways to get it:
 ### 1. Download a release binary (recommended)
 
 Grab the archive for your platform from the
-[v0.2.0 release](https://github.com/wrinfotel/pastlog/releases/tag/v0.2.0) and
+[v0.2.1 release](https://github.com/wrinfotel/pastlog/releases/tag/v0.2.1) and
 put `pastlog` on your `PATH`:
 
 | Platform | Archive |
@@ -473,7 +473,7 @@ proven by tests that run both against the same data.
 
 Grab a `desktop-v*` release from the
 [releases page](https://github.com/wrinfotel/pastlog/releases) — the current one
-is [desktop-v0.2.0](https://github.com/wrinfotel/pastlog/releases/tag/desktop-v0.2.0),
+is [desktop-v0.2.1](https://github.com/wrinfotel/pastlog/releases/tag/desktop-v0.2.1),
 ~15–20 MB per platform:
 
 | Platform | Artifact |
