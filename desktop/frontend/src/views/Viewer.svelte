@@ -279,6 +279,16 @@
         {#if ctxOutcome.profile.findings.length === 0}
           <p class="lean">no context-bloat signals — the session stayed lean</p>
         {:else}
+          {#if ctxOutcome.profile.advice.length > 0}
+            <ul class="advice">
+              {#each ctxOutcome.profile.advice as adv}
+                <li>
+                  <span class="rule" class:danger={adv.rule === 'R3'} class:warn={adv.rule !== 'R3'}>{adv.rule}</span>
+                  <span class="atext">{adv.text}</span>
+                </li>
+              {/each}
+            </ul>
+          {/if}
           <ul class="findings">
             {#each ctxOutcome.profile.findings as f}
               <li>
@@ -287,13 +297,6 @@
               </li>
             {/each}
           </ul>
-          {#if ctxOutcome.profile.advice.length > 0}
-            <ul class="advice">
-              {#each ctxOutcome.profile.advice as adv}
-                <li>• {adv.text} <span class="arule">({adv.rule})</span></li>
-              {/each}
-            </ul>
-          {/if}
         {/if}
       {:else if ctxOutcome}
         <p class="lean">context analysis unavailable for this session</p>
@@ -423,7 +426,11 @@
     overflow-x: auto;
     margin-top: 8px;
   }
-  .findings,
+  .findings {
+    margin: 10px 0 0;
+    padding: 10px 0 0;
+    border-top: 1px solid var(--border-subtle); /* advice legend above, evidence below */
+  }
   .advice {
     list-style: none;
     margin: 10px 0 0;
@@ -432,6 +439,7 @@
     flex-direction: column;
     gap: 6px;
   }
+  .advice li,
   .findings li {
     display: flex;
     align-items: baseline;
@@ -453,20 +461,13 @@
     background: var(--danger-soft);
     color: var(--danger);
   }
+  .atext,
   .fdesc {
     font-size: 12.5px;
     color: var(--text-2);
   }
-  .advice {
-    margin-top: 9px;
-    gap: 4px;
-    font-size: 12px;
-    color: var(--muted);
-  }
-  .arule {
-    font-family: var(--mono);
-    font-size: 10.5px;
-    color: var(--faint);
+  .atext {
+    font-style: italic;
   }
   .lean {
     margin: 6px 0 0;
