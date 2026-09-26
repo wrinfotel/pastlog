@@ -13,24 +13,23 @@
   import DiagnosticsView from './views/DiagnosticsView.svelte';
   import SettingsView from './views/SettingsView.svelte';
 
-  // Mono hints on the right of each item are cosmetic markers, not shortcuts.
-  const navGroups: { label: string; items: { name: ViewName; label: string; hint: string; hidden?: boolean }[] }[] = [
+  const navGroups: { label: string; items: { name: ViewName; label: string; hidden?: boolean }[] }[] = [
     {
       label: 'Browse',
       items: [
-        { name: 'home', label: 'Home', hint: '~' },
-        { name: 'search', label: 'Search', hint: 'find' },
+        { name: 'home', label: 'Home' },
+        { name: 'search', label: 'Search' },
         // kept out of the sidebar for now; the view itself stays reachable and
         // the viewer's back button can still return to it
-        { name: 'sessions', label: 'Sessions', hint: 'log', hidden: true },
+        { name: 'sessions', label: 'Sessions', hidden: true },
       ],
     },
     {
       label: 'Analyze',
       items: [
-        { name: 'stats', label: 'Stats', hint: 'calc' },
-        { name: 'diagnostics', label: 'Diagnostics', hint: 'sys' },
-        { name: 'settings', label: 'Settings', hint: 'conf' },
+        { name: 'stats', label: 'Stats' },
+        { name: 'diagnostics', label: 'Diagnostics' },
+        { name: 'settings', label: 'Settings' },
       ],
     },
   ];
@@ -77,7 +76,6 @@
               onclick={() => go(item.name)}
             >
               <span class="lead"><span class="nav-dot" class:on={view.current === item.name}></span>{item.label}</span>
-              <span class="hint">{item.hint}</span>
             </button>
           {/if}
         {/each}
@@ -193,7 +191,6 @@
   aside button {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: 10px;
     text-align: left;
     background: none;
@@ -231,16 +228,6 @@
     background: var(--accent-vivid);
     border-color: var(--accent-vivid);
     box-shadow: 0 0 8px var(--accent-glow);
-  }
-  .hint {
-    color: var(--faint);
-    font: 500 10px var(--mono);
-  }
-  aside button:hover .hint {
-    color: var(--muted);
-  }
-  aside button.active .hint {
-    color: var(--accent);
   }
   .ws {
     margin-top: auto;
