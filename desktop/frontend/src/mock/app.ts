@@ -235,6 +235,19 @@ export async function Entries(id: string) {
 // The `pastlog context` surface: a golden profile exercising every rule, in
 // the analyzer's impact order (findings sorted by bytes, advice deduped by
 // rule) — mirrors what the backend returns for the fixture session.
+// long-session sparkline: 80 pooled bars + 3 compaction gaps, the width the
+// panel must actually hold for a 600-turn session
+const longSparkline = (() => {
+  const glyphs = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+  const shape = [2, 3, 4, 5, 6, 7, 7, 6, 5, 4];
+  let s = '';
+  for (let i = 0; i < 80; i++) {
+    if (i === 12 || i === 46 || i === 70) s += ' ';
+    s += glyphs[shape[i % 10]!]!;
+  }
+  return s;
+})();
+
 export async function Context(id: string) {
   await delay(300);
   if (id.startsWith('amb')) {
@@ -246,9 +259,9 @@ export async function Context(id: string) {
     profile: {
       final: 19000,
       final_exact: true,
-      turns: 8,
-      compactions: 1,
-      sparkline: '▁▁▁▇▇█ ▂▃',
+      turns: 608,
+      compactions: 11,
+      sparkline: longSparkline,
       findings: [
         { rule: 'R1', tool: 'Bash', desc: 'Bash returned 62k ci-run-4211.log (~63% of all result bytes)', bytes: 64000 },
         { rule: 'R4', desc: 'compact at turn 6: −71%, back at pre-drop level after 2 turns', bytes: 64000 },

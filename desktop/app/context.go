@@ -100,6 +100,9 @@ func contextProfile(events []agentlog.CtxEvent) *ContextProfileJSON {
 		Advice:      []ContextAdviceJSON{},
 	}
 	turns, compactBefore := ctx.TurnCurve(events)
+	// long sessions pool into ≤80 bars: an unpooled 608-turn sparkline is
+	// ~600 glyphs and wraps far past the panel edge
+	turns, compactBefore = ctx.DownsampleCurve(turns, compactBefore, 80)
 	out.Sparkline = ctx.Sparkline(turns, compactBefore)
 	for _, f := range p.Findings {
 		out.Findings = append(out.Findings, ContextFindingJSON{Rule: f.Rule, Tool: f.Tool, Desc: f.Desc, Bytes: f.Bytes})

@@ -39,6 +39,32 @@ func TestTurnCurveEmpty(t *testing.T) {
 	}
 }
 
+func TestDownsampleCurvePoolsMaxAndKeepsGaps(t *testing.T) {
+	turns := []int64{10, 30, 20, 5, 40, 15}
+	before := []bool{false, false, false, true, false, false}
+	got, gotBefore := DownsampleCurve(turns, before, 3)
+	if want := []int64{30, 20, 40}; !reflect.DeepEqual(got, want) {
+		t.Errorf("downsampled turns = %v, want %v", got, want)
+	}
+	// the gap at turn 4 lands inside bucket 2 (0-based) and must survive
+	if want := []bool{false, true, false}; !reflect.DeepEqual(gotBefore, want) {
+		t.Errorf("downsampled compactBefore = %v, want %v", gotBefore, want)
+	}
+}
+
+func TestDownsampleCurvePassthrough(t *testing.T) {
+	turns := []int64{1, 2, 3}
+	before := []bool{false, true, false}
+	got, gotBefore := DownsampleCurve(turns, before, 8)
+	if !reflect.DeepEqual(got, turns) || !reflect.DeepEqual(gotBefore, before) {
+		t.Errorf("short curve must pass through unchanged: %v %v", got, gotBefore)
+	}
+	same, sameBefore := DownsampleCurve(turns, before, 0)
+	if !reflect.DeepEqual(same, turns) || !reflect.DeepEqual(sameBefore, before) {
+		t.Errorf("non-positive bars must pass through unchanged: %v %v", same, sameBefore)
+	}
+}
+
 func TestSparklineRendersCurve(t *testing.T) {
 	s := Sparkline([]int64{100, 200, 50}, []bool{false, false, true})
 	rs := []rune(s)

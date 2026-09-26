@@ -82,6 +82,35 @@ func TurnCurve(events []agentlog.CtxEvent) (turns []int64, compactBefore []bool)
 	return turns, compactBefore
 }
 
+// DownsampleCurve pools a curve longer than bars into equal turn buckets,
+// keeping the bucket maximum (spikes survive pooling) and OR-ing the
+// compaction marks within a bucket. Curves at or under bars pass through,
+// so short sessions keep their per-turn sparkline.
+func DownsampleCurve(turns []int64, compactBefore []bool, bars int) ([]int64, []bool) {
+	if bars <= 0 || len(turns) <= bars {
+		return turns, compactBefore
+	}
+	size := (len(turns) + bars - 1) / bars
+	ot := make([]int64, 0, bars)
+	ob := make([]bool, 0, bars)
+	for start := 0; start < len(turns); start += size {
+		end := min(start+size, len(turns))
+		peak := turns[start]
+		gap := false
+		for i := start; i < end; i++ {
+			if turns[i] > peak {
+				peak = turns[i]
+			}
+			if i < len(compactBefore) && compactBefore[i] {
+				gap = true
+			}
+		}
+		ot = append(ot, peak)
+		ob = append(ob, gap)
+	}
+	return ot, ob
+}
+
 // Sparkline renders the per-turn context curve with 1/8-block glyphs,
 // normalized to the session's peak. Compaction positions render as ▏gaps.
 func Sparkline(turns []int64, compactBefore []bool) string {

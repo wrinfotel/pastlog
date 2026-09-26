@@ -415,10 +415,12 @@
   }
   .spark {
     font-family: var(--mono);
-    font-size: 18px;
+    font-size: 15px;
     line-height: 1.2;
     color: var(--accent);
-    letter-spacing: 2px;
+    letter-spacing: 1px;
+    white-space: pre; /* the glyphs are the data — never reflow them */
+    overflow-x: auto;
     margin-top: 8px;
   }
   .findings,
