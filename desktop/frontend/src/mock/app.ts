@@ -12,11 +12,13 @@ export type Row = {
 };
 
 const agents: Row[] = [
+  // one not-detected row mid-list so the Home grid's detected-first ordering
+  // is observable in the browser mock
   { name: 'claude-code', detected: true, path: 'C:\\Users\\dev\\.claude\\projects', sessions: 412, bytes: 2_814_000_000 },
   { name: 'codex', detected: true, path: 'C:\\Users\\dev\\.codex\\sessions', sessions: 187, bytes: 943_000_000 },
+  { name: 'opencode', detected: false, path: null, sessions: 0, bytes: 0 },
   { name: 'zcode', detected: true, path: 'C:\\Users\\dev\\.zcode\\sessions', sessions: 96, bytes: 418_500_000 },
   { name: 'gemini-cli', detected: true, path: 'C:\\Users\\dev\\.gemini\\tmp', sessions: 41, bytes: 87_200_000 },
-  { name: 'opencode', detected: false, path: null, sessions: 0, bytes: 0 },
 ];
 
 const projects = [
