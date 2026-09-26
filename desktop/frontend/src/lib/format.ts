@@ -36,6 +36,14 @@ export function fmtInt(n: number): string {
   return n.toLocaleString('en-US');
 }
 
+// fmtTok mirrors ctx.humanTok: token counts as 950 / 19k / 1.2M (the k form
+// rounds, like Go's %.0f).
+export function fmtTok(n: number): string {
+  if (n >= 1024 * 1024) return `${(n / (1024 * 1024)).toFixed(1)}M`;
+  if (n >= 1024) return `${Math.round(n / 1024)}k`;
+  return `${n}`;
+}
+
 // shortProject mirrors render.shortProject: the last two path components.
 export function shortProject(project: string): string {
   const parts = project.replaceAll('\\', '/').split('/').filter((p) => p !== '');

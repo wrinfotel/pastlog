@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { fmtBytes, fmtDay, fmtInt, idPrefix, shortProject } from './format';
+import { fmtBytes, fmtDay, fmtInt, fmtTok, idPrefix, shortProject } from './format';
+
+describe('fmtTok', () => {
+  it('mirrors ctx.humanTok (k/M, no decimals below 1k)', () => {
+    expect(fmtTok(0)).toBe('0');
+    expect(fmtTok(950)).toBe('950');
+    expect(fmtTok(19000)).toBe('19k');
+    expect(fmtTok(1234567)).toBe('1.2M');
+  });
+});
 
 describe('fmtBytes', () => {
   it('mirrors render.HumanBytes', () => {

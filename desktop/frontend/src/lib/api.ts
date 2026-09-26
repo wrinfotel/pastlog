@@ -107,12 +107,44 @@ export type ProjectStatsOutcome = {
   notes: string[];
 };
 
+export type ContextFinding = {
+  rule: string; // R1..R5
+  tool?: string;
+  desc: string;
+  bytes: number;
+};
+
+export type ContextAdvice = {
+  rule: string;
+  text: string;
+};
+
+export type ContextProfile = {
+  final: number;
+  final_exact: boolean;
+  turns: number;
+  compactions: number;
+  sparkline: string;
+  findings: ContextFinding[];
+  advice: ContextAdvice[];
+  precision: string; // "exact tokens" | "estimated tokens"
+};
+
+export type ContextOutcome = {
+  status: 'ok' | 'ambiguous' | 'notfound' | 'unsupported';
+  session?: SessionRow | null;
+  profile?: ContextProfile | null;
+  candidates?: SessionRow[] | null;
+  notes: string[];
+};
+
 export const api = {
   overview: bindings.Overview,
   diagnostics: bindings.Diagnostics,
   sessions: bindings.Sessions,
   search: bindings.Search,
   entries: bindings.Entries,
+  context: bindings.Context,
   stats: bindings.Stats,
   projects: bindings.Projects,
   projectStats: bindings.ProjectStats,

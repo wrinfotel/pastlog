@@ -232,6 +232,43 @@ export async function Entries(id: string) {
   };
 }
 
+// The `pastlog context` surface: a golden profile exercising every rule, in
+// the analyzer's impact order (findings sorted by bytes, advice deduped by
+// rule) — mirrors what the backend returns for the fixture session.
+export async function Context(id: string) {
+  await delay(300);
+  if (id.startsWith('amb')) {
+    return { status: 'ambiguous', candidates: [allSessions[0]!, allSessions[1]!], notes: [] };
+  }
+  return {
+    status: 'ok',
+    session: allSessions[2]!,
+    profile: {
+      final: 19000,
+      final_exact: true,
+      turns: 8,
+      compactions: 1,
+      sparkline: '▁▁▁▇▇█ ▂▃',
+      findings: [
+        { rule: 'R1', tool: 'Bash', desc: 'Bash returned 62k ci-run-4211.log (~63% of all result bytes)', bytes: 64000 },
+        { rule: 'R4', desc: 'compact at turn 6: −71%, back at pre-drop level after 2 turns', bytes: 64000 },
+        { rule: 'R5', desc: 'turn 4 added ~29k tokens (45% of the peak window) — inspect what ran there', bytes: 29000 },
+        { rule: 'R3', tool: 'Bash', desc: 'Bash failed 3× in a row (~4k of output burned on retries)', bytes: 4500 },
+        { rule: 'R2', tool: 'Read', desc: 'main.go 1k ×2 (Read) — every re-read re-enters the window', bytes: 2400 },
+      ],
+      advice: [
+        { rule: 'R1', text: 'redirect long tool output to a file, then read back only what you need' },
+        { rule: 'R4', text: 'compact earlier: a window near the limit makes every later turn slower and costlier' },
+        { rule: 'R5', text: 'one turn moved a third of the window — inspect what ran there' },
+        { rule: 'R3', text: 'fix the failing command before retrying the suite' },
+        { rule: 'R2', text: 're-reads re-enter the file in full — ask for diffs or line ranges instead' },
+      ],
+      precision: 'exact tokens',
+    },
+    notes: [],
+  };
+}
+
 export async function Stats(_opts: { by: string }) {
   await delay();
   return { rows: statsRows(_opts.by), notes: [] };

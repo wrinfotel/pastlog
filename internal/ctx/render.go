@@ -63,6 +63,25 @@ func fmtWindow(tokens int64, exact bool) string {
 	return fmt.Sprintf("~%s tokens final (estimated)", humanTok(int(tokens)))
 }
 
+// TurnCurve reduces an event stream to the per-turn context curve: the
+// window proxy C(t) = Input + CacheRead + CacheWrite per TurnStart, and,
+// parallel to it, whether a compaction happened since the previous turn —
+// the inputs Sparkline renders. Agents without usage yield empty curves.
+func TurnCurve(events []agentlog.CtxEvent) (turns []int64, compactBefore []bool) {
+	pending := false
+	for _, ev := range events {
+		switch ev.Kind {
+		case agentlog.CtxCompact:
+			pending = true
+		case agentlog.CtxTurnStart:
+			turns = append(turns, ev.Tokens.Sum())
+			compactBefore = append(compactBefore, pending)
+			pending = false
+		}
+	}
+	return turns, compactBefore
+}
+
 // Sparkline renders the per-turn context curve with 1/8-block glyphs,
 // normalized to the session's peak. Compaction positions render as ▏gaps.
 func Sparkline(turns []int64, compactBefore []bool) string {
