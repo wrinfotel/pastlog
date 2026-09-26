@@ -301,3 +301,86 @@ func TestStatsJSONEmpty(t *testing.T) {
 		t.Errorf("empty selection should print [], got %q", got)
 	}
 }
+
+// TestGroupStatsByModelSplitsMultiModelSessions pins the per-model split
+// (TASK.md backlog): a session that switched models mid-way contributes one
+// row per used model with that model's own tokens, and the sessions/messages
+// counters on a model row mean "sessions that used this model" — a session
+// with a split shows up in every model row it fed.
+func TestGroupStatsByModelSplitsMultiModelSessions(t *testing.T) {
+	rows := []agentlog.SessionUsage{
+		{
+			Session: agentlog.Session{
+				ID:        "multi",
+				Agent:     "zcode",
+				StartedAt: mustTime(t, "2026-08-02 10:00:00", time.Local),
+			},
+			Messages: 3,
+			// session totals stay the sum across models; Model is the latest
+			Usage: agentlog.Usage{
+				Input: 150, Output: 30, Reasoning: 5,
+				CacheRead: 280, CacheWrite: 30, Model: "glm-5.3-flash",
+			},
+			Models: []agentlog.Usage{
+				// earliest request first: the adapter yields models in
+				// first-use order
+				{Input: 100, Output: 20, Reasoning: 5, CacheRead: 200, CacheWrite: 30, Model: "gpt-6-astra"},
+				{Input: 50, Output: 10, CacheRead: 80, Model: "glm-5.3-flash"},
+			},
+		},
+	}
+	got := GroupStats("", StatsByModel, rows)
+	if len(got) != 2 {
+		t.Fatalf("got %d model rows, want 2 (one per used model)", len(got))
+	}
+	if got[0].Key != "glm-5.3-flash" || got[1].Key != "gpt-6-astra" {
+		t.Fatalf("keys = %q, %q; want ascending glm-5.3-flash then gpt-6-astra", got[0].Key, got[1].Key)
+	}
+	glm, astra := got[0], got[1]
+	// "sessions that used this model": the split session counts on both rows
+	if glm.Sessions != 1 || glm.Messages != 3 || astra.Sessions != 1 || astra.Messages != 3 {
+		t.Errorf("sessions/messages = %d/%d and %d/%d, want 1/3 on both model rows",
+			glm.Sessions, glm.Messages, astra.Sessions, astra.Messages)
+	}
+	// tokens come from the breakdown entry, not the session total
+	if glm.Usage.Input != 50 || glm.Usage.Output != 10 || glm.Usage.Reasoning != 0 ||
+		glm.Usage.CacheRead != 80 || glm.Usage.CacheWrite != 0 {
+		t.Errorf("glm row tokens = %+v, want in 50 out 10 reasoning 0 cr 80 cw 0", glm.Usage)
+	}
+	if astra.Usage.Input != 100 || astra.Usage.Output != 20 || astra.Usage.Reasoning != 5 ||
+		astra.Usage.CacheRead != 200 || astra.Usage.CacheWrite != 30 {
+		t.Errorf("astra row tokens = %+v, want in 100 out 20 reasoning 5 cr 200 cw 30", astra.Usage)
+	}
+}
+
+// TestGroupStatsMultiModelDoesNotInflateOtherViews pins the other side of the
+// backlog ruling: outside --by model a split session still counts once, and
+// its tokens are the session total — agent/project/day views are unchanged.
+func TestGroupStatsMultiModelDoesNotInflateOtherViews(t *testing.T) {
+	rows := []agentlog.SessionUsage{
+		{
+			Session:  agentlog.Session{ID: "multi", Agent: "zcode"},
+			Messages: 3,
+			Usage: agentlog.Usage{
+				Input: 150, Output: 30, Reasoning: 5,
+				CacheRead: 280, CacheWrite: 30, Model: "glm-5.3-flash",
+			},
+			Models: []agentlog.Usage{
+				{Input: 100, Output: 20, Reasoning: 5, CacheRead: 200, CacheWrite: 30, Model: "gpt-6-astra"},
+				{Input: 50, Output: 10, CacheRead: 80, Model: "glm-5.3-flash"},
+			},
+		},
+	}
+	for _, by := range []string{StatsByAgent, StatsByProject, StatsByDay} {
+		got := GroupStats("", by, rows)
+		if len(got) != 1 {
+			t.Fatalf("--by %s: got %d rows, want 1 (a split session is still one session)", by, len(got))
+		}
+		if got[0].Sessions != 1 || got[0].Messages != 3 {
+			t.Errorf("--by %s: sessions/messages = %d/%d, want 1/3", by, got[0].Sessions, got[0].Messages)
+		}
+		if got[0].Usage.Input != 150 || got[0].Usage.Output != 30 {
+			t.Errorf("--by %s: tokens = in %d out %d, want the session totals 150/30", by, got[0].Usage.Input, got[0].Usage.Output)
+		}
+	}
+}

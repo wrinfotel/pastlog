@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Per-model token breakdown in stats (TASK.md backlog): sessions that
+  switched models mid-way now credit every model they used, not just the
+  latest one. `pastlog stats --by model` shows one row per used model with
+  that model's own tokens (the `sessions`/`messages` cells on a model row
+  count the sessions that used it); the desktop project drill-down splits
+  the same way. Supported by zcode (per-request `model_usage` rows),
+  claude-code (per-message `model` + `usage`) and gemini-cli (per-record
+  `model` + `tokens`, legacy store included) exactly, and by codex via the
+  per-turn `last_token_usage` delta (best-effort after compaction resets).
+  opencode keeps a single model per session — its storage has no per-model
+  data. Aggregate totals and the agent/project/day views are unchanged: a
+  session still counts once outside the model view.
+
+### Changed
+
+- `stats --model` now matches sessions that used the model anywhere in the
+  session (previously only the latest model counted), so a mid-session
+  model is no longer invisible to the filter. The filter still selects
+  whole sessions — tokens are not cropped.
+
 ## [0.2.0] - 2026-09-26
 
 The CLI and the desktop app ship from this entry on their own version

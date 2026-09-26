@@ -75,7 +75,7 @@ pastlog sums this table per session (`SessionsUsage`; also powers `stats`):
 | `session_id` | group key |
 | `input_tokens`, `output_tokens`, `reasoning_tokens` | summed into Usage.Input/Output/Reasoning |
 | `cache_creation_input_tokens`, `cache_read_input_tokens` | summed into Usage.CacheWrite / CacheRead |
-| `model_id` | Usage.Model = the model of the **latest** request (rows stream in `started_at` order, last wins) |
+| `model_id` | Usage.Model = the model of the **latest** request (rows stream in `started_at` order, last non-empty wins), and the group key of the per-model breakdown below |
 
 Rows with failed/cancelled status keep their token counts (tokens spent are
 tokens spent). ZCode exposes **no cost**: Usage.HasCost stays `false` and
@@ -83,6 +83,12 @@ tokens spent). ZCode exposes **no cost**: Usage.HasCost stays `false` and
 table degrade to zero usage instead of failing. All other columns
 (`logical_request_id`, `attempt_index`, timings, retry/cancel counters,
 error fields, `raw_usage_json`, …) are ignored.
+
+The table's per-request shape also powers `Models`, the per-model breakdown
+(TASK.md backlog): token sums are kept per (session × `model_id`), in
+first-use order, and those entries sum to the session totals — so a session
+that switched models mid-way credits every model it used in the stats model
+view, not just the latest one.
 
 Observed `model_id` values on real data are plain ids such as
 `GLM-5.3-Flash` or `nex-agi/nex-n2.5-pro:free` (unlike opencode's

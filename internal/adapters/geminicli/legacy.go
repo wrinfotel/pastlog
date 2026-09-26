@@ -116,25 +116,28 @@ func (a *Adapter) legacySession(raw []byte) (agentlog.SessionUsage, []agentlog.E
 		return agentlog.SessionUsage{}, nil, false
 	}
 	var entries []agentlog.Entry
-	var usage agentlog.Usage
+	var split agentlog.ModelSplit
 	for _, msg := range rec.Messages {
 		// same record processing as the JSONL layout: token facts accumulate
-		// per session (M7)
+		// per session (M7), on their record model (TASK.md backlog)
 		if sub, ru, ok := processRecord(msg, &a.skipped); ok {
 			entries = append(entries, sub...)
-			if ru.model != "" {
-				usage.Model = ru.model
-			}
 			if ru.tokens != nil {
-				usage.Input += ptrVal(ru.tokens.Input)
-				usage.Output += ptrVal(ru.tokens.Output)
-				usage.CacheRead += ptrVal(ru.tokens.Cached)
-				usage.Reasoning += ptrVal(ru.tokens.Thoughts)
+				split.Observe(ru.model, agentlog.Usage{
+					Input:     ptrVal(ru.tokens.Input),
+					Output:    ptrVal(ru.tokens.Output),
+					CacheRead: ptrVal(ru.tokens.Cached),
+					Reasoning: ptrVal(ru.tokens.Thoughts),
+				})
+			} else if ru.model != "" {
+				split.Note(ru.model) // last non-empty record model wins
 			}
 		} else {
 			a.skipped++
 		}
 	}
+	usage := split.Total()
+	usage.Model = split.Latest()
 	su := agentlog.SessionUsage{
 		Session: agentlog.Session{
 			ID:        rec.SessionID,
@@ -147,6 +150,7 @@ func (a *Adapter) legacySession(raw []byte) (agentlog.SessionUsage, []agentlog.E
 		},
 		Messages: countMessages(entries),
 		Usage:    usage,
+		Models:   split.Split(),
 	}
 	return su, entries, true
 }

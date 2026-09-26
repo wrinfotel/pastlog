@@ -113,3 +113,35 @@ func TestSessionsUsageToleratesMalformedUsage(t *testing.T) {
 		t.Errorf("SkippedLines = %d, want 0 (nothing here is unreadable)", a.SkippedLines())
 	}
 }
+
+// TestSessionsUsageModelBreakdown pins the per-model split (TASK.md
+// backlog): each assistant record's usage lands on its message.model, a
+// record without a model stays with the model in effect, and the entries
+// keep first-use order while summing to the session totals.
+func TestSessionsUsageModelBreakdown(t *testing.T) {
+	a := newTestAdapter(t, map[string]string{
+		"proj/d1e5f6a7-1111-4111-8111-555555555555.jsonl": "usage.jsonl",
+	})
+	su := listUsage(t, a)[0]
+	want := []agentlog.Usage{
+		// records 1+2: the second carries no model → the model in effect
+		{Model: "claude-sonnet-4-5", Input: 200, Output: 45, CacheRead: 430, CacheWrite: 30},
+		{Model: "claude-opus-4-1", Input: 60, Output: 55, CacheRead: 300, CacheWrite: 10},
+	}
+	if len(su.Models) != len(want) {
+		t.Fatalf("Models = %d entries, want %d", len(su.Models), len(want))
+	}
+	for i, w := range want {
+		if su.Models[i] != w {
+			t.Errorf("Models[%d] = %+v, want %+v", i, su.Models[i], w)
+		}
+	}
+	// the breakdown sums to the session totals pinned by the fixture test
+	if su.Models[0].Input+su.Models[1].Input != su.Input {
+		t.Errorf("breakdown input %d does not sum to the session total %d",
+			su.Models[0].Input+su.Models[1].Input, su.Input)
+	}
+	if su.Model != "claude-opus-4-1" {
+		t.Errorf("Model = %q, want the latest model (split must not touch it)", su.Model)
+	}
+}

@@ -67,8 +67,11 @@ the whole line skipped.
   session's usage is the LAST `token_count` record (last wins). Compaction
   resets are documented best-effort: after a reset the last record still
   wins, so post-compaction usage reflects the reset baseline.
-- `last_token_usage` (the per-turn delta) is ignored — only totals map to the
-  session. Missing `reasoning_output_tokens` contributes 0.
+- `last_token_usage` (the per-turn delta) does not touch the session totals —
+  only the last cumulative record maps to the session. The delta feeds the
+  per-model breakdown (`Models`, TASK.md backlog): each delta lands on the
+  model its preceding `turn_context` named. Missing `reasoning_output_tokens`
+  contributes 0.
 - A payload that is missing/null/unparsable (or a wrong-typed `info`) stays
   in the skip+counted class, like every known type with an unusable payload.
 
@@ -112,6 +115,7 @@ skip-accounting):
 | `CacheRead` | `total_token_usage.cached_input_tokens` |
 | `Model` | LAST non-empty `turn_context.payload.model`; "" when the rollout has none |
 | `CostUSD` / `HasCost` | — rollouts carry no per-session cost; `HasCost` stays false |
+| `Models` | per-model breakdown (TASK.md backlog): each `token_count`'s `last_token_usage` delta lands on the model its turn named — the last non-empty `turn_context.model` before it. Entries keep first-use order. On a healthy rollout the deltas accumulate, so the split sums to the session totals; after a compaction reset (or a rollout missing `last_token_usage`) the split may drift from the last-wins totals — documented best-effort |
 
 - `Messages` keeps the `SessionsMeta` semantic, so sessions and messages of
   zero-usage rollouts still count in the aggregates.

@@ -37,10 +37,13 @@ type StatsRow struct {
 // GroupStats aggregates usage rows into groups keyed by the display form of
 // the --by dimension: the agent name; the tilde-shortened project path
 // ("-" when empty); the local date 2006-01-02 of the session start
-// ("-" for a zero start time); or the model name ("-" when unknown). Rows
-// come back in ascending key order — deterministic, and chronological for
-// --by day.
+// ("-" for a zero start time); or — for --by model — one row per model the
+// session used ("-" for an unknown model). Rows come back in ascending key
+// order — deterministic, and chronological for --by day.
 func GroupStats(home, by string, rows []agentlog.SessionUsage) []StatsRow {
+	if by == StatsByModel {
+		return groupStatsPerUsage(rows, modelUsageEntries, modelKey)
+	}
 	return GroupStatsKeys(func(su agentlog.SessionUsage) string {
 		return statsKey(home, by, su)
 	}, rows)
@@ -52,35 +55,82 @@ func GroupStats(home, by string, rows []agentlog.SessionUsage) []StatsRow {
 // whose exact value is its drill-down key). Same accumulation semantics and
 // ascending key order as GroupStats.
 func GroupStatsKeys(keyOf func(agentlog.SessionUsage) string, rows []agentlog.SessionUsage) []StatsRow {
-	grouped := map[string]*StatsRow{}
+	acc := statsAccumulator{}
 	for _, su := range rows {
-		key := keyOf(su)
-		g, ok := grouped[key]
-		if !ok {
-			g = &StatsRow{Key: key}
-			grouped[key] = g
-		}
-		g.Sessions++
-		g.Messages += su.Messages
-		g.Usage.Input += su.Input
-		g.Usage.Output += su.Output
-		g.Usage.Reasoning += su.Reasoning
-		g.Usage.CacheRead += su.CacheRead
-		g.Usage.CacheWrite += su.CacheWrite
-		if su.HasCost {
-			g.Usage.HasCost = true
-			g.Usage.CostUSD += su.CostUSD // sessions without cost contribute nothing
+		acc.add(keyOf(su), su.Messages, su.Usage)
+	}
+	return acc.rows()
+}
+
+// groupStatsPerUsage aggregates rows into one group per (session × usage
+// entry) — the model view: a session contributes its sessions/messages
+// counters to every entry's group ("sessions that used this model"), while
+// tokens and cost come from the entry itself, never the session total.
+// Ascending key order, like every grouping.
+func groupStatsPerUsage(rows []agentlog.SessionUsage, entriesOf func(agentlog.SessionUsage) []agentlog.Usage, keyOf func(agentlog.Usage) string) []StatsRow {
+	acc := statsAccumulator{}
+	for _, su := range rows {
+		for _, u := range entriesOf(su) {
+			acc.add(keyOf(u), su.Messages, u)
 		}
 	}
-	out := make([]StatsRow, 0, len(grouped))
-	for _, g := range grouped {
+	return acc.rows()
+}
+
+// modelUsageEntries returns the usage entries a session feeds to the model
+// view: the adapter's per-model breakdown when one was provided, the whole
+// session usage otherwise (single-model sessions and adapters that cannot
+// split keep the exact pre-split behavior).
+func modelUsageEntries(su agentlog.SessionUsage) []agentlog.Usage {
+	if len(su.Models) > 0 {
+		return su.Models
+	}
+	return []agentlog.Usage{su.Usage}
+}
+
+// modelKey is the display key of one usage entry in the model view.
+func modelKey(u agentlog.Usage) string {
+	if u.Model == "" {
+		return "-"
+	}
+	return u.Model
+}
+
+// statsAccumulator folds (group key, counters, usage) triples into StatsRows
+// shared by the single-key and per-usage aggregations; rows() releases them
+// in ascending key order.
+type statsAccumulator map[string]*StatsRow
+
+func (acc statsAccumulator) add(key string, messages int, u agentlog.Usage) {
+	g, ok := acc[key]
+	if !ok {
+		g = &StatsRow{Key: key}
+		acc[key] = g
+	}
+	g.Sessions++
+	g.Messages += messages
+	g.Usage.Input += u.Input
+	g.Usage.Output += u.Output
+	g.Usage.Reasoning += u.Reasoning
+	g.Usage.CacheRead += u.CacheRead
+	g.Usage.CacheWrite += u.CacheWrite
+	if u.HasCost {
+		g.Usage.HasCost = true
+		g.Usage.CostUSD += u.CostUSD // usages without cost contribute nothing
+	}
+}
+
+func (acc statsAccumulator) rows() []StatsRow {
+	out := make([]StatsRow, 0, len(acc))
+	for _, g := range acc {
 		out = append(out, *g)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
 	return out
 }
 
-// statsKey derives one row's display key for the grouping mode.
+// statsKey derives one row's display key for the grouping mode (--by model
+// keys per used model instead, via groupStatsPerUsage).
 func statsKey(home, by string, su agentlog.SessionUsage) string {
 	switch by {
 	case StatsByProject:
@@ -90,11 +140,6 @@ func statsKey(home, by string, su agentlog.SessionUsage) string {
 			return "-"
 		}
 		return su.StartedAt.Local().Format(dayLayout)
-	case StatsByModel:
-		if su.Model == "" {
-			return "-"
-		}
-		return su.Model
 	default:
 		return su.Agent
 	}

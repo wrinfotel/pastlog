@@ -211,3 +211,31 @@ func TestCollectUsageIterEarlyStop(t *testing.T) {
 		t.Errorf("SessionsUsage should propagate iter error, got %v", err)
 	}
 }
+
+// TestCollectUsageModelFilterMatchesBreakdown pins the per-model ruling
+// (TASK.md backlog): a session whose latest model does NOT match --model but
+// that used the matching model mid-way still joins the selection. The filter
+// selects whole sessions (no token cropping), like --project does.
+func TestCollectUsageModelFilterMatchesBreakdown(t *testing.T) {
+	rows := []SessionUsage{
+		{
+			Session: Session{ID: "split", Project: "/w"},
+			Usage:   Usage{Input: 150, Model: "glm-5.3-flash"},
+			Models: []Usage{
+				{Input: 100, Model: "gpt-6-astra"},
+				{Input: 50, Model: "glm-5.3-flash"},
+			},
+		},
+	}
+	a := &usageFake{metaFake: metaFake{fakeAdapter: fakeAdapter{name: "zcode"}}, usage: rows}
+	got := CollectUsage([]Adapter{a}, SessionFilter{}, "gpt-6-astra", nil)
+	if len(got) != 1 {
+		t.Fatalf("a mid-session model must satisfy --model, got %d rows", len(got))
+	}
+	if got[0].Input != 150 || len(got[0].Models) != 2 {
+		t.Errorf("the selection keeps whole sessions, got usage %+v models %d", got[0].Usage, len(got[0].Models))
+	}
+	if miss := CollectUsage([]Adapter{a}, SessionFilter{}, "opus", nil); len(miss) != 0 {
+		t.Errorf("a non-matching filter must exclude the session, got %d rows", len(miss))
+	}
+}

@@ -259,8 +259,8 @@ type fileSummary struct {
 	messages           int
 	size               int64
 	sawLine            bool
-	metaStart, metaEnd bool           // metadata startTime / lastUpdated seen: they win over record timestamps
-	usage              agentlog.Usage // token totals accumulated over the records (M7)
+	metaStart, metaEnd bool                // metadata startTime / lastUpdated seen: they win over record timestamps
+	split              agentlog.ModelSplit // per-model usage accumulation (M7, TASK.md backlog)
 }
 
 func (f fileSummary) meta(path string) agentlog.SessionMeta {
@@ -279,13 +279,18 @@ func (f fileSummary) meta(path string) agentlog.SessionMeta {
 }
 
 // sessionUsage lifts the scan aggregate into the agentlog.SessionUsage view
-// (M7): same session fields and message count as meta, plus the usage.
+// (M7): same session fields and message count as meta, plus the usage —
+// totals with the last non-empty record model, and the per-model breakdown
+// (TASK.md backlog).
 func (f fileSummary) sessionUsage(path string) agentlog.SessionUsage {
 	meta := f.meta(path)
+	u := f.split.Total()
+	u.Model = f.split.Latest()
 	return agentlog.SessionUsage{
 		Session:  meta.Session,
 		Messages: meta.Messages,
-		Usage:    f.usage,
+		Usage:    u,
+		Models:   f.split.Split(),
 	}
 }
 
@@ -347,16 +352,18 @@ func (a *Adapter) scanFile(path string, keep func([]byte) bool, emit func(agentl
 			a.skipped++
 			continue
 		}
-		if usage.model != "" {
-			sum.usage.Model = usage.model // last non-empty record model wins
-		}
+		// TASK.md backlog: tokens land on their record model, a record
+		// without a model keeps the model in effect; `tool` and `total`
+		// are recognized but ignored (SCHEMA.md)
 		if usage.tokens != nil {
-			// input/output/cached/thoughts accumulate; `tool` and `total`
-			// are recognized but ignored (SCHEMA.md)
-			sum.usage.Input += ptrVal(usage.tokens.Input)
-			sum.usage.Output += ptrVal(usage.tokens.Output)
-			sum.usage.CacheRead += ptrVal(usage.tokens.Cached)
-			sum.usage.Reasoning += ptrVal(usage.tokens.Thoughts)
+			sum.split.Observe(usage.model, agentlog.Usage{
+				Input:     ptrVal(usage.tokens.Input),
+				Output:    ptrVal(usage.tokens.Output),
+				CacheRead: ptrVal(usage.tokens.Cached),
+				Reasoning: ptrVal(usage.tokens.Thoughts),
+			})
+		} else if usage.model != "" {
+			sum.split.Note(usage.model) // last non-empty record model wins
 		}
 		if err := a.forward(entries, emit, &sum); err != nil {
 			return sum, err

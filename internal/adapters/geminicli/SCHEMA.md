@@ -105,6 +105,7 @@ MessageRecord):
 | `CacheRead` | sum of `tokens.cached` |
 | `Model` | LAST non-empty record `model`; "" when none |
 | `CostUSD` / `HasCost` | — gemini-cli logs carry no per-session cost; `HasCost` stays false |
+| `Models` | per-model breakdown (TASK.md backlog): each record's tokens land on its `model`; a record without a model keeps the model in effect (the last non-empty one seen), so the entries keep first-use order and sum to the session totals. The legacy `chats.json` path splits the same way |
 
 - `tokens.tool` and `tokens.total` are recognized but **ignored**: `tool`
   counts tool-driving tokens, `total` double-counts the others, and mapping

@@ -113,10 +113,17 @@ type Usage struct {
 // same pass that yields sessions. Messages keeps the SessionMeta semantic
 // (message-kind entries), so token statistics count the sessions and
 // messages of zero-usage sessions too.
+//
+// Models is the per-model breakdown behind the session totals (TASK.md
+// backlog): one entry per model the session used, in first-use order, whose
+// token fields sum to the embedded Usage. Usage.Model keeps the latest
+// model, so adapters that cannot split usage per model leave Models empty
+// and every consumer falls back to the single-model view.
 type SessionUsage struct {
 	Session
 	Messages int
 	Usage
+	Models []Usage
 }
 
 // UsageSource is optionally implemented by adapters that can supply token

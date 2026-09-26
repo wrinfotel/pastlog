@@ -163,7 +163,7 @@ func CollectUsage(adapters []Adapter, f SessionFilter, modelFilter string, note 
 		stopped := false
 		err := us.SessionsUsage(func(su SessionUsage) error {
 			su.Agent = a.Name()
-			if f.Match(su.Session) && matchesModel(su.Model, modelFilter) {
+			if f.Match(su.Session) && sessionMatchesModel(su, modelFilter) {
 				out = append(out, su)
 			}
 			done++
@@ -199,6 +199,22 @@ func matchesModel(model, filter string) bool {
 		return true
 	}
 	return strings.Contains(strings.ToLower(model), strings.ToLower(filter))
+}
+
+// sessionMatchesModel applies the --model filter to a session: the filter
+// matches the latest model or any model of the per-model breakdown, so a
+// mid-session model switch does not hide the session (TASK.md backlog). The
+// filter selects whole sessions — no token cropping, like --project.
+func sessionMatchesModel(su SessionUsage, filter string) bool {
+	if matchesModel(su.Model, filter) {
+		return true
+	}
+	for _, u := range su.Models {
+		if matchesModel(u.Model, filter) {
+			return true
+		}
+	}
+	return false
 }
 
 // TotalSkipped sums unreadable-line counts over adapters implementing

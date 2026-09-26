@@ -86,7 +86,8 @@ func (a *Adapter) SessionsUsage(iter func(agentlog.SessionUsage) error) error {
 		return iter(agentlog.SessionUsage{
 			Session:  meta.Session,
 			Messages: meta.Messages,
-			Usage:    sum.usage,
+			Usage:    sum.usage(),
+			Models:   sum.split.Split(),
 		})
 	})
 }
@@ -226,7 +227,15 @@ type fileSummary struct {
 	messages           int
 	size               int64
 	sawLine            bool
-	usage              agentlog.Usage // token totals accumulated over the file's records (M7)
+	split              agentlog.ModelSplit // per-model usage accumulation (M7, TASK.md backlog)
+}
+
+// usage renders the session's totals: every observed record summed, with
+// Model = the last non-empty message.model (pre-split semantics preserved).
+func (f fileSummary) usage() agentlog.Usage {
+	u := f.split.Total()
+	u.Model = f.split.Latest()
+	return u
 }
 
 func (f fileSummary) meta(path string) agentlog.SessionMeta {
@@ -303,14 +312,18 @@ func (a *Adapter) scanFile(path string, keep func([]byte) bool, emit func(agentl
 		if info.summary != "" && sum.title == "" {
 			sum.title = info.summary
 		}
-		if info.model != "" {
-			sum.usage.Model = info.model // last non-empty message.model wins
-		}
+		// TASK.md backlog: each record's usage lands on its message.model, so
+		// tokens from mid-session model switches stay with the model that
+		// consumed them; a record without a model keeps the model in effect
 		if u := info.usage; u != nil {
-			sum.usage.Input += ptrVal(u.InputTokens)
-			sum.usage.Output += ptrVal(u.OutputTokens)
-			sum.usage.CacheWrite += ptrVal(u.CacheCreationInputTokens)
-			sum.usage.CacheRead += ptrVal(u.CacheReadInputTokens)
+			sum.split.Observe(info.model, agentlog.Usage{
+				Input:      ptrVal(u.InputTokens),
+				Output:     ptrVal(u.OutputTokens),
+				CacheWrite: ptrVal(u.CacheCreationInputTokens),
+				CacheRead:  ptrVal(u.CacheReadInputTokens),
+			})
+		} else if info.model != "" {
+			sum.split.Note(info.model) // last non-empty message.model wins
 		}
 		if !info.ts.IsZero() {
 			if sum.startedAt.IsZero() {

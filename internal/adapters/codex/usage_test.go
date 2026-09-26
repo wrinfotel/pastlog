@@ -171,3 +171,36 @@ func TestTurnContextMalformedPayloadCountsSkipped(t *testing.T) {
 		t.Errorf("SkippedLines = %d, want 1 (payload \"gpt\" is an unusable payload)", a.SkippedLines())
 	}
 }
+
+// TestSessionsUsageModelBreakdown pins the per-model split (TASK.md
+// backlog): each turn's last_token_usage delta lands on the model its
+// turn_context named, in first-use order, and — on a healthy rollout where
+// the deltas accumulate — the split sums to the last-wins session totals.
+func TestSessionsUsageModelBreakdown(t *testing.T) {
+	a := newTestAdapter(t, map[string]string{
+		"2026/08/02/rollout-2026-08-02T14-03-20-f3a7b8c9-3333-4333-8333-777777777777.jsonl": "usage.jsonl",
+	})
+	su := listUsage(t, a)[0]
+	want := []agentlog.Usage{
+		// the first turn ran on gpt-5.3-mini, the second switched to
+		// gpt-5.3-codex: each keeps its own delta
+		{Model: "gpt-5.3-mini", Input: 100, Output: 30, Reasoning: 5, CacheRead: 20},
+		{Model: "gpt-5.3-codex", Input: 150, Output: 50, Reasoning: 7, CacheRead: 25},
+	}
+	if len(su.Models) != len(want) {
+		t.Fatalf("Models = %d entries, want %d", len(su.Models), len(want))
+	}
+	for i, w := range want {
+		if su.Models[i] != w {
+			t.Errorf("Models[%d] = %+v, want %+v", i, su.Models[i], w)
+		}
+	}
+	// healthy rollout: the deltas accumulate to the last-wins totals
+	if su.Models[0].Input+su.Models[1].Input != su.Input {
+		t.Errorf("breakdown input %d does not sum to the session total %d",
+			su.Models[0].Input+su.Models[1].Input, su.Input)
+	}
+	if su.Model != "gpt-5.3-codex" {
+		t.Errorf("Model = %q, want the last turn_context model (split must not touch it)", su.Model)
+	}
+}

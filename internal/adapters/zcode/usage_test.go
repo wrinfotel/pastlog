@@ -183,3 +183,40 @@ func TestWarningMentionsZCode(t *testing.T) {
 		t.Errorf("warning should be lowercase: %q", msg)
 	}
 }
+
+// TestSessionsUsageModelBreakdown pins the per-model split (TASK.md backlog):
+// model_usage keeps one row per model request, so a session that switched
+// models mid-way yields a Models entry per used model in first-use order,
+// while the session totals and the latest-model Usage.Model stay unchanged.
+func TestSessionsUsageModelBreakdown(t *testing.T) {
+	a := NewDir(buildFixtureDB(t))
+	got := listUsage(t, a)
+	parent, child := got[0], got[1]
+
+	wantParent := []agentlog.Usage{
+		// first-use order: model-a's request (started_at 1786480129000) then
+		// model-b's (1786480180000)
+		{Model: "fixture-model-a", Input: 100, Output: 20, Reasoning: 5, CacheRead: 200, CacheWrite: 30},
+		{Model: "fixture-model-b", Input: 50, Output: 10, CacheRead: 80},
+	}
+	if len(parent.Models) != len(wantParent) {
+		t.Fatalf("parent Models = %d entries, want %d", len(parent.Models), len(wantParent))
+	}
+	for i, w := range wantParent {
+		if parent.Models[i] != w {
+			t.Errorf("parent Models[%d] = %+v, want %+v", i, parent.Models[i], w)
+		}
+	}
+	// the breakdown sums to the session totals
+	if parent.Models[0].Input+parent.Models[1].Input != parent.Input {
+		t.Errorf("breakdown input %d does not sum to the session total %d",
+			parent.Models[0].Input+parent.Models[1].Input, parent.Input)
+	}
+
+	wantChild := []agentlog.Usage{
+		{Model: "fixture-model-c", Input: 10, Output: 2, Reasoning: 1, CacheRead: 16, CacheWrite: 4},
+	}
+	if len(child.Models) != 1 || child.Models[0] != wantChild[0] {
+		t.Errorf("child Models = %+v, want %+v", child.Models, wantChild)
+	}
+}

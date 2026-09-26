@@ -144,8 +144,19 @@ func TestProjectStatsExactProjectNotSubstring(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ProjectStats: %v", err)
 	}
-	if len(out.Rows) != 1 || out.Rows[0].Sessions != 1 {
-		t.Errorf("exact project stats = %+v, want one model row with 1 session", out.Rows)
+	// the fixture session switched models mid-way (TASK.md backlog): the
+	// model drill-down shows one row per used model, each counting the
+	// session ("sessions that used this model")
+	if len(out.Rows) != 2 {
+		t.Errorf("exact project stats = %+v, want one row per used model", out.Rows)
+	}
+	for _, row := range out.Rows {
+		if row.Sessions != 1 {
+			t.Errorf("model row %q sessions = %d, want 1", row.Key, row.Sessions)
+		}
+	}
+	if len(out.Rows) == 2 && (out.Rows[0].Key != "claude-opus-4-1" || out.Rows[1].Key != "claude-sonnet-4-5") {
+		t.Errorf("model rows = %q, %q; want ascending opus then sonnet", out.Rows[0].Key, out.Rows[1].Key)
 	}
 
 	sub := cliStatsJSON(t, home, "--by", "model", "--agent", "claude-code", "--project", "myapp")
@@ -153,8 +164,10 @@ func TestProjectStatsExactProjectNotSubstring(t *testing.T) {
 	for _, row := range sub {
 		total += int(row["sessions"].(float64)) // JSON round-trip: numbers are float64
 	}
-	if total != 2 {
-		t.Errorf("CLI substring --project myapp matched %d sessions, want 2 (fixture must over-match for this test to discriminate)", total)
+	// the substring over-matches both projects (2 sessions), and each split
+	// session counts on both of its model rows: 2 × 2 = 4
+	if total != 4 {
+		t.Errorf("CLI substring --project myapp matched %d session×model rows, want 4 (fixture must over-match for this test to discriminate)", total)
 	}
 }
 

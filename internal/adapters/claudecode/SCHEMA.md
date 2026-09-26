@@ -81,6 +81,7 @@ skip-accounting):
 | `CacheRead` | sum of `message.usage.cache_read_input_tokens` |
 | `Model` | LAST non-empty `message.model` in the file (assistant records carry it); "" when none |
 | `CostUSD` / `HasCost` | — claude-code logs carry no per-session cost; `HasCost` stays false |
+| `Models` | per-model breakdown (TASK.md backlog): each record's usage lands on its `message.model`; a record without a model keeps the model in effect (the last non-empty one seen), so the entries keep first-use order and sum to the session totals |
 
 - `Messages` keeps the `SessionsMeta` semantic, so sessions and messages of
   zero-usage sessions still count in the aggregates.

@@ -201,7 +201,7 @@ func (a *Adapter) walkUsage(iter func(agentlog.SessionUsage) error) error {
 		}
 		return fmt.Errorf("cannot read zcode database: %v", err)
 	}
-	usage, models, err := a.usage(db)
+	usage, err := a.usage(db)
 	if err != nil {
 		if a.markLocked(err) {
 			return nil
@@ -236,16 +236,12 @@ func (a *Adapter) walkUsage(iter func(agentlog.SessionUsage) error) error {
 				SizeBytes: sizes[id],
 			},
 			Messages: int(counts[id]),
-			Usage: agentlog.Usage{
-				Input:      usage[id].input,
-				Output:     usage[id].output,
-				Reasoning:  usage[id].reasoning,
-				CacheRead:  usage[id].cacheRead,
-				CacheWrite: usage[id].cacheWrite,
-				HasCost:    false, // zcode reports no cost (SCHEMA.md)
-				Model:      models[id],
-			},
 		}
+		split := usage[id]
+		su.Usage = split.Total()
+		su.Model = split.Latest()
+		su.HasCost = false // zcode reports no cost (SCHEMA.md)
+		su.Models = split.Split()
 		if err := iter(su); err != nil {
 			return err
 		}
@@ -259,19 +255,15 @@ func (a *Adapter) walkUsage(iter func(agentlog.SessionUsage) error) error {
 	return nil
 }
 
-// tokenTotals accumulates one session's model_usage sums.
-type tokenTotals struct {
-	input, output, reasoning, cacheRead, cacheWrite int64
-}
-
-// usage aggregates the model_usage table per session: token sums across all
-// recorded requests, and the model of the latest request (by started_at) as
-// the session model. Older ZCode builds without the table degrade to empty
-// aggregates — a missing telemetry table must not hide sessions (spec §4
-// defensiveness).
-func (a *Adapter) usage(db *sql.DB) (totals map[string]tokenTotals, models map[string]string, err error) {
-	totals = map[string]tokenTotals{}
-	models = map[string]string{}
+// usage aggregates the model_usage table per session through the shared
+// per-model accumulator: token sums across all recorded requests, the model
+// of the latest request (by started_at) as the session model, and the
+// per-model sums that let the stats model view credit every model a session
+// actually used (TASK.md backlog). Older ZCode builds without the table
+// degrade to empty aggregates — a missing telemetry table must not hide
+// sessions (spec §4 defensiveness).
+func (a *Adapter) usage(db *sql.DB) (splits map[string]agentlog.ModelSplit, err error) {
+	splits = map[string]agentlog.ModelSplit{}
 
 	rows, err := db.Query(`SELECT session_id, model_id, started_at,
 			input_tokens, output_tokens, reasoning_tokens,
@@ -279,33 +271,24 @@ func (a *Adapter) usage(db *sql.DB) (totals map[string]tokenTotals, models map[s
 		FROM model_usage ORDER BY started_at, id`)
 	if err != nil {
 		if isNoSuchTable(err) {
-			return totals, models, nil // older database: zero usage everywhere
+			return splits, nil // older database: zero usage everywhere
 		}
-		return nil, nil, err
+		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var sessionID, modelID string
 		var startedAt int64
-		var t tokenTotals
+		var t agentlog.Usage
 		if err := rows.Scan(&sessionID, &modelID, &startedAt,
-			&t.input, &t.output, &t.reasoning, &t.cacheWrite, &t.cacheRead); err != nil {
+			&t.Input, &t.Output, &t.Reasoning, &t.CacheWrite, &t.CacheRead); err != nil {
 			continue // unreadable row: skip
 		}
-		totals[sessionID] = totals[sessionID].add(t)
-		models[sessionID] = modelID // rows stream in started_at order: the latest wins
+		s := splits[sessionID]
+		s.Observe(modelID, t)
+		splits[sessionID] = s
 	}
-	return totals, models, rows.Err()
-}
-
-func (t tokenTotals) add(o tokenTotals) tokenTotals {
-	return tokenTotals{
-		input:      t.input + o.input,
-		output:     t.output + o.output,
-		reasoning:  t.reasoning + o.reasoning,
-		cacheRead:  t.cacheRead + o.cacheRead,
-		cacheWrite: t.cacheWrite + o.cacheWrite,
-	}
+	return splits, rows.Err()
 }
 
 // isNoSuchTable reports whether the failure is a missing table (defensive

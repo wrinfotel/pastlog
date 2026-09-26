@@ -84,6 +84,7 @@ func (a *Adapter) SessionsUsage(iter func(agentlog.SessionUsage) error) error {
 			Session:  meta.Session,
 			Messages: meta.Messages,
 			Usage:    sum.usage(),
+			Models:   sum.split.Split(),
 		})
 	})
 }
@@ -224,8 +225,9 @@ type fileSummary struct {
 	messages           int
 	size               int64
 	sawLine            bool
-	model              string      // last non-empty turn_context model
-	tokens             *tokenUsage // last token_count totals (values are cumulative)
+	model              string              // last non-empty turn_context model
+	tokens             *tokenUsage         // last token_count totals (values are cumulative)
+	split              agentlog.ModelSplit // per-turn delta per model (TASK.md backlog)
 }
 
 func (f fileSummary) meta(path string) agentlog.SessionMeta {
@@ -310,9 +312,21 @@ func (a *Adapter) scanFile(path string, keep func([]byte) bool, emit func(agentl
 		}
 		if info.model != "" {
 			sum.model = info.model // last non-empty turn_context model wins
+			sum.split.Note(info.model)
 		}
 		if info.tokens != nil {
 			sum.tokens = info.tokens // last total_token_usage wins (cumulative values)
+		}
+		if info.delta != nil {
+			// TASK.md backlog: the per-turn delta lands on the model in
+			// effect (the turn's turn_context), building the per-model
+			// breakdown; the session totals above stay last-wins (SCHEMA.md)
+			sum.split.Observe("", agentlog.Usage{
+				Input:     info.delta.input,
+				Output:    info.delta.output,
+				CacheRead: info.delta.cached,
+				Reasoning: info.delta.reasoning,
+			})
 		}
 		for _, e := range entries {
 			if e.Kind == agentlog.Message && e.Role == "user" && sum.title == "" {

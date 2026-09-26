@@ -165,3 +165,64 @@ func writeSessionLines(t *testing.T, lines ...string) *Adapter {
 	}
 	return New(home)
 }
+
+// TestSessionsUsageModelBreakdown pins the per-model split (TASK.md
+// backlog): each record's tokens land on its model, a record without a model
+// stays with the model in effect, entries keep first-use order and sum to
+// the session totals.
+func TestSessionsUsageModelBreakdown(t *testing.T) {
+	a := newTestAdapter(t, map[string]string{
+		"chats/session-2026-08-02T14-03-b7c9d0e1.jsonl": "usage.jsonl",
+	})
+	su := listUsage(t, a)[0]
+	want := []agentlog.Usage{
+		// the middle turn names no model → the model in effect (flash)
+		{Model: "gemini-2.5-flash", Input: 150, Output: 45, CacheRead: 10, Reasoning: 8},
+		{Model: "gemini-2.5-pro", Input: 90, Output: 25, CacheRead: 5, Reasoning: 4},
+	}
+	if len(su.Models) != len(want) {
+		t.Fatalf("Models = %d entries, want %d", len(su.Models), len(want))
+	}
+	for i, w := range want {
+		if su.Models[i] != w {
+			t.Errorf("Models[%d] = %+v, want %+v", i, su.Models[i], w)
+		}
+	}
+	if su.Models[0].Input+su.Models[1].Input != su.Input {
+		t.Errorf("breakdown input %d does not sum to the session total %d",
+			su.Models[0].Input+su.Models[1].Input, su.Input)
+	}
+	if su.Model != "gemini-2.5-pro" {
+		t.Errorf("Model = %q, want the latest model (split must not touch it)", su.Model)
+	}
+}
+
+// TestSessionsUsageLegacyModelBreakdown pins the same per-model split on the
+// legacy monolithic path, which rides the same record processing.
+func TestSessionsUsageLegacyModelBreakdown(t *testing.T) {
+	a := &Adapter{}
+	raw := `{"sessionId":"legacy-split-5555-5555-5555-555555555555","messages":[
+		{"id":"m1","timestamp":"2026-07-01T09:00:30Z","type":"gemini","content":"first turn",
+		 "model":"gemini-2.5-flash","tokens":{"input":10,"output":2,"cached":1,"thoughts":3}},
+		{"id":"m2","timestamp":"2026-07-01T09:01:30Z","type":"gemini","content":"second turn",
+		 "model":"gemini-2.5-pro","tokens":{"input":5,"output":1}}]}`
+	su, _, ok := a.legacySession([]byte(raw))
+	if !ok {
+		t.Fatal("legacySession should accept a well-formed record")
+	}
+	want := []agentlog.Usage{
+		{Model: "gemini-2.5-flash", Input: 10, Output: 2, CacheRead: 1, Reasoning: 3},
+		{Model: "gemini-2.5-pro", Input: 5, Output: 1},
+	}
+	if len(su.Models) != len(want) {
+		t.Fatalf("legacy Models = %d entries, want %d", len(su.Models), len(want))
+	}
+	for i, w := range want {
+		if su.Models[i] != w {
+			t.Errorf("legacy Models[%d] = %+v, want %+v", i, su.Models[i], w)
+		}
+	}
+	if su.Model != "gemini-2.5-pro" {
+		t.Errorf("legacy Model = %q, want gemini-2.5-pro", su.Model)
+	}
+}

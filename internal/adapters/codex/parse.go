@@ -51,7 +51,8 @@ type tokenUsage struct {
 
 // tokenCountPayload mirrors the token_count payload: the info object holds
 // the cumulative totals (total_token_usage) alongside the per-turn delta
-// (last_token_usage, ignored — only totals map to the session).
+// (last_token_usage — the per-model split's building block, TASK.md backlog;
+// the session totals still come from the last cumulative record, SCHEMA.md).
 type tokenCountPayload struct {
 	Info struct {
 		TotalTokenUsage struct {
@@ -60,6 +61,12 @@ type tokenCountPayload struct {
 			OutputTokens          *int64 `json:"output_tokens"`
 			ReasoningOutputTokens *int64 `json:"reasoning_output_tokens"`
 		} `json:"total_token_usage"`
+		LastTokenUsage struct {
+			InputTokens           *int64 `json:"input_tokens"`
+			CachedInputTokens     *int64 `json:"cached_input_tokens"`
+			OutputTokens          *int64 `json:"output_tokens"`
+			ReasoningOutputTokens *int64 `json:"reasoning_output_tokens"`
+		} `json:"last_token_usage"`
 	} `json:"info"`
 }
 
@@ -76,6 +83,7 @@ type lineInfo struct {
 	ts        time.Time
 	model     string      // turn_context model, "" when the record had none
 	tokens    *tokenUsage // token_count totals, nil when the record had none
+	delta     *tokenUsage // token_count per-turn delta, nil when absent (TASK.md backlog)
 }
 
 // processLine classifies one non-empty JSONL line into at most a handful of
@@ -134,6 +142,18 @@ func processLine(line []byte) (info lineInfo, entries []agentlog.Entry, ok bool)
 			cached:    ptrVal(t.CachedInputTokens),
 			output:    ptrVal(t.OutputTokens),
 			reasoning: ptrVal(t.ReasoningOutputTokens),
+		}
+		// the per-turn delta feeds the per-model split; a payload without
+		// the object contributes no delta (defensive, like the totals)
+		lt := tp.Info.LastTokenUsage
+		if lt.InputTokens != nil || lt.CachedInputTokens != nil ||
+			lt.OutputTokens != nil || lt.ReasoningOutputTokens != nil {
+			info.delta = &tokenUsage{
+				input:     ptrVal(lt.InputTokens),
+				cached:    ptrVal(lt.CachedInputTokens),
+				output:    ptrVal(lt.OutputTokens),
+				reasoning: ptrVal(lt.ReasoningOutputTokens),
+			}
 		}
 		return info, nil, true
 	case "turn_context":
