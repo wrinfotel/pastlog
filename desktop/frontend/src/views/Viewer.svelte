@@ -24,6 +24,10 @@
   type EntryView = { entry: Entry; expanded: boolean };
 
   let outcome = $state<Outcome | null>(null);
+  // $state (not $derived): derived contents are not deep-reactive, so the
+  // per-entry `expanded` mutation in toggle() would be lost and the
+  // collapse/expand toggles would stay dead. Rebuilt per load below.
+  let entries = $state<EntryView[]>([]);
   let error = $state('');
   // start in the loading state when opened with a target id, so the very
   // first paint shows the spinner instead of a blank frame
@@ -36,6 +40,11 @@
     hitIdx = -1;
     try {
       outcome = (await api.entries(id)) as Outcome;
+      entries = (outcome?.entries ?? []).map((e) => ({
+        entry: e,
+        // tool activity and long results start collapsed; messages are open
+        expanded: e.kind === 'message' || e.kind === 'summary',
+      }));
       error = '';
     } catch (e) {
       error = String(e);
@@ -49,23 +58,17 @@
     if (viewer.id) void load(viewer.id);
   });
 
-  const entries = $derived<EntryView[]>(
-    (outcome?.entries ?? []).map((e) => ({
-      entry: e,
-      // tool activity and long results start collapsed; messages are open
-      expanded: e.kind === 'message' || e.kind === 'summary',
-    })),
-  );
-
-  // Scroll to the search hit (R-D11): first entry of the same kind/role whose
-  // text contains the hit line.
+  // Scroll to the search hit (R-D11): the first entry of the same kind/role
+  // whose text starts with the backend's anchor (the head of the hit entry's
+  // full text). The Line snippet is windowed/synthesized and usually not a
+  // substring of the entry, so it cannot serve as the anchor.
   $effect(() => {
-    if (!viewer.hitLine || entries.length === 0 || !listEl || hitIdx >= 0) return;
+    if (!viewer.hitHead || entries.length === 0 || !listEl || hitIdx >= 0) return;
     const i = entries.findIndex(
       (ev) =>
         (!viewer.hitKind || ev.entry.kind === viewer.hitKind) &&
         (!viewer.hitRole || ev.entry.role === viewer.hitRole) &&
-        ev.entry.text.includes(viewer.hitLine),
+        ev.entry.text.startsWith(viewer.hitHead),
     );
     if (i >= 0) {
       hitIdx = i;

@@ -129,7 +129,9 @@ const transcript = [
     kind: 'tool_call',
     role: '',
     timestamp: '2026-09-18T09:12:40Z',
-    text: 'Read(c:\\dev\\shop-backend\\e2e\\checkout.spec.ts) lines 120-148\n\n  await page.click("button[data-testid=pay]");\n  await page.waitForSelector("#challenge");\n  await page.fill("#otp", "123456");\n  await expect(page.locator(".receipt")).toBeVisible();',
+    // one long single line, so the engine's snippet window (200 runes) has to
+    // cut it — the hit line below is not a substring of this text
+    text: 'Bash(c:\\dev\\shop-backend) — CI retry run: npx playwright test e2e/checkout.spec.ts --project=chromium --grep "3DS challenge" --retries=2 --timeout=45000 --reporter=line > ci-run-4211.log 2>&1; tail -n 40 ci-run-4211.log | grep -E "passed|failed|flaky"',
   },
   {
     kind: 'tool_result',
@@ -146,21 +148,43 @@ const transcript = [
   },
 ];
 
+// Emulates the engine's hit line for a long single-line entry: the line
+// windowed to 200 runes around the match, '…' marking the cuts — by
+// construction not a substring of the entry text.
+function windowedHit(text: string, needle: string) {
+  const at = text.indexOf(needle);
+  let start = Math.round(at - (200 - needle.length) / 2);
+  start = Math.max(0, Math.min(start, text.length - 200));
+  const end = start + 200;
+  const prefix = start > 0 ? '…' : '';
+  const suffix = end < text.length ? '…' : '';
+  return {
+    line: prefix + text.slice(start, end) + suffix,
+    match_start: prefix.length + at - start,
+    match_end: prefix.length + at - start + needle.length,
+  };
+}
+
+// entry_head anchors the viewer scroll: the head of the served transcript
+// entry's full text, exactly what the desktop backend computes per hit.
+const head = (i: number) => transcript[i]!.text.slice(0, 120);
+const toolHit = windowedHit(transcript[3]!.text, 'challenge');
+
 const searchResults = [
   {
     session: allSessions[2]!,
     hits: [
-      { kind: 'message', role: 'assistant', timestamp: null, context: 'fix flaky checkout tests', line: 'the payment step waits for a 3DS challenge iframe', match_start: 26, match_end: 30 },
-      { kind: 'tool_call', role: '', timestamp: null, context: '', line: 'Read(c:\\dev\\shop-backend\\e2e\\checkout.spec.ts)', match_start: 33, match_end: 41 },
+      { kind: 'message', role: 'assistant', timestamp: null, context: 'fix flaky checkout tests', line: 'the payment step waits for a 3DS challenge iframe', match_start: 26, match_end: 30, entry_head: head(2) },
+      { kind: 'tool_call', role: '', timestamp: null, context: '', ...toolHit, entry_head: head(3) },
     ],
   },
   {
     session: allSessions[5]!,
-    hits: [{ kind: 'message', role: 'user', timestamp: null, context: 'refactor auth middleware', line: 'can you check the checkout webhook signature handling', match_start: 18, match_end: 26 }],
+    hits: [{ kind: 'message', role: 'user', timestamp: null, context: 'refactor auth middleware', line: 'can you check the checkout webhook signature handling', match_start: 18, match_end: 26, entry_head: head(1) }],
   },
   {
     session: allSessions[8]!,
-    hits: [{ kind: 'message', role: 'assistant', timestamp: null, context: '', line: 'moved checkout totals into a separate service — see checkout/totals.go', match_start: 6, match_end: 14 }],
+    hits: [{ kind: 'message', role: 'assistant', timestamp: null, context: '', line: 'moved checkout totals into a separate service — see checkout/totals.go', match_start: 6, match_end: 14, entry_head: head(2) }],
   },
 ];
 

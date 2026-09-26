@@ -18,13 +18,34 @@ type SearchOptions struct {
 	Regex         bool          `json:"regex"`
 }
 
+// entryHeadRunes bounds the viewer anchor: the first N runes of the hit
+// entry's full text — enough to pin one entry without shipping multi-KB tool
+// outputs per hit.
+const entryHeadRunes = 120
+
+// guiHit is a stable-schema hit plus the GUI-only viewer anchor (R-D11): the
+// head of the hit entry's full text. The Line snippet is windowed (or, for
+// multi-line matches, collapsed) and is therefore usually NOT a substring of
+// the entry, so the snippet itself cannot anchor the scroll. CLI --json stays
+// byte-identical: render.SearchHitJSON is untouched.
+type guiHit struct {
+	render.SearchHitJSON
+	EntryHead string `json:"entry_head"`
+}
+
+// guiResult is one search-schema result row whose hits carry the anchor.
+type guiResult struct {
+	Session render.SessionJSON `json:"session"`
+	Hits    []guiHit           `json:"hits"`
+}
+
 // SearchOutcome is the `pastlog search` surface for the GUI.
 type SearchOutcome struct {
-	Results   []render.SearchResultJSON `json:"results"`
-	Hits      int                       `json:"hits"`
-	Truncated bool                      `json:"truncated"` // the max-hits cap was reached
-	Cancelled bool                      `json:"cancelled"` // the user stopped the run
-	Notes     []string                  `json:"notes"`
+	Results   []guiResult `json:"results"`
+	Hits      int         `json:"hits"`
+	Truncated bool        `json:"truncated"` // the max-hits cap was reached
+	Cancelled bool        `json:"cancelled"` // the user stopped the run
+	Notes     []string    `json:"notes"`
 }
 
 // Search runs the streaming engine over the filtered sessions (FastListing
@@ -67,10 +88,35 @@ func (a *App) Search(query string, o SearchOptions) (SearchOutcome, error) {
 		hits += len(r.Hits)
 	}
 	return SearchOutcome{
-		Results:   render.NewSearchResults(results),
+		Results:   guiResults(results),
 		Hits:      hits,
 		Truncated: o.MaxHits > 0 && hits >= o.MaxHits,
 		Cancelled: !a.stillActive(gen),
 		Notes:     a.combineNotes(adapters, notes),
 	}, nil
+}
+
+// guiResults maps engine results to the GUI surface: the stable search-schema
+// rows plus the per-hit viewer anchor.
+func guiResults(results []search.Result) []guiResult {
+	base := render.NewSearchResults(results)
+	out := make([]guiResult, len(base))
+	for i, b := range base {
+		hits := make([]guiHit, len(b.Hits))
+		for j, h := range b.Hits {
+			hits[j] = guiHit{SearchHitJSON: h, EntryHead: entryHead(results[i].Hits[j].Entry.Text)}
+		}
+		out[i] = guiResult{Session: b.Session, Hits: hits}
+	}
+	return out
+}
+
+// entryHead returns the first entryHeadRunes runes of the entry text, rune
+// safe (never splits a UTF-8 sequence).
+func entryHead(text string) string {
+	rs := []rune(text)
+	if len(rs) > entryHeadRunes {
+		rs = rs[:entryHeadRunes]
+	}
+	return string(rs)
 }

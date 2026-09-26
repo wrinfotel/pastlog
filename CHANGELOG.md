@@ -47,6 +47,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   webview shell is excluded by design, the frontend is audited by a bundle
   scan instead.
 
+### Fixed
+
+- Desktop: the transcript viewer's collapse/expand toggles work again — the
+  per-entry state lived in a value rebuilt by a derivation, so every click
+  was silently dropped (broken since 0.1.0).
+- Desktop: clicking a search hit scrolls the viewer to that entry via a new
+  `entry_head` GUI anchor (the head of the hit entry's full text). Matching
+  the snippet line by substring failed for windowed or synthesized lines —
+  most real hits, and every tool hit. The CLI `--json` search schema is
+  unchanged; the field exists on the GUI surface only.
+
 ## [0.1.0] - 2026-09-18
 
 Initial MVP release: a single static, 100%-local, read-only binary that

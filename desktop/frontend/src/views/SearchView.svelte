@@ -2,7 +2,14 @@
   // Search view: debounced live search (~250 ms), the full CLI filter set,
   // progress bar + cancel for large corpora, highlighted result cards, and
   // click-through to the viewer at the hit (R-D11).
-  import { api, emptyFilter, onProgress, type FilterOptions, type SearchOutcome } from '../lib/api';
+  import {
+    api,
+    emptyFilter,
+    onProgress,
+    type FilterOptions,
+    type SearchOutcome,
+    type SearchResult,
+  } from '../lib/api';
   import { fmtDay, shortProject, idPrefix } from '../lib/format';
   import { debounce } from '../lib/debounce';
   import { go, view } from '../lib/stores.svelte';
@@ -12,11 +19,6 @@
   import Notes from '../components/Notes.svelte';
   import Loader from '../components/Loader.svelte';
 
-  type Result = {
-    session: { id: string; agent: string; project: string; started_at: string | null };
-    hits: { kind: string; role: string; timestamp: string | null; context: string; line: string; match_start: number; match_end: number }[];
-  };
-
   let query = $state('');
   let filters = $state<FilterOptions>(emptyFilter());
   let agents = $state<string[]>([]);
@@ -25,7 +27,7 @@
   let regex = $state(false);
 
   let outcome = $state<SearchOutcome | null>(null);
-  let results = $state<Result[]>([]);
+  let results = $state<SearchResult[]>([]);
   let error = $state('');
   let searched = $state(false); // true once a run completed (drives "no matches")
   let progress = $state<{ scanned: number; hits: number } | null>(null);
@@ -60,7 +62,7 @@
       });
       if (mine !== seq) return; // a newer query superseded this run
       outcome = o;
-      results = o.results as unknown as Result[];
+      results = o.results;
       searched = true;
       error = '';
     } catch (e) {
@@ -94,8 +96,8 @@
     void run(query);
   }
 
-  function openAt(res: Result, hit: Result['hits'][number]) {
-    openSession(res.session.id, { line: hit.line, kind: hit.kind, role: hit.role }, 'search');
+  function openAt(res: SearchResult, hit: SearchResult['hits'][number]) {
+    openSession(res.session.id, { head: hit.entry_head, kind: hit.kind, role: hit.role }, 'search');
     go('viewer');
   }
 

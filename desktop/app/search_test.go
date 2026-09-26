@@ -26,6 +26,20 @@ func cliSearchJSON(t *testing.T, home string, args ...string) []render.SearchRes
 	return want
 }
 
+// stableView strips the GUI-only viewer anchors so a GUI outcome compares
+// against the CLI's stable search schema directly.
+func stableView(rs []guiResult) []render.SearchResultJSON {
+	out := make([]render.SearchResultJSON, len(rs))
+	for i, r := range rs {
+		hits := make([]render.SearchHitJSON, len(r.Hits))
+		for j, h := range r.Hits {
+			hits[j] = h.SearchHitJSON
+		}
+		out[i] = render.SearchResultJSON{Session: r.Session, Hits: hits}
+	}
+	return out
+}
+
 func TestSearchParityWithCLI(t *testing.T) {
 	home := claudeHome(t, "realistic.jsonl")
 	a := homeApp(t, home)
@@ -51,7 +65,7 @@ func TestSearchParityWithCLI(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Search: %v", err)
 			}
-			if !reflect.DeepEqual(got.Results, want) {
+			if !reflect.DeepEqual(stableView(got.Results), want) {
 				t.Errorf("search drift:\n GUI %+v\n CLI %+v", got.Results, want)
 			}
 		})
@@ -69,8 +83,52 @@ func TestSearchMaxHitsTruncates(t *testing.T) {
 		t.Errorf("hits=%d truncated=%v, want 2 hits and truncated", got.Hits, got.Truncated)
 	}
 	want := cliSearchJSON(t, home, "--max-hits", "2", "token")
-	if !reflect.DeepEqual(got.Results, want) {
+	if !reflect.DeepEqual(stableView(got.Results), want) {
 		t.Errorf("capped search drift:\n GUI %+v\n CLI %+v", got.Results, want)
+	}
+}
+
+// TestSearchHitsCarryViewerAnchor pins the R-D11 scroll contract: every hit's
+// entry_head is a bounded prefix of the hit entry's full text, and the
+// session's transcript — the exact listing the viewer renders — contains an
+// entry of the same kind/role whose text starts with it.
+func TestSearchHitsCarryViewerAnchor(t *testing.T) {
+	home := claudeHome(t, "realistic.jsonl")
+	a := homeApp(t, home)
+	got, err := a.Search("token", SearchOptions{})
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	checked := 0
+	for _, res := range got.Results {
+		out, err := a.Entries(res.Session.ID)
+		if err != nil {
+			t.Fatalf("Entries(%s): %v", res.Session.ID, err)
+		}
+		for _, h := range res.Hits {
+			if h.EntryHead == "" {
+				t.Errorf("hit %q carries no viewer anchor", h.Line)
+				continue
+			}
+			if n := len([]rune(h.EntryHead)); n > entryHeadRunes {
+				t.Errorf("anchor is %d runes, cap is %d", n, entryHeadRunes)
+			}
+			anchored := false
+			for _, e := range out.Entries {
+				if e.Kind == h.Kind && e.Role == h.Role && strings.HasPrefix(e.Text, h.EntryHead) {
+					anchored = true
+					break
+				}
+			}
+			if !anchored {
+				t.Errorf("no transcript entry of kind %q role %q starts with anchor %q (line %q)",
+					h.Kind, h.Role, h.EntryHead, h.Line)
+			}
+			checked++
+		}
+	}
+	if checked == 0 {
+		t.Fatal("fixture yielded no hits; the anchor test needs a multi-hit corpus")
 	}
 }
 

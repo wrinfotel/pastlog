@@ -52,6 +52,32 @@ export type ListOutcome = {
   notes: string[];
 };
 
+export type SearchHit = {
+  kind: string;
+  role: string;
+  timestamp: string | null;
+  context: string;
+  line: string;
+  match_start: number; // rune offset into line
+  match_end: number;
+  // head of the hit entry's full text — the viewer's scroll anchor (the line
+  // snippet is windowed/synthesized and usually not a substring of the entry)
+  entry_head: string;
+};
+
+export type SearchResult = {
+  session: SessionRow;
+  hits: SearchHit[];
+};
+
+export type SearchOutcome = {
+  results: SearchResult[];
+  hits: number;
+  truncated: boolean;
+  cancelled: boolean;
+  notes: string[];
+};
+
 export type StatsRow = {
   key: string;
   sessions: number;
