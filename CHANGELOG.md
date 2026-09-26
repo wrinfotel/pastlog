@@ -5,7 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-09-26
+
+The CLI and the desktop app ship from this entry on their own version
+lines: the CLI as `v0.2.0`, the desktop app as `desktop-v0.2.0`
+(`desktop-v0.1.0` went out mid-cycle).
 
 ### Added
 
@@ -17,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   cost). Read-only (`mode=ro`), streaming, locked-DB fallback: one warning,
   other agents unaffected. Documented in
   `internal/adapters/zcode/SCHEMA.md`.
-- **pastlog Desktop (0.1.0, `desktop-v*` releases)** — the GUI companion to
+- **pastlog Desktop** — the GUI companion to
   the CLI, built with Wails over the same Go engine. Home/Diagnostics
   summaries, virtualized Sessions with the full CLI filter set, live Search
   with progress + cancel and highlighted hits, a transcript viewer with
@@ -33,6 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the per-model token/cost breakdown (`stats --by model` narrowed to the
   project's own sessions) plus the project's session list. Scans stream
   progress and are cancellable.
+- Desktop: the mint workspace redesign — Home rebuilt as a landing-style
+  overview fed by real data only (no mock or invented values anywhere),
+  every secondary view restyled into the same design language, one back
+  strip across nested views, and the sessions/search/stats filters
+  consolidated into a single bar.
 
 ### Changed
 
@@ -49,6 +58,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Desktop: the light theme choice works on dark-OS machines — the light
+  palette only existed inside the `prefers-color-scheme` media query, so
+  the explicit setting changed nothing while the OS was dark.
+- Desktop: the search and stats filter fields re-run the live query on
+  their own change instead of only taking effect at the next keystroke
+  elsewhere.
 - Desktop: the transcript viewer's collapse/expand toggles work again — the
   per-entry state lived in a value rebuilt by a derivation, so every click
   was silently dropped (broken since 0.1.0).
@@ -88,5 +103,6 @@ of failing.
   unreadable OpenCode database degrades to one stderr note while the other
   agents keep contributing.
 
-[Unreleased]: https://github.com/wrinfotel/pastlog/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/wrinfotel/pastlog/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/wrinfotel/pastlog/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/wrinfotel/pastlog/releases/tag/v0.1.0

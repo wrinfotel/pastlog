@@ -106,8 +106,14 @@ jobs:
 
       - name: Build
         # wails needs the project dir (wails.json) as its cwd; every later
-        # step keeps repo-root paths
-        run: cd desktop && wails build -platform ${{ matrix.platform }} ${{ matrix.wailsargs }}
+        # step keeps repo-root paths. bash (not the pwsh default) — the
+        # version strips the tag prefix via ${VAR#desktop-v}, which pwsh
+        # cannot run. Without these ldflags the exe reports 0.0.0-dev in
+        # Settings → About (desktop-v0.1.0 shipped like that).
+        shell: bash
+        run: |
+          cd desktop && wails build -platform ${{ matrix.platform }} ${{ matrix.wailsargs }} \
+            -ldflags "-X github.com/wrinfotel/pastlog/internal/version.Version=${GITHUB_REF_NAME#desktop-v} -X github.com/wrinfotel/pastlog/internal/version.Commit=${GITHUB_SHA} -X github.com/wrinfotel/pastlog/internal/version.Date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
       - name: Name the portable exe by arch (both windows legs share one outputfilename)
         if: runner.os == 'Windows'
