@@ -19,6 +19,16 @@ export const theme = $state({ value: '' as Theme });
 export function applyTheme(t: Theme) {
   theme.value = t;
   const root = document.documentElement;
-  if (t === 'dark' || t === 'light') root.dataset.theme = t;
-  else delete root.dataset.theme;
+  if (t === 'system') {
+    // the OS scheme is resolved here so an explicit 'light' choice works on a
+    // dark-OS machine too; the listener keeps 'system' live across OS changes
+    const media = window.matchMedia('(prefers-color-scheme: light)');
+    const resolve = () => (root.dataset.theme = media.matches ? 'light' : 'dark');
+    resolve();
+    media.onchange = () => {
+      if (theme.value === 'system') resolve();
+    };
+  } else {
+    root.dataset.theme = t;
+  }
 }
