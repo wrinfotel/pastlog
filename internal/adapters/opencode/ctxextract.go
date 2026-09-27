@@ -68,7 +68,7 @@ func (a *Adapter) ContextEvents(s agentlog.Session) ([]agentlog.CtxEvent, error)
 	// fallback compaction marker: sessions compacted by an opencode build
 	// that records the timestamp without a compaction part
 	var compacting sql.NullInt64
-	_ = db.QueryRow(`SELECT time_compacting FROM session WHERE id = ?`, s.ID).Scan(&compacting)
+	_ = db.QueryRow(`SELECT time_compacting FROM session WHERE id = ?`, s.ID).Scan(&compacting) //nolint:errcheck // best-effort fallback: older schemas have no time_compacting column, the marker stays zero
 
 	rows, err := db.Query(`SELECT m.id, m.data, p.data, p.time_created
 		FROM message m LEFT JOIN part p ON p.message_id = m.id

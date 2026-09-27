@@ -137,8 +137,8 @@ func (p *Profile) analyzeGrowth(events, turns []agentlog.CtxEvent) {
 		}
 		if monotonic {
 			p.Findings = append(p.Findings, Finding{
-				Rule: "R4",
-				Desc: "context grew monotonically all session — no plateau, plan compactions for long runs",
+				Rule:  "R4",
+				Desc:  "context grew monotonically all session — no plateau, plan compactions for long runs",
 				Bytes: int(p.Final),
 			})
 		}
@@ -301,11 +301,10 @@ func (p *Profile) analyzeRepeats(events []agentlog.CtxEvent) {
 	type stat struct {
 		tool    string
 		label   string
-		count   int  // calls seen
-		repeats int  // calls with ≥1 turn since the previous same-key call
-		bytes   int  // total result bytes attributed to this key
-		lastSeq int  // seq of the previous call
-		turnGap bool // a turn separated this call from the previous one
+		count   int // calls seen
+		repeats int // calls with ≥1 turn since the previous same-key call
+		bytes   int // total result bytes attributed to this key
+		lastSeq int // seq of the previous call
 	}
 	order := []string{}
 	stats := map[string]*stat{}

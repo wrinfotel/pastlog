@@ -163,10 +163,10 @@ func ctxTurnTokens(tp *tokenCountPayload, prevTotal **tokenUsage) agentlog.CtxTo
 	per := *total
 	if p := *prevTotal; p != nil {
 		per = tokenUsage{
-			input:     ctxMax64(0, total.input-p.input),
-			cached:    ctxMax64(0, total.cached-p.cached),
-			output:    ctxMax64(0, total.output-p.output),
-			reasoning: ctxMax64(0, total.reasoning-p.reasoning),
+			input:     ctxNonNeg(total.input - p.input),
+			cached:    ctxNonNeg(total.cached - p.cached),
+			output:    ctxNonNeg(total.output - p.output),
+			reasoning: ctxNonNeg(total.reasoning - p.reasoning),
 		}
 	}
 	return agentlog.CtxTokens{
@@ -177,11 +177,14 @@ func ctxTurnTokens(tp *tokenCountPayload, prevTotal **tokenUsage) agentlog.CtxTo
 	}
 }
 
-func ctxMax64(a, b int64) int64 {
-	if a > b {
-		return a
+// ctxNonNeg clamps a usage delta to ≥0: last_token_usage is a cumulative
+// total, so a negative diff means the counter went backwards (a compaction
+// reset) and the turn contributed nothing observable.
+func ctxNonNeg(v int64) int64 {
+	if v < 0 {
+		return 0
 	}
-	return b
+	return v
 }
 
 // scanCtxLines streams one JSONL file line by line; fn gets each non-empty

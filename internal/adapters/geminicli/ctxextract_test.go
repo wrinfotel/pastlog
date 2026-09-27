@@ -113,7 +113,7 @@ func TestContextEventsLegacy(t *testing.T) {
 	// the same golden session inside a monolithic chats.json
 	var b strings.Builder
 	b.WriteString(`{"sessions":[`)
-	b.WriteString(fmt.Sprintf(`{"sessionId":%q,"startTime":"2026-08-03T10:00:00Z","directories":["/home/dev/app"],`, ctxLegacyID))
+	fmt.Fprintf(&b, `{"sessionId":%q,"startTime":"2026-08-03T10:00:00Z","directories":["/home/dev/app"],`, ctxLegacyID)
 	b.WriteString(`"messages":[`)
 	b.WriteString(`{"type":"user","timestamp":"2026-08-03T10:00:01Z","content":"build is failing, look into it"},`)
 	b.WriteString(`{"type":"gemini","timestamp":"2026-08-03T10:00:05Z","toolCalls":[{"name":"Read","args":{"file_path":"/home/dev/app/main.go"},"result":"package main\nfunc main() {}\n","status":"executed"}],"tokens":{"input":1500,"output":100}}`)

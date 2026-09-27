@@ -66,7 +66,7 @@ func (a *Adapter) ContextEvents(s agentlog.Session) ([]agentlog.CtxEvent, error)
 	// fallback compaction marker: sessions compacted by a build that records
 	// the timestamp without a compaction part
 	var compacting sql.NullInt64
-	_ = db.QueryRow(`SELECT time_compacting FROM session WHERE id = ?`, s.ID).Scan(&compacting)
+	_ = db.QueryRow(`SELECT time_compacting FROM session WHERE id = ?`, s.ID).Scan(&compacting) //nolint:errcheck // best-effort fallback: older builds have no time_compacting column, the marker stays zero
 
 	// the model requests: the IR's TurnStarts, in started_at order
 	type ctxRequest struct {

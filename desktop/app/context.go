@@ -56,7 +56,9 @@ func (a *App) Context(idPrefix string) (ContextOutcome, error) {
 		return ContextOutcome{}, err
 	}
 	adapters := cli.NewRegistry(home).Adapters()
-	res, err := agentlog.ResolveSession(adapters, idPrefix)
+	// ResolveSession's error is the plain "no match" reason — it is true
+	// exactly when !res.Found(), and every outcome below is resolution-driven.
+	res, _ := agentlog.ResolveSession(adapters, idPrefix) //nolint:errcheck // see above
 	if !res.Found() {
 		out := ContextOutcome{Status: "notfound", Notes: a.combineNotes(adapters, nil)}
 		if len(res.Candidates) > 0 {

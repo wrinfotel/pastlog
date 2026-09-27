@@ -36,9 +36,9 @@ func (t CtxTokens) Sum() int64 { return t.Input + t.CacheRead + t.CacheWrite }
 type CtxTokensKind int
 
 const (
-	CtxTokensNone CtxTokensKind = iota // event carries no usage
-	CtxTokensExact                     // from the agent's own reported usage
-	CtxTokensEstimated                 // derived from bytes (bytes/4 proxy)
+	CtxTokensNone      CtxTokensKind = iota // event carries no usage
+	CtxTokensExact                          // from the agent's own reported usage
+	CtxTokensEstimated                      // derived from bytes (bytes/4 proxy)
 )
 
 // CtxEvent is one normalized event of the context IR. ResBytes is the raw

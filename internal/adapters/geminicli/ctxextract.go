@@ -129,8 +129,8 @@ func (c *ctxMapper) content(raw json.RawMessage, role string, ts time.Time) {
 	}
 	for _, part := range parts {
 		var probe struct {
-			Text             json.RawMessage `json:"text"`
-			FunctionCall     *struct {
+			Text         json.RawMessage `json:"text"`
+			FunctionCall *struct {
 				Name string          `json:"name"`
 				Args json.RawMessage `json:"args"`
 			} `json:"functionCall"`
@@ -226,10 +226,10 @@ func (a *Adapter) ContextEvents(s agentlog.Session) ([]agentlog.CtxEvent, error)
 // scanCtxLinesJSONL streams one JSONL file line by line; fn gets each
 // non-empty line. Unreadable files are silent (best-effort flow, mirrors
 // scanFile).
-func scanCtxLinesJSONL(path string, fn func([]byte)) error {
+func scanCtxLinesJSONL(path string, fn func([]byte)) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil
+		return
 	}
 	defer f.Close()
 	scanner := bufio.NewScanner(f)
@@ -241,7 +241,6 @@ func scanCtxLinesJSONL(path string, fn func([]byte)) error {
 		}
 		fn(line)
 	}
-	return nil
 }
 
 // streamLegacyCtx maps one session's messages inside a monolithic chats.json
