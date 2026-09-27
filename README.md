@@ -9,7 +9,7 @@
 ```bash
 # "what did that agent do last Tuesday?" — one command, no index, no server
 pastlog search "jwt refresh token"
-pastlog stats --by model
+pastlog timeline --messages --since 2w   # how did we get here?
 pastlog show <session-id>
 ```
 
@@ -58,17 +58,17 @@ config files. Three ways to get it:
 ### 1. Download a release binary (recommended)
 
 Grab the archive for your platform from the
-[v0.2.2 release](https://github.com/wrinfotel/pastlog/releases/tag/v0.2.2) and
+[v0.2.3 release](https://github.com/wrinfotel/pastlog/releases/tag/v0.2.3) and
 put `pastlog` on your `PATH`:
 
 | Platform | Archive |
 |---|---|
-| Windows, Intel/AMD 64-bit | `pastlog_0.2.2_windows_amd64.zip` |
-| Windows on ARM | `pastlog_0.2.2_windows_arm64.zip` |
-| macOS, Apple Silicon | `pastlog_0.2.2_darwin_arm64.tar.gz` |
-| macOS, Intel | `pastlog_0.2.2_darwin_amd64.tar.gz` |
-| Linux, Intel/AMD 64-bit | `pastlog_0.2.2_linux_amd64.tar.gz` |
-| Linux on ARM | `pastlog_0.2.2_linux_arm64.tar.gz` |
+| Windows, Intel/AMD 64-bit | `pastlog_0.2.3_windows_amd64.zip` |
+| Windows on ARM | `pastlog_0.2.3_windows_arm64.zip` |
+| macOS, Apple Silicon | `pastlog_0.2.3_darwin_arm64.tar.gz` |
+| macOS, Intel | `pastlog_0.2.3_darwin_amd64.tar.gz` |
+| Linux, Intel/AMD 64-bit | `pastlog_0.2.3_linux_amd64.tar.gz` |
+| Linux on ARM | `pastlog_0.2.3_linux_arm64.tar.gz` |
 
 Every release ships a `checksums.txt` with SHA256 sums. Verify on
 macOS/Linux before unpacking:
@@ -80,14 +80,14 @@ sha256sum -c checksums.txt --ignore-missing
 Windows (PowerShell):
 
 ```powershell
-Expand-Archive pastlog_0.2.2_windows_amd64.zip -DestinationPath .
+Expand-Archive pastlog_0.2.3_windows_amd64.zip -DestinationPath .
 Move-Item .\pastlog.exe "$env:USERPROFILE\go\bin\"   # or any folder on PATH
 ```
 
 macOS/Linux:
 
 ```sh
-tar xzf pastlog_0.2.2_darwin_arm64.tar.gz   # your platform's archive
+tar xzf pastlog_0.2.3_darwin_arm64.tar.gz   # your platform's archive
 sudo install pastlog /usr/local/bin/
 pastlog version                             # sanity check
 ```
@@ -144,10 +144,12 @@ Available Commands:
   completion  Generate the autocompletion script for the specified shell
   context     analyze why one session's context grew (what fed the window)
   help        Help about any command
+  related     show sessions related to one: parent, subagents, project neighbors
   search      search all session entries across agents
   sessions    list sessions, newest first
   show        print one session as a readable transcript
   stats       aggregate token usage across agents, projects, days and models
+  timeline    merged chronological view across sessions and agents
   version     print version, commit and build date
 
 Flags:
@@ -236,12 +238,33 @@ gemini-cli   ~/dev/myapp  2026-08-02 17:03  2 messages   548 B  e4a7f2b3
 opencode     ~/dev/myapp  2026-07-28 19:35  1 message     98 B  2f8d6b3a
 ```
 
+`pastlog timeline` — the same history read chronologically, oldest first:
+when did which agent work on what, interleaved. With `--messages` the
+user/assistant messages of every matching session merge into one stream —
+the "how did we get here" view. Same filters as `sessions`; `--max-rows N`
+(default 500) keeps the newest N events:
+
+```console
+$ pastlog timeline --since 3d
+2026-08-01 21:22  claude-code  ~/dev/website  4m 12s  2 messages   645 B  aaaa1111
+2026-08-02 17:03  claude-code  ~/dev/myapp    4s       2 messages  1.1 KB  3f9c81a2
+2026-08-02 17:10  codex        ~/dev/myapp    12s      2 messages   664 B  9b2d4c1e
+
+$ pastlog timeline --messages --project myapp --max-rows 4
+2026-08-02 17:03:22  claude-code  user       the refresh token is stored in localStorage, is that safe?  3f9c81a2
+2026-08-02 17:03:25  claude-code  assistant  the jwt refresh kept failing because the old token…  3f9c81a2
+2026-08-02 17:10:00  codex        user       the jwt refresh endpoint returns 401 after an hour   9b2d4c1e
+2026-08-02 17:10:10  codex        assistant  rotation fixed — regression test added               9b2d4c1e
+```
+
 `pastlog search <query>` — case-insensitive literal search across user and
 assistant messages, tool-call inputs and tool outputs of all agents, with
 the match highlighted and one line of context. `--regex` interprets the
 query as a regular expression, `--case-sensitive` disables the default
 folding, `--limit N` caps sessions scanned and `--max-hits N` caps total
-hits printed (200 by default):
+hits printed (200 by default). Hit lines mask secret-looking tokens
+(`ghp_…9fZx`) by default — the raw data is still what gets searched;
+`--no-mask` prints matches verbatim, `--json` always stays verbatim:
 
 ```console
 $ pastlog search "jwt refresh"
@@ -272,7 +295,8 @@ $ pastlog search "jwt refresh" --json --limit 1
       "started_at": "2026-08-02T14:10:00Z",
       "ended_at": "2026-08-02T14:10:12Z",
       "messages": 2,
-      "size_bytes": 664
+      "size_bytes": 664,
+      "parent_id": ""
     },
     "hits": [
       {
@@ -291,7 +315,9 @@ $ pastlog search "jwt refresh" --json --limit 1
 
 `pastlog show <session-id-or-prefix>` — one session as a readable
 transcript. Accepts an unambiguous ID prefix; on ambiguity it lists the
-candidates and exits 2:
+candidates and exits 2. Secrets in transcript text are masked by default
+(`ghp_…9fZx`); `--no-mask` prints them verbatim, and `--json` always stays
+verbatim — it is the machine channel:
 
 ```console
 $ pastlog show 3f9c81a2
@@ -351,6 +377,7 @@ $ pastlog show 3f9c81a2 --json
   "ended_at": "2026-08-02T14:03:26.24Z",
   "messages": 2,
   "size_bytes": 1001,
+  "parent_id": "",
   "entries": [
     {
       "kind": "summary",
@@ -378,6 +405,23 @@ $ pastlog show 3f9c81a2 --json
     }
   ]
 }
+```
+
+`pastlog related <session-id-or-prefix>` — the sessions around one session:
+its subagent parent and children where the agent records them (opencode,
+zcode and gemini-cli subagent sessions; claude-code and codex record none),
+plus the nearest same-agent, same-project sessions before and after — the
+continuation heuristic. Each row in the sections opens directly in `show`:
+
+```console
+$ pastlog related ses_2f8d6b3a
+opencode  ~/dev/myapp  2026-07-28 19:36  1 message   98 B  ses_2f8d6b3a…
+
+parent
+  opencode  ~/dev/myapp  2026-07-28 19:35  1 message     98 B  ses_2f8d6b3a
+
+adjacent in project (1)
+  opencode  ~/dev/myapp  2026-07-29 11:02  4 messages  2.4 KB  ses_7c1e9a0f
 ```
 
 `pastlog context <session-id-or-prefix>` — why one session's context window
@@ -496,7 +540,7 @@ link time. A release binary reports the tagged build:
 
 ```console
 $ pastlog version
-pastlog v0.2.2 (commit 9af55de181a7b8d51b70f0cd2ce814f825a258e4, date 2026-09-27T16:58:00Z)
+pastlog v0.2.3 (commit 9af55de181a7b8d51b70f0cd2ce814f825a258e4, date 2026-09-27T16:58:00Z)
 ```
 
 (a plain `go install` build without ldflags reports `pastlog 0.0.0-dev
@@ -515,8 +559,12 @@ click an agent on Home to drill into its projects and see which models each
 one used and at what token cost, read transcripts comfortably (collapsible
 tool calls, markdown-rendered assistant messages), open a per-session
 context analysis (a CONTEXT button shows the same per-turn curve, bloat
-rules and advice the CLI prints), inspect token-usage statistics, and export
-anything to JSON or markdown.
+rules and advice the CLI prints), jump between related sessions (a RELATED
+button lists the subagent parent and children plus the nearest same-project
+sessions — click a row to open it), inspect token-usage statistics, and
+export anything to JSON or markdown. Secrets are masked in search results
+and transcripts (a Settings toggle, on by default); JSON exports stay
+verbatim.
 
 <p align="center">
   <img src="docs/images/desktop-home.png" alt="pastlog Desktop — Home: detected agents, sessions and indexed size" width="49%">
@@ -534,8 +582,10 @@ anything to JSON or markdown.
 | `pastlog sessions` | Sessions (virtualized, all filters) |
 | `pastlog search` | Search (live, progress + cancel, click a hit to open the session) |
 | `pastlog show` | Session viewer (with `--export md`/`--json` parity) |
+| `pastlog related` | Session viewer → RELATED button (parent, subagents, project neighbors; click to jump) |
 | `pastlog context` | Session viewer → CONTEXT button (same rules R1–R5, the per-turn sparkline, advice) |
 | `pastlog stats` | Stats · Projects (per-agent project list → per-model usage of one project + its sessions) |
+| `pastlog timeline` | planned for a desktop release (the CLI view ships today) |
 | `pastlog version` | About (in Settings) |
 
 Every GUI JSON export is byte-identical to the CLI's `--json` output —
@@ -545,7 +595,7 @@ proven by tests that run both against the same data.
 
 Grab a `desktop-v*` release from the
 [releases page](https://github.com/wrinfotel/pastlog/releases) — the current one
-is [desktop-v0.2.2](https://github.com/wrinfotel/pastlog/releases/tag/desktop-v0.2.2),
+is [desktop-v0.2.3](https://github.com/wrinfotel/pastlog/releases/tag/desktop-v0.2.3),
 ~15–20 MB per platform:
 
 | Platform | Artifact |
@@ -575,9 +625,10 @@ No telemetry, no auto-update checks, no network calls in its own operation
 (the frontend is embedded in the binary and loads zero external assets; a
 strict CSP is enforced). It never writes to agent storage — its only writes
 are your chosen export destination and its own settings file in the OS
-app-config dir (theme + home override). Session content is rendered as text
-or sanitized markdown only; nothing shown is ever executable, and links open
-in your system browser, never inside the app.
+app-config dir (theme + home override + secret masking, on by default).
+Session content is rendered as text or sanitized markdown only; nothing
+shown is ever executable, and links open in your system browser, never
+inside the app.
 
 ## Exit codes
 
@@ -688,6 +739,16 @@ CI runs the race-enabled test suite on Windows, the release build produces
 `windows/amd64` and `windows/arm64` binaries, and path handling is
 normalized (`--project` matches forward and back slashes alike).
 
+### Are secrets masked in the output?
+
+Human output yes, machine output no. `show`, `search` and `timeline` mask
+secret-looking tokens — API keys, JWTs, `Bearer` headers, passwords in
+URLs — into short handshapes like `ghp_…9fZx` (key type visible, last four
+chars to tell keys apart, nothing usable leaked). `--no-mask` turns it off
+per run, the desktop app has a Settings toggle (on by default), and `--json`
+always stays verbatim: it is the machine channel whose bytes scripts
+consume. Masking never affects what is searched — only what is printed.
+
 ### Does it modify my logs?
 
 No — read-only by design and enforced by tests. Adapters only open files
@@ -720,6 +781,7 @@ the shape is enough).
 
 ## Roadmap
 
+- **Desktop timeline view** — the merged chronological view (`pastlog timeline`) as a GUI page
 - **MCP server** (`pastlog mcp`) — let your coding agent search its own history
 - **TUI** — interactive browsing on top of the same engine
 - **Homebrew / Scoop packages** — `brew install` and `scoop install` formulas
