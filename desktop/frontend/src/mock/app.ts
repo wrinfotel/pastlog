@@ -47,6 +47,7 @@ function sessionRows(n: number) {
       ended_at: new Date(day.getTime() + 40_000_000).toISOString(),
       messages: 8 + ((i * 17) % 140),
       size_bytes: 120_000 + ((i * 943_991) % 9_000_000),
+      parent_id: '',
     });
   }
   return out;
@@ -190,7 +191,7 @@ const searchResults = [
   },
 ];
 
-let settings = { home: '', theme: 'system', version: '0.2.2', commit: 'afba759', date: '2026-09-18' };
+let settings = { home: '', theme: 'system', maskSecrets: true, version: '0.2.3', commit: 'afba759', date: '2026-09-27' };
 
 const delay = (ms = 120) => new Promise((r) => setTimeout(r, ms));
 
@@ -317,6 +318,30 @@ export async function SetHome(home: string) {
 export async function SetTheme(theme: string) {
   settings = { ...settings, theme };
   return { ...settings };
+}
+
+export async function SetMaskSecrets(on: boolean) {
+  settings = { ...settings, maskSecrets: on };
+  return { ...settings };
+}
+
+// The `pastlog related` surface: the fixture session has no parent but one
+// subagent child and two same-project neighbors — every section the panel
+// renders, cross-screen consistent with the fixture world.
+export async function Related(id: string) {
+  await delay(200);
+  if (id.startsWith('amb')) {
+    return { status: 'ambiguous', candidates: [allSessions[0]!, allSessions[1]!], notes: [] };
+  }
+  const child = { ...allSessions[3]!, parent_id: allSessions[2]!.id };
+  return {
+    status: 'ok',
+    session: allSessions[2]!,
+    parent: null,
+    children: [child],
+    adjacent: [allSessions[0]!, allSessions[4]!],
+    notes: [],
+  };
 }
 
 export async function ExportSession() {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/wrinfotel/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/mask"
 	"github.com/wrinfotel/pastlog/internal/render"
 )
 
@@ -16,6 +17,7 @@ func newShowCmd(stdout, stderr io.Writer) *cobra.Command {
 	var (
 		jsonOut bool
 		export  string
+		noMask  bool
 	)
 	cmd := &cobra.Command{
 		Use:   "show <session-id-or-prefix>",
@@ -54,6 +56,15 @@ func newShowCmd(stdout, stderr io.Writer) *cobra.Command {
 				return fmt.Errorf("cannot read session %s: %v", meta.ID, err)
 			}
 
+			// Masking is a human-output concern: --json is the machine
+			// channel and stays verbatim.
+			if !jsonOut && !noMask {
+				meta.Title = mask.Mask(meta.Title)
+				for i := range entries {
+					entries[i].Text = mask.Mask(entries[i].Text)
+				}
+			}
+
 			switch {
 			case jsonOut:
 				err = render.ShowJSON(stdout, meta, entries)
@@ -71,6 +82,7 @@ func newShowCmd(stdout, stderr io.Writer) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "output machine-readable JSON")
 	cmd.Flags().StringVar(&export, "export", "", "export format: md prints the session as markdown")
+	cmd.Flags().BoolVar(&noMask, "no-mask", false, "print secrets verbatim (default: masked like ghp_…ABCD)")
 	return cmd
 }
 

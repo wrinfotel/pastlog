@@ -689,3 +689,30 @@ func TestSessionForIndexResolvesColdAndWarm(t *testing.T) {
 		}
 	})
 }
+
+func TestSubagentParentID(t *testing.T) {
+	a := newTestAdapter(t, map[string]string{
+		realisticRel: "realistic.jsonl",
+		"chats/gparent9999-9999-4999-8999-999999999999/subagent.jsonl": "subagent.jsonl",
+	})
+	sessions := listSessions(t, a)
+	main := sessionByID(t, sessions, realisticID)
+	if main.ParentID != "" {
+		t.Errorf("main session ParentID = %q, want empty", main.ParentID)
+	}
+	sub := sessionByID(t, sessions, subagentID)
+	if sub.ParentID != "gparent9999-9999-4999-8999-999999999999" {
+		t.Errorf("subagent ParentID = %q, want the parent directory name", sub.ParentID)
+	}
+	// the fast listing must agree with the full one (FastMetaSource contract)
+	fast := map[string]string{}
+	if _, err := a.SessionsMetaFast(func(m agentlog.SessionMeta) error {
+		fast[m.ID] = m.ParentID
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if fast[subagentID] != "gparent9999-9999-4999-8999-999999999999" {
+		t.Errorf("fast listing subagent ParentID = %q, want the parent directory name", fast[subagentID])
+	}
+}

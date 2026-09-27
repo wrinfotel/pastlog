@@ -12,8 +12,9 @@ import (
 // Config is the on-disk settings file: the only state the app is allowed to
 // write, living in the OS app-config dir — never in agent storage (spec §2.1).
 type Config struct {
-	Home  string `json:"home,omitempty"`  // "" = auto-discover
-	Theme string `json:"theme,omitempty"` // "" = system
+	Home        string `json:"home,omitempty"`        // "" = auto-discover
+	Theme       string `json:"theme,omitempty"`       // "" = system
+	MaskSecrets *bool  `json:"maskSecrets,omitempty"` // nil = default ON (pre-0.2.3 configs)
 }
 
 // configName is the settings file inside the config dir.

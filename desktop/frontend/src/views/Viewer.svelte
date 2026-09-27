@@ -4,7 +4,7 @@
   // affordances only; nothing is ever executed (spec §4.3/§4.4). The context
   // panel runs the `pastlog context` analysis on demand (a second pass over
   // the session, so it loads lazily on first open).
-  import { api, type ContextOutcome, type ListOutcome } from '../lib/api';
+  import { api, type ContextOutcome, type ListOutcome, type RelatedOutcome } from '../lib/api';
   import type { SessionRow } from '../lib/api';
   import { fmtBytes, fmtDate, fmtInt, fmtTok, idPrefix } from '../lib/format';
   import { fmtTime } from '../lib/format';
@@ -43,12 +43,21 @@
   let ctxOutcome = $state<ContextOutcome | null>(null);
   let ctxError = $state('');
 
+  // related panel state (0.2.3); reset with every session load
+  let relOpen = $state(false);
+  let relLoading = $state(false);
+  let relOutcome = $state<RelatedOutcome | null>(null);
+  let relError = $state('');
+
   async function load(id: string) {
     loading = true;
     hitIdx = -1;
     ctxOpen = false;
     ctxOutcome = null;
     ctxError = '';
+    relOpen = false;
+    relOutcome = null;
+    relError = '';
     try {
       outcome = (await api.entries(id)) as Outcome;
       entries = (outcome?.entries ?? []).map((e) => ({
@@ -107,6 +116,29 @@
   function toggleContext() {
     ctxOpen = !ctxOpen;
     if (ctxOpen && !ctxOutcome && !ctxLoading) void loadContext();
+  }
+
+  async function loadRelated() {
+    relLoading = true;
+    try {
+      relOutcome = await api.related(viewer.id);
+      relError = '';
+    } catch (e) {
+      relError = String(e);
+    } finally {
+      relLoading = false;
+    }
+  }
+
+  function toggleRelated() {
+    relOpen = !relOpen;
+    if (relOpen && !relOutcome && !relLoading) void loadRelated();
+  }
+
+  // a related row opens that session in the same viewer
+  function openRelated(id: string) {
+    openSession(id, undefined, 'viewer');
+    go('viewer');
   }
 
   async function copyText(text: string) {
@@ -220,6 +252,24 @@
         </svg>
         CONTEXT
       </button>
+      <button class="btn" class:on={relOpen} onclick={toggleRelated} title="parent, subagents and project neighbors">
+        <svg
+          viewBox="0 0 24 24"
+          width="13"
+          height="13"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="6" cy="6" r="3" />
+          <circle cx="18" cy="18" r="3" />
+          <path d="M6 9v3a3 3 0 0 0 3 3h6" />
+          <path d="M18 15v-3a3 3 0 0 0-3-3H9" />
+        </svg>
+        RELATED
+      </button>
       <button class="btn" onclick={() => exportSession('json')}>
         <svg
           viewBox="0 0 24 24"
@@ -300,6 +350,50 @@
         {/if}
       {:else if ctxOutcome}
         <p class="lean">context analysis unavailable for this session</p>
+      {/if}
+    </section>
+  {/if}
+  {#if relOpen}
+    <section class="ctxpanel fadein">
+      {#if relLoading}
+        <Loader label="finding related sessions…" />
+      {:else if relError}
+        <p class="err">{relError}</p>
+      {:else if relOutcome?.status === 'ok'}
+        {#if !relOutcome.parent && !(relOutcome.children ?? []).length && !(relOutcome.adjacent ?? []).length}
+          <p class="lean">no related sessions recorded</p>
+        {:else}
+          {#if relOutcome.parent}
+            <div class="relsect">parent</div>
+            <button class="relrow" onclick={() => openRelated(relOutcome.parent!.id)}>
+              <span class="relid">{idPrefix(relOutcome.parent.id)}</span>
+              <span>{relOutcome.parent.agent}</span>
+              <span class="relmeta">{fmtDate(relOutcome.parent.started_at)} · {fmtInt(relOutcome.parent.messages)} messages</span>
+            </button>
+          {/if}
+          {#if (relOutcome.children ?? []).length > 0}
+            <div class="relsect">subagents ({relOutcome.children.length})</div>
+            {#each relOutcome.children as c}
+              <button class="relrow" onclick={() => openRelated(c.id)}>
+                <span class="relid">{idPrefix(c.id)}</span>
+                <span>{c.agent}</span>
+                <span class="relmeta">{fmtDate(c.started_at)} · {fmtInt(c.messages)} messages</span>
+              </button>
+            {/each}
+          {/if}
+          {#if (relOutcome.adjacent ?? []).length > 0}
+            <div class="relsect">adjacent in project ({relOutcome.adjacent.length})</div>
+            {#each relOutcome.adjacent as r}
+              <button class="relrow" onclick={() => openRelated(r.id)}>
+                <span class="relid">{idPrefix(r.id)}</span>
+                <span>{r.agent}</span>
+                <span class="relmeta">{fmtDate(r.started_at)} · {fmtInt(r.messages)} messages</span>
+              </button>
+            {/each}
+          {/if}
+        {/if}
+      {:else if relOutcome}
+        <p class="lean">related sessions unavailable for this id</p>
       {/if}
     </section>
   {/if}
@@ -606,5 +700,45 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+  }
+  .relsect {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 8px 0 4px;
+  }
+  .relsect:first-child {
+    margin-top: 0;
+  }
+  .relrow {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 0;
+    border-radius: var(--radius-s);
+    padding: 3px 6px;
+    font-size: 12.5px;
+    color: var(--text-2);
+    cursor: pointer;
+  }
+  .relrow:hover {
+    background: var(--panel-hover);
+    color: var(--text);
+  }
+  .relid {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--accent);
+  }
+  .relmeta {
+    margin-left: auto;
+    color: var(--muted);
+    font-size: 11.5px;
   }
 </style>

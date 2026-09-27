@@ -184,7 +184,8 @@ func TestSearchJSON(t *testing.T) {
       "started_at": "2026-08-02T14:10:00Z",
       "ended_at": null,
       "messages": 4,
-      "size_bytes": 2011
+      "size_bytes": 2011,
+      "parent_id": ""
     },
     "hits": [
       {
@@ -207,7 +208,8 @@ func TestSearchJSON(t *testing.T) {
       "started_at": "2026-08-02T14:03:22Z",
       "ended_at": null,
       "messages": 2,
-      "size_bytes": 614
+      "size_bytes": 614,
+      "parent_id": ""
     },
     "hits": [
       {

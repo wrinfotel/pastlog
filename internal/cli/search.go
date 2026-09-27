@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/wrinfotel/pastlog/internal/agentlog"
 	"github.com/wrinfotel/pastlog/internal/dates"
+	"github.com/wrinfotel/pastlog/internal/mask"
 	"github.com/wrinfotel/pastlog/internal/render"
 	"github.com/wrinfotel/pastlog/internal/search"
 )
@@ -25,6 +26,7 @@ func newSearchCmd(stdout, stderr io.Writer) *cobra.Command {
 		limit, maxHit int
 		caseSensitive bool
 		regexMode     bool
+		noMask        bool
 	)
 	cmd := &cobra.Command{
 		Use:   "search <query>",
@@ -79,6 +81,24 @@ func newSearchCmd(stdout, stderr io.Writer) *cobra.Command {
 					fmt.Fprintln(stderr, note)
 				},
 			})
+			// Masking is a human-output concern: --json is the machine
+			// channel and stays verbatim. Highlight offsets were computed on
+			// the raw line, so re-locate the match on the masked line — a
+			// needle inside a secret no longer matches and renders plain.
+			if !jsonOut && !noMask {
+				for i := range results {
+					for j := range results[i].Hits {
+						h := &results[i].Hits[j]
+						h.Line = mask.Mask(h.Line)
+						h.Context = mask.Mask(h.Context)
+						if start, end, ok := m.Locate(h.Line); ok {
+							h.MatchStart, h.MatchEnd = start, end
+						} else {
+							h.MatchStart, h.MatchEnd = -1, 0
+						}
+					}
+				}
+			}
 			// human output prints nothing without matches; --json still
 			// prints a valid (empty) document
 			if jsonOut {
@@ -104,6 +124,7 @@ func newSearchCmd(stdout, stderr io.Writer) *cobra.Command {
 	cmd.Flags().IntVar(&maxHit, "max-hits", search.DefaultMaxHits, "print at most N hits in total (0 = no limit)")
 	cmd.Flags().BoolVar(&caseSensitive, "case-sensitive", false, "match case-sensitively (default: case-insensitive)")
 	cmd.Flags().BoolVar(&regexMode, "regex", false, "interpret the query as a regular expression")
+	cmd.Flags().BoolVar(&noMask, "no-mask", false, "print secrets verbatim (default: masked like ghp_…ABCD)")
 	return cmd
 }
 

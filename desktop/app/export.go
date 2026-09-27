@@ -8,6 +8,7 @@ import (
 
 	"github.com/wrinfotel/pastlog/internal/agentlog"
 	"github.com/wrinfotel/pastlog/internal/cli"
+	"github.com/wrinfotel/pastlog/internal/mask"
 	"github.com/wrinfotel/pastlog/internal/render"
 )
 
@@ -47,13 +48,23 @@ func (a *App) ExportSession(idPrefix, format, destPath string) (SessionExport, e
 	}); err != nil {
 		return SessionExport{}, fmt.Errorf("cannot read session %s: %v", res.Meta.ID, err)
 	}
+	meta := res.Meta
 	var buf bytes.Buffer
 	if format == "json" {
-		if err := render.ShowJSON(&buf, res.Meta, entries); err != nil {
+		// json stays CLI-identical (R-D13): verbatim, like `show --json`.
+		if err := render.ShowJSON(&buf, meta, entries); err != nil {
 			return SessionExport{}, err
 		}
 	} else {
-		render.ShowMarkdown(&buf, res.Meta, entries)
+		// markdown is a human artifact: masked by default like the CLI's
+		// `--export md`, verbatim when the user turned masking off.
+		if a.masking() {
+			meta.Title = mask.Mask(meta.Title)
+			for i := range entries {
+				entries[i].Text = mask.Mask(entries[i].Text)
+			}
+		}
+		render.ShowMarkdown(&buf, meta, entries)
 	}
 	if err := os.WriteFile(destPath, buf.Bytes(), 0o644); err != nil {
 		return SessionExport{}, fmt.Errorf("cannot write the export: %v", err)

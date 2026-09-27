@@ -4,7 +4,7 @@
   import { api } from '../lib/api';
   import { appMeta, applyTheme, type Theme } from '../lib/stores.svelte';
 
-  type Settings = { home: string; theme: string; version: string; commit: string; date: string };
+  type Settings = { home: string; theme: string; maskSecrets: boolean; version: string; commit: string; date: string };
 
   let settings = $state<Settings | null>(null);
   let homeInput = $state('');
@@ -52,6 +52,16 @@
       error = String(e);
     }
   }
+
+  async function toggleMasking() {
+    if (!settings) return;
+    try {
+      settings = (await api.setMaskSecrets(!settings.maskSecrets)) as Settings;
+      error = '';
+    } catch (e) {
+      error = String(e);
+    }
+  }
 </script>
 
 <header class="page-head">
@@ -94,7 +104,29 @@
   </section>
 
   <section class="panel">
-    <div class="section-kicker">// 03 · ABOUT</div>
+    <div class="section-kicker">// 03 · PRIVACY</div>
+    <h2>Mask secrets in transcripts</h2>
+    <p class="meta">
+      API keys, tokens and passwords render as short handshapes (ghp_…9fZx) in search results,
+      transcripts and markdown exports. Exports as JSON always stay verbatim.
+    </p>
+    <div class="seg">
+      {#each [['on', true], ['off', false]] as [label, value]}
+        <label class="segopt">
+          <input
+            type="radio"
+            name="masking"
+            checked={(settings.maskSecrets ?? true) === value}
+            onclick={() => (settings!.maskSecrets === value ? undefined : toggleMasking())}
+          />
+          {label}
+        </label>
+      {/each}
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="section-kicker">// 04 · ABOUT</div>
     <h2>About</h2>
     <p class="meta">
       pastlog Desktop {settings.version} (commit {settings.commit}, date {settings.date})<br />

@@ -10,6 +10,7 @@ type Session struct {
 	Agent     string // "claude-code" | "codex" | "gemini-cli" | "opencode" | "zcode"
 	Project   string // working dir, "" if unknown
 	Title     string // optional
+	ParentID  string // subagent parent session id, "" for top-level sessions
 	StartedAt time.Time
 	EndedAt   time.Time // optional
 	SizeBytes int64

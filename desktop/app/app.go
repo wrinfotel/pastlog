@@ -53,13 +53,14 @@ func New(options ...Option) *App {
 }
 
 // Settings is the persisted settings surface plus the about box (spec §2.4:
-// the only user-facing knobs are the home override and the theme).
+// the only user-facing knobs are the home override, the theme and masking).
 type Settings struct {
-	Home    string `json:"home"`  // persisted override; "" = auto-discover
-	Theme   string `json:"theme"` // "" | "system" | "dark" | "light"
-	Version string `json:"version"`
-	Commit  string `json:"commit"`
-	Date    string `json:"date"`
+	Home        string `json:"home"`        // persisted override; "" = auto-discover
+	Theme       string `json:"theme"`       // "" | "system" | "dark" | "light"
+	MaskSecrets bool   `json:"maskSecrets"` // default true (0.2.3)
+	Version     string `json:"version"`
+	Commit      string `json:"commit"`
+	Date        string `json:"date"`
 }
 
 // GetSettings returns the current settings and build metadata.
@@ -67,12 +68,38 @@ func (a *App) GetSettings() Settings {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return Settings{
-		Home:    a.cfg.Home,
-		Theme:   a.cfg.Theme,
-		Version: version.Version,
-		Commit:  version.Commit,
-		Date:    version.Date,
+		Home:        a.cfg.Home,
+		Theme:       a.cfg.Theme,
+		MaskSecrets: maskingOn(a.cfg),
+		Version:     version.Version,
+		Commit:      version.Commit,
+		Date:        version.Date,
 	}
+}
+
+// maskingOn resolves the persisted masking knob: unset (a config saved
+// before 0.2.3) means ON — safe viewing is the default.
+func maskingOn(cfg Config) bool {
+	return cfg.MaskSecrets == nil || *cfg.MaskSecrets
+}
+
+// masking reports the effective masking setting for render-time redaction.
+func (a *App) masking() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return maskingOn(a.cfg)
+}
+
+// SetMaskSecrets persists the secret-masking preference.
+func (a *App) SetMaskSecrets(on bool) (Settings, error) {
+	a.mu.Lock()
+	a.cfg.MaskSecrets = &on
+	err := a.cfg.save(a.cfgDir)
+	a.mu.Unlock()
+	if err != nil {
+		return a.GetSettings(), err
+	}
+	return a.GetSettings(), nil
 }
 
 // SetHome validates and persists the home-directory override.

@@ -209,7 +209,7 @@ func (a *Adapter) walkUsage(iter func(agentlog.SessionUsage) error) error {
 		return fmt.Errorf("cannot read zcode usage: %v", err)
 	}
 
-	rows, err := db.Query(`SELECT id, directory, title, time_created, time_updated
+	rows, err := db.Query(`SELECT id, directory, title, time_created, time_updated, parent_id
 		FROM session ORDER BY time_created, id`)
 	if err != nil {
 		if a.markLocked(err) {
@@ -222,7 +222,8 @@ func (a *Adapter) walkUsage(iter func(agentlog.SessionUsage) error) error {
 	for rows.Next() {
 		var id, directory, title string
 		var created, updated int64
-		if err := rows.Scan(&id, &directory, &title, &created, &updated); err != nil {
+		var parent sql.NullString // NULL → "" (top-level session)
+		if err := rows.Scan(&id, &directory, &title, &created, &updated, &parent); err != nil {
 			continue // unreadable row: skip
 		}
 		su := agentlog.SessionUsage{
@@ -231,6 +232,7 @@ func (a *Adapter) walkUsage(iter func(agentlog.SessionUsage) error) error {
 				Agent:     agentName,
 				Project:   directory,
 				Title:     title,
+				ParentID:  parent.String,
 				StartedAt: time.UnixMilli(created),
 				EndedAt:   time.UnixMilli(updated),
 				SizeBytes: sizes[id],

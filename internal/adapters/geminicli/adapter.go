@@ -164,6 +164,7 @@ func (a *Adapter) fastMeta(path string) (agentlog.SessionMeta, bool) {
 				Agent:     agentName,
 				Project:   meta.project,
 				Title:     meta.title,
+				ParentID:  subagentParent(path),
 				StartedAt: meta.startedAt,
 				EndedAt:   meta.endedAt,
 				SizeBytes: info.Size(),
@@ -270,6 +271,7 @@ func (f fileSummary) meta(path string) agentlog.SessionMeta {
 			Agent:     agentName,
 			Project:   f.project,
 			Title:     f.title,
+			ParentID:  subagentParent(path),
 			StartedAt: f.startedAt,
 			EndedAt:   f.endedAt,
 			SizeBytes: f.size,
@@ -449,6 +451,16 @@ func (a *Adapter) sessionFiles() ([]string, error) {
 		return nil, err
 	}
 	return append(main, sub...), nil
+}
+
+// subagentParent maps a session file's path to its parent session id: JSONL
+// files one level below chats/ are subagent transcripts whose parent id is
+// the directory name (SCHEMA.md). Main files return "".
+func subagentParent(path string) string {
+	if filepath.Base(filepath.Dir(filepath.Dir(path))) != "chats" {
+		return ""
+	}
+	return filepath.Base(filepath.Dir(path))
 }
 
 // legacyFiles lists the monolithic chats.json paths, one per project dir,

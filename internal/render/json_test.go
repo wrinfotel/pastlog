@@ -137,3 +137,20 @@ func TestSessionJSONZeroTimesAreNull(t *testing.T) {
 		t.Error("id key missing")
 	}
 }
+
+func TestSessionJSONCarriesParentID(t *testing.T) {
+	m := agentlog.SessionMeta{Session: agentlog.Session{ID: "s1", ParentID: "p1"}}
+	got := NewSessionJSON(m)
+	if got.ParentID != "p1" {
+		t.Errorf("ParentID = %q, want p1", got.ParentID)
+	}
+	b, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// additive schema field, emitted after the stable keys
+	want := `"size_bytes":0,"parent_id":"p1"}`
+	if !strings.Contains(string(b), want) {
+		t.Errorf("json = %s, want it to contain %s", b, want)
+	}
+}

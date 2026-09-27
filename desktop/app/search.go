@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/wrinfotel/pastlog/internal/cli"
+	"github.com/wrinfotel/pastlog/internal/mask"
 	"github.com/wrinfotel/pastlog/internal/render"
 	"github.com/wrinfotel/pastlog/internal/search"
 )
@@ -86,6 +87,25 @@ func (a *App) Search(query string, o SearchOptions) (SearchOutcome, error) {
 	hits := 0
 	for _, r := range results {
 		hits += len(r.Hits)
+	}
+	// Render-time redaction (GUI counterpart of the CLI's default masking):
+	// the raw data was already searched; only what the user sees changes.
+	// Match offsets were computed on raw lines, so re-locate them on the
+	// masked line — a needle inside a secret renders unhighlighted.
+	if a.masking() {
+		for i := range results {
+			for j := range results[i].Hits {
+				h := &results[i].Hits[j]
+				h.Line = mask.Mask(h.Line)
+				h.Context = mask.Mask(h.Context)
+				if start, end, ok := m.Locate(h.Line); ok {
+					h.MatchStart, h.MatchEnd = start, end
+				} else {
+					h.MatchStart, h.MatchEnd = -1, 0
+				}
+				h.Entry.Text = mask.Mask(h.Entry.Text)
+			}
+		}
 	}
 	return SearchOutcome{
 		Results:   guiResults(results),

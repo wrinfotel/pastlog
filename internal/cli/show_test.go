@@ -100,6 +100,7 @@ func TestShowJSON(t *testing.T) {
   "ended_at": "2026-08-02T14:03:25Z",
   "messages": 2,
   "size_bytes": %d,
+  "parent_id": "",
   "entries": [
     {
       "kind": "summary",

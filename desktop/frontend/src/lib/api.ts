@@ -45,6 +45,7 @@ export type SessionRow = {
   ended_at: string | null;
   messages: number;
   size_bytes: number;
+  parent_id: string; // "" for top-level sessions (0.2.3)
 };
 
 export type ListOutcome = {
@@ -138,6 +139,16 @@ export type ContextOutcome = {
   notes: string[];
 };
 
+export type RelatedOutcome = {
+  status: 'ok' | 'ambiguous' | 'notfound';
+  session?: SessionRow | null;
+  parent?: SessionRow | null;
+  children?: SessionRow[] | null;
+  adjacent?: SessionRow[] | null;
+  candidates?: SessionRow[] | null;
+  notes: string[];
+};
+
 export const api = {
   overview: bindings.Overview,
   diagnostics: bindings.Diagnostics,
@@ -145,6 +156,7 @@ export const api = {
   search: bindings.Search,
   entries: bindings.Entries,
   context: bindings.Context,
+  related: bindings.Related,
   stats: bindings.Stats,
   projects: bindings.Projects,
   projectStats: bindings.ProjectStats,
@@ -152,6 +164,7 @@ export const api = {
   getSettings: bindings.GetSettings,
   setHome: bindings.SetHome,
   setTheme: bindings.SetTheme,
+  setMaskSecrets: bindings.SetMaskSecrets,
   exportSession: bindings.ExportSession,
   exportSessions: bindings.ExportSessions,
   exportSearch: bindings.ExportSearch,

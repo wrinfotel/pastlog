@@ -31,7 +31,7 @@ defensive (skip unknown shapes, count skipped lines, never panic).
 | `directory` | Session.Project | working directory, verbatim |
 | `title` | Session.Title | first input or generated, `title_source` distinguishes |
 | `time_created` / `time_updated` | StartedAt / EndedAt | **epoch milliseconds** |
-| `parent_id` | — (not read) | set on `subagent_child` sessions; children are listed, not filtered |
+| `parent_id` | Session.ParentID | set on `subagent_child` sessions; children are listed, not filtered |
 | `task_type` | — (not read) | observed: `interactive`, `subagent_child` |
 | `project_id` | — (not read) | internal `proj_*` id; no `project` table exists in the database |
 

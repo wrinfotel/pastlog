@@ -35,7 +35,7 @@ func AgentRowsJSON(rows []AgentRow) []AgentJSON {
 }
 
 // SessionJSON is one session of the sessions/search/show schemas; absent
-// timestamps render as null.
+// timestamps render as null. parent_id (0.2.3) is additive and comes last.
 type SessionJSON struct {
 	ID        string     `json:"id"`
 	Agent     string     `json:"agent"`
@@ -45,6 +45,7 @@ type SessionJSON struct {
 	EndedAt   *time.Time `json:"ended_at"`
 	Messages  int        `json:"messages"`
 	SizeBytes int64      `json:"size_bytes"`
+	ParentID  string     `json:"parent_id"`
 }
 
 // NewSessionJSON maps a SessionMeta to its stable JSON shape; shared by the
@@ -59,6 +60,7 @@ func NewSessionJSON(m agentlog.SessionMeta) SessionJSON {
 		EndedAt:   timePtr(m.EndedAt),
 		Messages:  m.Messages,
 		SizeBytes: m.SizeBytes,
+		ParentID:  m.ParentID,
 	}
 }
 
@@ -84,6 +86,36 @@ type EntryJSON struct {
 type ShowDoc struct {
 	SessionJSON
 	Entries []EntryJSON `json:"entries"`
+}
+
+// RelatedDoc is the related schema (0.2.3): the anchor session, then its
+// parent (null for top-level sessions), subagent children and adjacent
+// same-project sessions as session objects.
+type RelatedDoc struct {
+	Session  SessionJSON   `json:"session"`
+	Parent   *SessionJSON  `json:"parent"`
+	Children []SessionJSON `json:"children"`
+	Adjacent []SessionJSON `json:"adjacent"`
+}
+
+// NewRelatedDoc maps a relatedness graph to the stable related schema.
+func NewRelatedDoc(rel agentlog.RelatedSessions) RelatedDoc {
+	doc := RelatedDoc{
+		Session:  NewSessionJSON(rel.Meta),
+		Children: make([]SessionJSON, 0, len(rel.Children)),
+		Adjacent: make([]SessionJSON, 0, len(rel.Adjacent)),
+	}
+	if rel.Parent != nil {
+		p := NewSessionJSON(*rel.Parent)
+		doc.Parent = &p
+	}
+	for _, c := range rel.Children {
+		doc.Children = append(doc.Children, NewSessionJSON(c))
+	}
+	for _, a := range rel.Adjacent {
+		doc.Adjacent = append(doc.Adjacent, NewSessionJSON(a))
+	}
+	return doc
 }
 
 // NewShowDoc maps one session with its entries to the show schema.
@@ -136,6 +168,32 @@ func NewSearchResults(results []search.Result) []SearchResultJSON {
 			})
 		}
 		out = append(out, row)
+	}
+	return out
+}
+
+// TimelineEventJSON is one event of the timeline --messages schema (0.2.3);
+// Text carries the first-line snippet, timestamp is null when the record
+// carries none.
+type TimelineEventJSON struct {
+	Timestamp *time.Time `json:"timestamp"`
+	Agent     string     `json:"agent"`
+	Role      string     `json:"role"`
+	Text      string     `json:"text"`
+	Session   string     `json:"session"`
+}
+
+// NewTimelineEvents maps merged timeline events to their stable JSON shape.
+func NewTimelineEvents(events []agentlog.TimelineEvent) []TimelineEventJSON {
+	out := make([]TimelineEventJSON, 0, len(events))
+	for _, e := range events {
+		out = append(out, TimelineEventJSON{
+			Timestamp: timePtr(e.Timestamp),
+			Agent:     e.Agent,
+			Role:      e.Role,
+			Text:      e.Text,
+			Session:   e.SessionID,
+		})
 	}
 	return out
 }

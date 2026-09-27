@@ -5,6 +5,7 @@ import (
 
 	"github.com/wrinfotel/pastlog/internal/agentlog"
 	"github.com/wrinfotel/pastlog/internal/cli"
+	"github.com/wrinfotel/pastlog/internal/mask"
 	"github.com/wrinfotel/pastlog/internal/render"
 )
 
@@ -49,11 +50,18 @@ func (a *App) Entries(idPrefix string) (ShowOutcome, error) {
 	}); err != nil {
 		return ShowOutcome{}, fmt.Errorf("cannot read session %s: %v", res.Meta.ID, err)
 	}
-	session := render.NewSessionJSON(res.Meta)
+	meta := res.Meta
+	if a.masking() {
+		meta.Title = mask.Mask(meta.Title)
+		for i := range entries {
+			entries[i].Text = mask.Mask(entries[i].Text)
+		}
+	}
+	session := render.NewSessionJSON(meta)
 	return ShowOutcome{
 		Status:     "ok",
 		Session:    &session,
-		Entries:    render.NewShowDoc(res.Meta, entries).Entries,
+		Entries:    render.NewShowDoc(meta, entries).Entries,
 		Unreadable: []string{},
 		Notes:      a.combineNotes(adapters, nil),
 	}, nil

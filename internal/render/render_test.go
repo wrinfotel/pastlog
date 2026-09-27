@@ -190,7 +190,8 @@ func TestSessionsJSON(t *testing.T) {
     "started_at": "2026-08-02T14:03:22Z",
     "ended_at": "2026-08-02T14:04:05Z",
     "messages": 4,
-    "size_bytes": 2489
+    "size_bytes": 2489,
+    "parent_id": ""
   },
   {
     "id": "aaa2b3c4-0000-4000-8000-000000000002",
@@ -200,7 +201,8 @@ func TestSessionsJSON(t *testing.T) {
     "started_at": "2026-07-01T10:00:00Z",
     "ended_at": null,
     "messages": 2,
-    "size_bytes": 427
+    "size_bytes": 427,
+    "parent_id": ""
   }
 ]
 `

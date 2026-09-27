@@ -130,7 +130,8 @@ func TestSearchJSONGolden(t *testing.T) {
       "started_at": "2026-08-02T14:10:00Z",
       "ended_at": "2026-08-02T14:10:10Z",
       "messages": 4,
-      "size_bytes": %d
+      "size_bytes": %d,
+      "parent_id": ""
     },
     "hits": [
       {
@@ -162,7 +163,8 @@ func TestSearchJSONGolden(t *testing.T) {
       "started_at": "2026-08-02T14:03:22Z",
       "ended_at": "2026-08-02T14:03:25Z",
       "messages": 2,
-      "size_bytes": %d
+      "size_bytes": %d,
+      "parent_id": ""
     },
     "hits": [
       {
@@ -194,7 +196,8 @@ func TestSearchJSONGolden(t *testing.T) {
       "started_at": "2026-07-01T10:00:00Z",
       "ended_at": "2026-07-01T10:00:10Z",
       "messages": 2,
-      "size_bytes": %d
+      "size_bytes": %d,
+      "parent_id": ""
     },
     "hits": [
       {

@@ -40,7 +40,7 @@ Line 1 is a metadata record, then one MessageRecord per line:
 | `startTime` / `lastUpdated` | session bounds; `Session.StartedAt` / `Session.EndedAt` |
 | `directories` | project working directories; the first entry becomes `Session.Project` |
 | `summary` | becomes `Session.Title` ("" when absent) |
-| `kind` | `main` / `subagent` — not needed by the v0.1 model, ignored |
+| `kind` | `main` / `subagent` — ignored; the parent id comes from the directory name |
 
 MessageRecord `type` ∈ `user | info | error | warning | gemini`. `gemini`
 records additionally carry `toolCalls?: [{id, name, args, result?, status,

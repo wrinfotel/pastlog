@@ -409,3 +409,14 @@ func lockDatabase(t *testing.T, dir string) func() {
 		_ = db.Close()
 	}
 }
+
+func TestSessionsCarryParentID(t *testing.T) {
+	a := NewDir(buildFixtureDB(t))
+	metas := listMetas(t, a)
+	if metas[0].ParentID != "" {
+		t.Errorf("parent session ParentID = %q, want empty", metas[0].ParentID)
+	}
+	if metas[1].ParentID != parentID {
+		t.Errorf("child ParentID = %q, want %q (the parent_id column)", metas[1].ParentID, parentID)
+	}
+}

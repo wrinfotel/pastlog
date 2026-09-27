@@ -221,7 +221,7 @@ func (a *Adapter) walkUsage(iter func(agentlog.SessionUsage) error) error {
 	}
 
 	rows, err := db.Query(`SELECT id, directory, title, time_created, time_updated,
-		tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write, cost, model
+		tokens_input, tokens_output, tokens_reasoning, tokens_cache_read, tokens_cache_write, cost, model, parent_id
 		FROM session ORDER BY time_created, id`)
 	if err != nil {
 		if a.markLocked(err) {
@@ -236,9 +236,10 @@ func (a *Adapter) walkUsage(iter func(agentlog.SessionUsage) error) error {
 		var created, updated int64
 		var input, output, reasoning, cacheRead, cacheWrite int64
 		var cost float64
-		var model sql.NullString // NULL → "" (no model reported)
+		var model sql.NullString  // NULL → "" (no model reported)
+		var parent sql.NullString // NULL → "" (top-level session)
 		if err := rows.Scan(&id, &directory, &title, &created, &updated,
-			&input, &output, &reasoning, &cacheRead, &cacheWrite, &cost, &model); err != nil {
+			&input, &output, &reasoning, &cacheRead, &cacheWrite, &cost, &model, &parent); err != nil {
 			continue // unreadable row: skip
 		}
 		su := agentlog.SessionUsage{
@@ -247,6 +248,7 @@ func (a *Adapter) walkUsage(iter func(agentlog.SessionUsage) error) error {
 				Agent:     agentName,
 				Project:   directory,
 				Title:     title,
+				ParentID:  parent.String,
 				StartedAt: time.UnixMilli(created),
 				EndedAt:   time.UnixMilli(updated),
 				SizeBytes: sizes[id],
