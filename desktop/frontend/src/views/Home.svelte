@@ -4,6 +4,7 @@
   // checkbox). Every number on screen is derived from the overview payload;
   // nothing is hardcoded.
   import { api, type AgentRow, type OverviewOutcome } from '../lib/api';
+  import { orderByDetection } from '../lib/agents';
   import { fmtBytes, fmtInt } from '../lib/format';
   import { appMeta, go } from '../lib/stores.svelte';
   import { openAgentProjects } from '../lib/projects.svelte';
@@ -27,6 +28,8 @@
   });
 
   const detected = $derived(data?.agents.filter((a) => a.detected) ?? []);
+  // detected cards first, registry order preserved inside each group
+  const orderedAgents = $derived(data ? orderByDetection(data.agents) : []);
   const totalSessions = $derived(detected.reduce((sum, a) => sum + a.sessions, 0));
   const totalBytes = $derived(detected.reduce((sum, a) => sum + a.bytes, 0));
   const leader = $derived([...detected].sort((a, b) => b.sessions - a.sessions)[0] ?? null);
@@ -109,7 +112,7 @@
       </header>
 
       <div class="grid">
-        {#each data.agents as agent}
+        {#each orderedAgents as agent}
           <!-- detected agents drill into their project list; the rest stay inert -->
           <button
             class="agent"

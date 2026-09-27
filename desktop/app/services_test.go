@@ -216,6 +216,15 @@ func TestOutcomesNeverMarshalNullLists(t *testing.T) {
 		t.Fatal(err)
 	}
 	check("ProjectStatsOutcome", ps)
+	ctxOut, err := a.Context("nope1234")
+	if err != nil {
+		t.Fatalf("Context: %v", err)
+	}
+	cj, err := json.Marshal(ctxOut)
+	if err != nil {
+		t.Fatal(err)
+	}
+	check("ContextOutcome", cj)
 }
 
 func TestSessionsFilterErrors(t *testing.T) {

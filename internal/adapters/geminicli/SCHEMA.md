@@ -182,3 +182,21 @@ walked token-by-token with `json.Decoder`, decoding one session element at a
 time. `SessionsMeta` provides message counts in the same pass.
 `EntriesFiltered` accepts the search engine's raw-line predicate for JSONL
 sessions (spec §7 hot path); it is ignored for legacy sessions (see above).
+
+## Context analysis (`pastlog context`, SPEC-context-analysis)
+
+The adapter implements `agentlog.CtxSource` (`ctxextract.go`): one streaming
+pass over the session's records — JSONL or legacy `chats.json` — maps them
+onto the normalized `CtxEvent` IR.
+
+- A record's `tokens` summary → one TurnStart with **exact** tokens
+  (Input+CacheRead is the window proxy; the format has no cache-write field).
+- A `$set` checkpoint → one Compact event. Its message snapshot is NOT
+  replayed into the IR: it is pre-compaction history that no longer sits in
+  the window, and replaying it would double-count result bytes (the entries
+  flow replays it; the context flow must not).
+- `toolCalls[]` and content `functionCall`/`functionResponse` parts →
+  ToolCall/ToolResult (call and result travel inline, so no id correlation).
+  A status naming an error ("error"/"failed") is an exact flag; absent
+  statuses fall back to the uniform error-shape regex (SPEC §2.2) — observed
+  success-ish statuses ("confirmed", "executed") pass through.

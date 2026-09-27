@@ -70,6 +70,7 @@ func newRootCmd(stdout, stderr io.Writer) *cobra.Command {
 	root.AddCommand(newStatsCmd(stdout, stderr))
 	root.AddCommand(newSearchCmd(stdout, stderr))
 	root.AddCommand(newShowCmd(stdout, stderr))
+	root.AddCommand(newContextCmd(stdout, stderr))
 	root.AddCommand(newVersionCmd())
 
 	return root

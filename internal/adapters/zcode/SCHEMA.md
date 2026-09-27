@@ -111,3 +111,25 @@ part(session_id)
 part(message_id, id)
 model_usage(session_id)
 ```
+
+## Context analysis (`pastlog context`, SPEC-context-analysis)
+
+The adapter implements `agentlog.CtxSource` (`ctxextract.go`): the session's
+parts (the same ordered cursor `Entries` uses) merged with `model_usage`
+rows, mapped onto the normalized `CtxEvent` IR.
+
+- One `model_usage` row per model request → one TurnStart with **exact**
+  tokens: Input+CacheWrite+CacheRead is that turn's window proxy (columns
+  map like the stats view above). Rows stream in `started_at` order and are
+  merged with the parts cursor by timestamp — a request lands before the
+  parts it produced (ties included). Databases older than the table degrade
+  to a token-less stream.
+- `compaction` parts → Compact events; sessions recording only
+  `session.time_compacting` get one synthesized there.
+- `tool` parts → ToolCall/ToolResult. A `state.status` naming an error
+  ("error"/"failed") is an exact flag; absent statuses fall back to the
+  uniform error-shape regex (SPEC §2.2) — observed statuses are
+  "completed"/"pending".
+
+The context flow skips unusable rows silently and does not touch the shared
+skipped counter.

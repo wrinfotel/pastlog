@@ -207,3 +207,24 @@ Nothing materializes a full result set — spec §5/§7. The M2 raw-line search
 prefilter does not apply to SQL rows (no `LineFilteredAdapter` here); SQL
 LIKE is not used, matching stays in Go via the existing matcher path
 (controller ruling).
+
+## Context analysis (`pastlog context`, SPEC-context-analysis)
+
+The adapter implements `agentlog.CtxSource` (`ctxextract.go`): the same
+ordered cursor `Entries` uses, mapped onto the normalized `CtxEvent` IR.
+
+- `step-finish` → one TurnStart per turn with **exact** tokens from its
+  `tokens` payload (Input+CacheRead+CacheWrite is the window proxy). The
+  real-data shape is an object `{input, output, cache:{read, write},
+  reasoning}`; fixture-era shapes carried a scalar — both parse, the scalar
+  mapping to Input.
+- `compaction` → a Compact event; sessions recording only
+  `session.time_compacting` get one synthesized there.
+- `tool` → ToolCall/ToolResult (call and result travel in one part). A
+  `state.status` naming an error ("error"/"failed") is an exact flag; absent
+  statuses fall back to the uniform error-shape regex (SPEC §2.2) — observed
+  statuses are "completed"/"pending".
+
+The context flow skips unusable rows silently and does not touch the shared
+skipped counter. A locked database surfaces as an explicit context error,
+not as an empty report.

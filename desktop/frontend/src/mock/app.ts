@@ -12,11 +12,13 @@ export type Row = {
 };
 
 const agents: Row[] = [
+  // one not-detected row mid-list so the Home grid's detected-first ordering
+  // is observable in the browser mock
   { name: 'claude-code', detected: true, path: 'C:\\Users\\dev\\.claude\\projects', sessions: 412, bytes: 2_814_000_000 },
   { name: 'codex', detected: true, path: 'C:\\Users\\dev\\.codex\\sessions', sessions: 187, bytes: 943_000_000 },
+  { name: 'opencode', detected: false, path: null, sessions: 0, bytes: 0 },
   { name: 'zcode', detected: true, path: 'C:\\Users\\dev\\.zcode\\sessions', sessions: 96, bytes: 418_500_000 },
   { name: 'gemini-cli', detected: true, path: 'C:\\Users\\dev\\.gemini\\tmp', sessions: 41, bytes: 87_200_000 },
-  { name: 'opencode', detected: false, path: null, sessions: 0, bytes: 0 },
 ];
 
 const projects = [
@@ -228,6 +230,56 @@ export async function Entries(id: string) {
     status: 'ok',
     session: allSessions[2]!,
     entries: transcript,
+    notes: [],
+  };
+}
+
+// The `pastlog context` surface: a golden profile exercising every rule, in
+// the analyzer's impact order (findings sorted by bytes, advice deduped by
+// rule) — mirrors what the backend returns for the fixture session.
+// long-session sparkline: 80 pooled bars + 3 compaction gaps, the width the
+// panel must actually hold for a 600-turn session
+const longSparkline = (() => {
+  const glyphs = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+  const shape = [2, 3, 4, 5, 6, 7, 7, 6, 5, 4];
+  let s = '';
+  for (let i = 0; i < 80; i++) {
+    if (i === 12 || i === 46 || i === 70) s += ' ';
+    s += glyphs[shape[i % 10]!]!;
+  }
+  return s;
+})();
+
+export async function Context(id: string) {
+  await delay(300);
+  if (id.startsWith('amb')) {
+    return { status: 'ambiguous', candidates: [allSessions[0]!, allSessions[1]!], notes: [] };
+  }
+  return {
+    status: 'ok',
+    session: allSessions[2]!,
+    profile: {
+      final: 19000,
+      final_exact: true,
+      turns: 608,
+      compactions: 11,
+      sparkline: longSparkline,
+      findings: [
+        { rule: 'R1', tool: 'Bash', desc: 'Bash returned 62k ci-run-4211.log (~63% of all result bytes)', bytes: 64000 },
+        { rule: 'R4', desc: 'compact at turn 6: −71%, back at pre-drop level after 2 turns', bytes: 64000 },
+        { rule: 'R5', desc: 'turn 4 added ~29k tokens (45% of the peak window) — inspect what ran there', bytes: 29000 },
+        { rule: 'R3', tool: 'Bash', desc: 'Bash failed 3× in a row (~4k of output burned on retries)', bytes: 4500 },
+        { rule: 'R2', tool: 'Read', desc: 'main.go 1k ×2 (Read) — every re-read re-enters the window', bytes: 2400 },
+      ],
+      advice: [
+        { rule: 'R1', text: 'redirect long tool output to a file, then read back only what you need' },
+        { rule: 'R4', text: 'compact earlier: a window near the limit makes every later turn slower and costlier' },
+        { rule: 'R5', text: 'one turn moved a third of the window — inspect what ran there' },
+        { rule: 'R3', text: 'fix the failing command before retrying the suite' },
+        { rule: 'R2', text: 're-reads re-enter the file in full — ask for diffs or line ranges instead' },
+      ],
+      precision: 'exact tokens',
+    },
     notes: [],
   };
 }

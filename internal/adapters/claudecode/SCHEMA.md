@@ -142,3 +142,14 @@ above. `SessionsMeta` provides message counts in the same pass; session
 listing filters (`--agent/--project/--since/--until`) are applied by the
 caller to each yielded session before accumulation, so unmatched sessions are
 dropped early.
+
+## Context analysis (`pastlog context`, SPEC-context-analysis)
+
+The adapter implements `agentlog.CtxSource` (`ctxextract.go`): one streaming
+pass over the session's JSONL maps assistant records (with `message.usage`),
+tool_use/tool_result blocks, text blocks and compact markers (`isCompact` or
+a `/compact` user text) onto the normalized `CtxEvent` IR. The rules run on
+that stream for every agent; this adapter contributes exact tokens. An
+absent `tool_result.is_error` falls back to the uniform error-shape regex
+(SPEC §2.2); an explicit `false` is trusted. The shared skipped counter is
+not used by the context flow — corrupt lines skip silently there.

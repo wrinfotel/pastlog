@@ -1,10 +1,12 @@
 <script lang="ts">
   // Session viewer: the full transcript — roles, timestamps, collapsible
   // tool calls and results, sanitized markdown for assistant text. Copy
-  // affordances only; nothing is ever executed (spec §4.3/§4.4).
-  import { api, type ListOutcome } from '../lib/api';
+  // affordances only; nothing is ever executed (spec §4.3/§4.4). The context
+  // panel runs the `pastlog context` analysis on demand (a second pass over
+  // the session, so it loads lazily on first open).
+  import { api, type ContextOutcome, type ListOutcome } from '../lib/api';
   import type { SessionRow } from '../lib/api';
-  import { fmtBytes, fmtDate, fmtInt, idPrefix } from '../lib/format';
+  import { fmtBytes, fmtDate, fmtInt, fmtTok, idPrefix } from '../lib/format';
   import { fmtTime } from '../lib/format';
   import { renderMarkdown } from '../lib/markdown';
   import { go } from '../lib/stores.svelte';
@@ -35,9 +37,18 @@
   let listEl: HTMLDivElement | undefined = $state();
   let hitIdx = $state(-1);
 
+  // context panel state; reset with every session load
+  let ctxOpen = $state(false);
+  let ctxLoading = $state(false);
+  let ctxOutcome = $state<ContextOutcome | null>(null);
+  let ctxError = $state('');
+
   async function load(id: string) {
     loading = true;
     hitIdx = -1;
+    ctxOpen = false;
+    ctxOutcome = null;
+    ctxError = '';
     try {
       outcome = (await api.entries(id)) as Outcome;
       entries = (outcome?.entries ?? []).map((e) => ({
@@ -79,6 +90,23 @@
 
   function toggle(i: number) {
     entries[i].expanded = !entries[i].expanded;
+  }
+
+  async function loadContext() {
+    ctxLoading = true;
+    try {
+      ctxOutcome = await api.context(viewer.id);
+      ctxError = '';
+    } catch (e) {
+      ctxError = String(e);
+    } finally {
+      ctxLoading = false;
+    }
+  }
+
+  function toggleContext() {
+    ctxOpen = !ctxOpen;
+    if (ctxOpen && !ctxOutcome && !ctxLoading) void loadContext();
   }
 
   async function copyText(text: string) {
@@ -177,6 +205,21 @@
       </p>
     </div>
     <div class="actions">
+      <button class="btn" class:on={ctxOpen} onclick={toggleContext} title="why the context grew">
+        <svg
+          viewBox="0 0 24 24"
+          width="13"
+          height="13"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+        </svg>
+        CONTEXT
+      </button>
       <button class="btn" onclick={() => exportSession('json')}>
         <svg
           viewBox="0 0 24 24"
@@ -214,6 +257,52 @@
     </div>
   </div>
   <Notes notes={outcome.notes ?? []} />
+  {#if ctxOpen}
+    <section class="ctxpanel fadein">
+      {#if ctxLoading}
+        <Loader label="analyzing context…" />
+      {:else if ctxError}
+        <p class="err">{ctxError}</p>
+      {:else if ctxOutcome?.status === 'ok' && ctxOutcome.profile}
+        <div class="ctxhead">
+          <span class="ctxtitle">context profile</span>
+          <span class="ctxfact">~{fmtTok(ctxOutcome.profile.final)} tokens final</span>
+          <span class="ctxfact">{fmtInt(ctxOutcome.profile.turns)} turns</span>
+          {#if ctxOutcome.profile.compactions > 0}
+            <span class="ctxfact">{fmtInt(ctxOutcome.profile.compactions)} compaction{ctxOutcome.profile.compactions === 1 ? '' : 's'}</span>
+          {/if}
+          <span class="ctxprec">{ctxOutcome.profile.precision}</span>
+        </div>
+        {#if ctxOutcome.profile.sparkline}
+          <div class="spark">{ctxOutcome.profile.sparkline}</div>
+        {/if}
+        {#if ctxOutcome.profile.findings.length === 0}
+          <p class="lean">no context-bloat signals — the session stayed lean</p>
+        {:else}
+          {#if ctxOutcome.profile.advice.length > 0}
+            <ul class="advice">
+              {#each ctxOutcome.profile.advice as adv}
+                <li>
+                  <span class="rule" class:danger={adv.rule === 'R3'} class:warn={adv.rule !== 'R3'}>{adv.rule}</span>
+                  <span class="atext">{adv.text}</span>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+          <ul class="findings">
+            {#each ctxOutcome.profile.findings as f}
+              <li>
+                <span class="rule" class:danger={f.rule === 'R3'} class:warn={f.rule !== 'R3'}>{f.rule}</span>
+                <span class="fdesc">{f.desc}</span>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      {:else if ctxOutcome}
+        <p class="lean">context analysis unavailable for this session</p>
+      {/if}
+    </section>
+  {/if}
   <div class="transcript fadein" bind:this={listEl}>
     {#each entries as ev, i}
       <div
@@ -288,6 +377,102 @@
     display: flex;
     gap: 8px;
     flex-shrink: 0;
+  }
+  .btn.on {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .ctxpanel {
+    margin-top: 12px;
+    background: var(--panel);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-l);
+    padding: 10px 14px 12px;
+  }
+  .ctxhead {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .ctxtitle {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .ctxfact {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-2);
+  }
+  .ctxprec {
+    margin-left: auto;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 10.5px;
+    padding: 1px 7px;
+    border-radius: 5px;
+  }
+  .spark {
+    font-family: var(--mono);
+    font-size: 15px;
+    line-height: 1.2;
+    color: var(--accent);
+    letter-spacing: 1px;
+    white-space: pre; /* the glyphs are the data — never reflow them */
+    overflow-x: auto;
+    margin-top: 8px;
+  }
+  .findings {
+    margin: 10px 0 0;
+    padding: 10px 0 0;
+    border-top: 1px solid var(--border-subtle); /* advice legend above, evidence below */
+  }
+  .advice {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .advice li,
+  .findings li {
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+  }
+  .rule {
+    flex-shrink: 0;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    border-radius: 5px;
+    padding: 1px 7px;
+  }
+  .rule.warn {
+    background: var(--warn-soft);
+    color: var(--warn);
+  }
+  .rule.danger {
+    background: var(--danger-soft);
+    color: var(--danger);
+  }
+  .atext,
+  .fdesc {
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+  .atext {
+    font-style: italic;
+  }
+  .lean {
+    margin: 6px 0 0;
+    font-size: 12.5px;
+    color: var(--muted);
   }
   .transcript {
     margin-top: 14px;

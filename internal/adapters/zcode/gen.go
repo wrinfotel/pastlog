@@ -2,9 +2,11 @@ package zcode
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	// the generator builds fixture databases with the same pure-Go driver the
 	// adapter reads with (CGO off)
@@ -244,4 +246,130 @@ func seed(db *sql.DB) error {
 		}
 	}
 	return nil
+}
+
+// GenerateContextFixtureDB creates a database holding the SPEC §6.6 golden
+// context session under the given id: per-request model_usage rows (the
+// TurnStarts), a repeated read (R2), an oversized tool result (R1), an error
+// loop (R3), a compaction boundary (R4), and a big-turn jump (R5). The
+// per-turn window sums mirror the claude-code fixture in
+// internal/cli/context_test.go (1500, 2700, 3100, 60000, 62000, 64000,
+// 18000, 19000) so the cross-agent parity test in internal/cli can assert
+// identical findings for all five agents. It creates <dir> when needed and
+// returns the created database path.
+func GenerateContextFixtureDB(dir, sessionID string) (string, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, dbName)
+	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path))
+	if err != nil {
+		return "", err
+	}
+	defer db.Close()
+	if _, err := db.Exec(schema); err != nil {
+		return "", fmt.Errorf("create schema: %w", err)
+	}
+	stmt := func(q string) error {
+		_, err := db.Exec(q)
+		return err
+	}
+	tool := func(name, inputJSON, output, status string) string {
+		return fmt.Sprintf(`{"type":"tool","tool":"%s","state":{"status":"%s","input":%s,"output":%s}}`,
+			name, status, inputJSON, quoteJSONString(output))
+	}
+	giant := strings.Repeat("building package github.com/dev/app/internal ...\n", 400)
+	fail := "FAIL github.com/dev/app 0.5s\nbuild failed: undefined: Config"
+
+	ms := 1786480190000
+	next := func() int { ms += 500; return ms }
+	partN := 0
+	msg := func(id, role string, parts ...string) error {
+		next()
+		if err := stmt(fmt.Sprintf(`INSERT INTO message (id, session_id, time_created, time_updated, data, sequence)
+			VALUES ('%s', '%s', %d, %d, '{"role":"%s"}', 0)`, id, sessionID, ms, ms, role)); err != nil {
+			return err
+		}
+		for _, data := range parts {
+			next()
+			partN++
+			if err := stmt(fmt.Sprintf(`INSERT INTO part (id, message_id, session_id, time_created, time_updated, data, sequence)
+				VALUES ('prt_ctx%03d', '%s', '%s', %d, %d, '%s', %d)`, partN, id, sessionID, ms, ms, data, partN)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	// request seeds one model_usage row: the TurnStart of the turn whose
+	// parts follow (started_at sits before the message it produced)
+	request := func(input, write, read int64) error {
+		ms += 100
+		return stmt(fmt.Sprintf(`INSERT INTO model_usage (id, logical_request_id, attempt_index, session_id, query_source,
+			provider_id, model_id, status, started_at, tool_call_count, input_tokens, output_tokens, reasoning_tokens,
+			cache_creation_input_tokens, cache_read_input_tokens, computed_total_tokens, retry_count, retryable,
+			cancelled_by_user, context_exceeded)
+			VALUES ('mru_ctx%03d', 'lrq_ctx%03d', 0, '%s', 'interactive', 'fixture-provider', 'fixture-model',
+			'ok', %d, 1, %d, 40, 0, %d, %d, %d, 0, 0, 0, 0)`,
+			partN, partN, sessionID, ms, input, write, read, input+write+read+40))
+	}
+
+	if err := stmt(`INSERT INTO session (id, project_id, slug, directory, title, version, time_created, time_updated, task_type, title_source)
+		VALUES ('` + sessionID + `', 'proj_ctx', 'ctx-fixture', '/home/dev/app', 'Debug flaky build', '0.16.5', 1786480190000, 1786480195000, 'interactive', 'first_input')`); err != nil {
+		return "", err
+	}
+	turns := []struct {
+		input, write, read int64
+		tool, callInput    string
+		out, status        string
+	}{
+		{1200, 300, 0, "Read", `{"file_path":"/home/dev/app/main.go"}`, "package main\nfunc main() {}\n", "completed"},
+		{1400, 100, 1200, "Bash", `{"command":"go test ./..."}`, fail, "completed"},
+		{1600, 100, 1400, "Bash", `{"command":"go build -v ./... 2>&1 | tee /tmp/build.log; cat /tmp/build.log"}`, giant, "completed"},
+		{30000, 28400, 1600, "Bash", `{"command":"go test ./..."}`, fail, "error"},
+		{31000, 1000, 30000, "Bash", `{"command":"go test ./..."}`, fail, "error"},
+		{32000, 1000, 31000, "Bash", `{"command":"go test ./..."}`, fail, "error"},
+		{9500, 500, 9000, "Read", `{"file_path":"/home/dev/app/main.go"}`, "package main\nfunc main() { config := Config() }\n", "completed"},
+	}
+	if err := msg("msg_ctx01", "user", `{"type":"text","text":"build is failing, look into it"}`); err != nil {
+		return "", err
+	}
+	for i, t := range turns[:6] {
+		if err := request(t.input, t.write, t.read); err != nil {
+			return "", err
+		}
+		if err := msg(fmt.Sprintf("msg_ctx%02d", i+2), "assistant",
+			tool(t.tool, t.callInput, t.out, t.status)); err != nil {
+			return "", err
+		}
+	}
+	// the compaction part closes turn 6 (the last 64k turn), so the window
+	// drops between turn 6 and turn 7 (R4)
+	if err := msg("msg_ctx_cmp", "assistant", `{"type":"compaction"}`); err != nil {
+		return "", err
+	}
+	// post-compaction turn 7 (window 18000), then the re-read of main.go
+	// after edits — turn 8, window 19000 (R2: turn gap between t1 and t9)
+	if err := request(9000, 9000, 0); err != nil {
+		return "", err
+	}
+	if err := msg("msg_ctx_post", "assistant", `{"type":"text","text":"context compacted; continuing with the fix"}`); err != nil {
+		return "", err
+	}
+	t := turns[6]
+	if err := request(t.input, t.write, t.read); err != nil {
+		return "", err
+	}
+	if err := msg("msg_ctx08", "assistant", tool(t.tool, t.callInput, t.out, t.status)); err != nil {
+		return "", err
+	}
+	return path, nil
+}
+
+// quoteJSONString encodes s as one JSON string literal.
+func quoteJSONString(s string) string {
+	b, err := json.Marshal(s)
+	if err != nil {
+		return `""`
+	}
+	return string(b)
 }
