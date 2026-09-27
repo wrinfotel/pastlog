@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2026-09-27
+
+The CLI and the desktop app share this entry: the CLI ships as `v0.2.2`,
+the desktop app as `desktop-v0.2.2`. The headline is `pastlog context` —
+it now covers all five agents and is one click away in the desktop
+session card.
+
+### Added
+
+- `pastlog context <session>` answers why a session's context window
+  grew. It reconstructs the per-turn window proxy (input + cache reads +
+  cache writes) as a curve with compaction marks, checks the event
+  stream against five bloat rules (R1–R5) and prints short advice per
+  fired rule, plus a sparkline and a final-window estimate. claude-code
+  support was reviewed as PR #3; this release adds codex, gemini-cli,
+  opencode and zcode extractors on a shared context IR, with cross-agent
+  parity proven on a golden session.
+- Desktop context panel: the CONTEXT button in a session card lazy-loads
+  the same analysis as a structured panel — final window estimate,
+  turn/compaction counts, the per-turn sparkline (curves above 80 turns
+  pool into equal buckets, so even a 600-turn session renders on one
+  line), rule chips with findings, and recommendations above the
+  findings for quick reading.
+
+### Changed
+
+- Home › Connected agents: detected agents render above the not-found
+  ones; the registry order is preserved inside each group.
+
 ## [0.2.1] - 2026-09-26
 
 The CLI and the desktop app share this entry: the CLI ships as `v0.2.1`,
