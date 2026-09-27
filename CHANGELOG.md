@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Desktop MODELS panel in the session viewer: the session's per-model token
+  table (input, output, reasoning, cache read/write, total) — the same view
+  the project page shows, scoped to one session. Agents that record no
+  per-model split (opencode) show a single row attributed to the session's
+  model; sessions without usage records show none. Tokens only, by design:
+  no agent reports cost per model.
+
 ## [0.2.3] - 2026-09-27
 
 The CLI and the desktop app share this entry: the CLI ships as `v0.2.3`,

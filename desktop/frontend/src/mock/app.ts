@@ -344,6 +344,30 @@ export async function Related(id: string) {
   };
 }
 
+// The session MODELS panel: the fixture session switched models mid-session,
+// so two rows with a realistic share — the same table the project page shows.
+export async function SessionModels(id: string) {
+  await delay(200);
+  if (id.startsWith('amb')) {
+    return { status: 'ambiguous', candidates: [allSessions[0]!, allSessions[1]!], notes: [] };
+  }
+  return {
+    status: 'ok',
+    session: allSessions[2]!,
+    rows: [
+      {
+        model: 'claude-sonnet-4-5',
+        tokens: { input: 148_200, output: 21_400, reasoning: 3_900, cache_read: 1_180_000, cache_write: 164_000, total: 173_500 },
+      },
+      {
+        model: 'claude-haiku-4-5',
+        tokens: { input: 41_800, output: 6_100, reasoning: 900, cache_read: 210_000, cache_write: 22_000, total: 48_800 },
+      },
+    ],
+    notes: [],
+  };
+}
+
 export async function ExportSession() {
   return { status: 'ok' };
 }

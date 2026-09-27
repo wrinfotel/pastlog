@@ -149,6 +149,19 @@ export type RelatedOutcome = {
   notes: string[];
 };
 
+export type SessionModelRow = {
+  model: string;
+  tokens: { input: number; output: number; reasoning: number; cache_read: number; cache_write: number; total: number };
+};
+
+export type SessionModelsOutcome = {
+  status: 'ok' | 'ambiguous' | 'notfound';
+  session?: SessionRow | null;
+  rows?: SessionModelRow[] | null;
+  candidates?: SessionRow[] | null;
+  notes: string[];
+};
+
 export const api = {
   overview: bindings.Overview,
   diagnostics: bindings.Diagnostics,
@@ -157,6 +170,7 @@ export const api = {
   entries: bindings.Entries,
   context: bindings.Context,
   related: bindings.Related,
+  sessionModels: bindings.SessionModels,
   stats: bindings.Stats,
   projects: bindings.Projects,
   projectStats: bindings.ProjectStats,

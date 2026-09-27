@@ -4,7 +4,7 @@
   // affordances only; nothing is ever executed (spec §4.3/§4.4). The context
   // panel runs the `pastlog context` analysis on demand (a second pass over
   // the session, so it loads lazily on first open).
-  import { api, type ContextOutcome, type ListOutcome, type RelatedOutcome } from '../lib/api';
+  import { api, type ContextOutcome, type ListOutcome, type RelatedOutcome, type SessionModelsOutcome } from '../lib/api';
   import type { SessionRow } from '../lib/api';
   import { fmtBytes, fmtDate, fmtInt, fmtTok, idPrefix } from '../lib/format';
   import { fmtTime } from '../lib/format';
@@ -49,6 +49,13 @@
   let relOutcome = $state<RelatedOutcome | null>(null);
   let relError = $state('');
 
+  // per-model token panel; reset with every session load
+  let modelsOpen = $state(false);
+  let modelsLoading = $state(false);
+  let modelsOutcome = $state<SessionModelsOutcome | null>(null);
+  let modelsError = $state('');
+  const modelMax = $derived(Math.max(1, ...(modelsOutcome?.rows ?? []).map((r) => r.tokens.total)));
+
   async function load(id: string) {
     loading = true;
     hitIdx = -1;
@@ -58,6 +65,9 @@
     relOpen = false;
     relOutcome = null;
     relError = '';
+    modelsOpen = false;
+    modelsOutcome = null;
+    modelsError = '';
     try {
       outcome = (await api.entries(id)) as Outcome;
       entries = (outcome?.entries ?? []).map((e) => ({
@@ -139,6 +149,23 @@
   function openRelated(id: string) {
     openSession(id, undefined, 'viewer');
     go('viewer');
+  }
+
+  async function loadModels() {
+    modelsLoading = true;
+    try {
+      modelsOutcome = await api.sessionModels(viewer.id);
+      modelsError = '';
+    } catch (e) {
+      modelsError = String(e);
+    } finally {
+      modelsLoading = false;
+    }
+  }
+
+  function toggleModels() {
+    modelsOpen = !modelsOpen;
+    if (modelsOpen && !modelsOutcome && !modelsLoading) void loadModels();
   }
 
   async function copyText(text: string) {
@@ -270,6 +297,23 @@
         </svg>
         RELATED
       </button>
+      <button class="btn" class:on={modelsOpen} onclick={toggleModels} title="tokens by model in this session">
+        <svg
+          viewBox="0 0 24 24"
+          width="13"
+          height="13"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M18 20V10" />
+          <path d="M12 20V4" />
+          <path d="M6 20v-6" />
+        </svg>
+        MODELS
+      </button>
       <button class="btn" onclick={() => exportSession('json')}>
         <svg
           viewBox="0 0 24 24"
@@ -394,6 +438,53 @@
         {/if}
       {:else if relOutcome}
         <p class="lean">related sessions unavailable for this id</p>
+      {/if}
+    </section>
+  {/if}
+  {#if modelsOpen}
+    <section class="ctxpanel fadein">
+      {#if modelsLoading}
+        <Loader label="loading model usage…" />
+      {:else if modelsError}
+        <p class="err">{modelsError}</p>
+      {:else if modelsOutcome?.status === 'ok'}
+        {#if (modelsOutcome.rows ?? []).length === 0}
+          <p class="lean">no usage data recorded for this session</p>
+        {:else}
+          <div class="mtablewrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>model</th>
+                  <th class="r">input</th>
+                  <th class="r">output</th>
+                  <th class="r">reasoning</th>
+                  <th class="r">cache read</th>
+                  <th class="r">cache write</th>
+                  <th class="r total">total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each modelsOutcome.rows ?? [] as row}
+                  <tr>
+                    <td class="key">{row.model || '(unknown model)'}</td>
+                    <td class="r">{fmtInt(row.tokens.input)}</td>
+                    <td class="r">{fmtInt(row.tokens.output)}</td>
+                    <td class="r">{fmtInt(row.tokens.reasoning)}</td>
+                    <td class="r">{fmtInt(row.tokens.cache_read)}</td>
+                    <td class="r">{fmtInt(row.tokens.cache_write)}</td>
+                    <td class="r total">
+                      <span class="bar" style="width: {(row.tokens.total / modelMax) * 100}%"></span>
+                      <span class="num">{fmtInt(row.tokens.total)}</span>
+                    </td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {/if}
+      {:else if modelsOutcome}
+        <p class="lean">model usage unavailable for this session</p>
       {/if}
     </section>
   {/if}
@@ -740,5 +831,37 @@
     margin-left: auto;
     color: var(--muted);
     font-size: 11.5px;
+  }
+  .mtablewrap {
+    overflow-x: auto;
+  }
+  .mtablewrap .r {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .mtablewrap td.key {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .mtablewrap td.r {
+    color: var(--text-2);
+  }
+  .mtablewrap .total {
+    position: relative;
+    min-width: 150px;
+  }
+  .mtablewrap .bar {
+    position: absolute;
+    right: 14px;
+    top: 20%;
+    height: 60%;
+    background: linear-gradient(90deg, var(--accent-soft), var(--accent-glow) 70%);
+    border-radius: 3px;
+  }
+  .mtablewrap .num {
+    position: relative;
+    color: var(--text);
+    font-weight: 600;
   }
 </style>
