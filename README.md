@@ -1,21 +1,41 @@
-# pastlog
+<p align="center"><img src="https://github.com/wrinfotel/pastlog/releases/download/v0.1.0/demo.gif" alt="pastlog demo: agents, sessions, search and show against fixture data" width="100%"></p>
 
-**Search the full history of your AI coding agents — 100% local, one binary.**
+<h1 align="center">Your agent forgot. pastlog remembers.</h1>
+
+<p align="center"><sub>Search every message, tool call and token your coding agents ever produced — across all projects, on your machine, offline.</sub></p>
 
 **[Project site & live demo →](https://wrinfotel.github.io/pastlog/)**
 
-pastlog indexes nothing, uploads nothing, and configures nothing: it streams
-the session logs that Claude Code, Codex CLI, Gemini CLI, OpenCode and ZCode
-already
-wrote under your home directory and makes them searchable across all your
-projects — user/assistant messages, tool calls and tool outputs included.
-`pastlog stats` aggregates token usage (and OpenCode's session cost) across
-agents, projects, days and models. One static binary, zero servers, zero
-accounts, zero telemetry, strictly read-only.
+```bash
+# "what did that agent do last Tuesday?" — one command, no index, no server
+pastlog search "jwt refresh token"
+pastlog stats --by model
+pastlog show <session-id>
+```
 
-Supported agents: **Claude Code** · **Codex CLI** · **Gemini CLI** · **OpenCode** · **ZCode**
+<p align="center">Works with <b>Claude Code</b> · <b>Codex CLI</b> · <b>Gemini CLI</b> · <b>OpenCode</b> · <b>ZCode</b></p>
 
-<p align="center"><img src="https://github.com/wrinfotel/pastlog/releases/download/v0.1.0/demo.gif" alt="pastlog demo: agents, sessions, search and show against fixture data" width="100%"></p>
+---
+
+One static binary. It streams the session logs those agents **already wrote**
+under your home directory — no import step, no database, nothing to configure.
+Search across all your projects at once: user/assistant messages, tool calls and
+tool outputs included. `pastlog stats` aggregates token usage and cost across
+agents, projects, days and models.
+
+**100% local · read-only · zero telemetry · no account, ever.**
+
+<details>
+<summary>Why this exists</summary>
+
+An agent session is append-only and invisible. Six weeks later the fix that
+worked is buried in a log you cannot grep, and the model that solved it is
+already deprecated. You re-pay for the same reasoning because there was no
+index — not because the answer was hard.
+</details>
+
+> **Wedge:** universal (5 agents) · instant (no index to build) · 100% local ·
+> first-class Windows. See [How pastlog compares](#how-pastlog-compares).
 
 ## Contents
 
