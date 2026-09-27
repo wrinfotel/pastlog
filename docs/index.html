@@ -66,7 +66,7 @@
 
   /* ── hero ────────────────────────────── */
   .hero{padding:84px 0 72px;border-bottom:1px solid var(--border-soft)}
-  .hero-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,560px);gap:56px;align-items:center}
+  .hero-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,530px);gap:56px;align-items:center}
   .pill{
     display:inline-flex;align-items:center;gap:9px;
     font-family:var(--mono);font-size:12.5px;color:var(--accent);
@@ -79,14 +79,17 @@
   .hero p.sub{margin:22px 0 30px;color:var(--muted);font-size:18px;max-width:52ch;text-wrap:pretty}
   .hero p.sub strong{color:var(--ink);font-weight:500}
   .install-box{
-    display:flex;align-items:center;gap:12px;
-    font-family:var(--mono);font-size:13.5px;
+    display:flex;flex-wrap:wrap;align-items:center;gap:9px 12px;
+    font-family:var(--mono);font-size:12px;
     background:var(--surface);border:1px solid var(--border);border-radius:10px;
-    padding:13px 16px;max-width:560px;
+    padding:12px 14px;max-width:560px;
   }
+  .install-box .cmd{flex:1 1 100%;min-width:0;display:flex;gap:10px;overflow-x:auto;scrollbar-width:none}
+  .install-box .cmd::-webkit-scrollbar{height:0}
   .install-box .ps{color:var(--accent)}
-  .install-box code{flex:1;min-width:0;overflow-x:auto;white-space:nowrap;color:var(--ink);scrollbar-width:none}
-  .install-box code::-webkit-scrollbar,pre::-webkit-scrollbar{height:0}
+  .install-box code{min-width:0;white-space:pre;color:var(--ink)}
+  .install-box .copy-btn{margin-left:auto}
+  .install-box code::-webkit-scrollbar,pre::-webkit-scrollbar,.term-body .ln::-webkit-scrollbar{height:0}
   .copy-btn{
     font-family:var(--mono);font-size:12px;color:var(--muted);cursor:pointer;
     background:none;border:1px solid var(--border);border-radius:6px;padding:5px 10px;
@@ -107,7 +110,7 @@
   .term-bar i:nth-child(1){background:#ff5f56}.term-bar i:nth-child(2){background:#ffbd2e}.term-bar i:nth-child(3){background:#27c93f}
   .term-bar span{margin-left:8px;font-size:11.5px;color:var(--faint)}
   .term-body{padding:18px 20px;min-height:348px;color:#c4ccd8}
-  .term-body .ln{white-space:pre;overflow-x:auto}
+  .term-body .ln{white-space:pre;overflow-x:auto;scrollbar-width:none}
   .t-ps{color:var(--accent);font-weight:600}
   .t-dim{color:var(--faint)}
   .t-agent{color:#7fb3ff}
@@ -189,6 +192,10 @@
   .foot-road{margin-top:16px;font-family:var(--mono);font-size:12.5px}
   .foot-road b{color:var(--muted);font-weight:400}
 
+  @media(max-width:1130px){
+    /* the 530px terminal column leaves the install command too narrow — stack early */
+    .hero-grid{grid-template-columns:minmax(0,1fr)}
+  }
   @media(max-width:960px){
     .hero-grid,.desktop-grid{grid-template-columns:minmax(0,1fr)}
     .why-grid{grid-template-columns:minmax(0,1fr)}
@@ -228,18 +235,17 @@
       <h1>Your agent forgot. <em>pastlog remembers.</em></h1>
       <p class="sub">pastlog streams the session logs <strong>Claude Code</strong>, <strong>Codex CLI</strong>, <strong>Gemini CLI</strong>, <strong>OpenCode</strong> and <strong>ZCode</strong> already wrote on your machine — and makes them searchable across every project: user and assistant messages, tool calls and tool outputs included.</p>
       <div class="install-box">
-        <span class="ps">$</span>
-        <code id="install-cmd">go install github.com/wrinfotel/pastlog/cmd/pastlog@latest</code>
+        <div class="cmd"><span class="ps">$</span><code id="install-cmd">go install github.com/wrinfotel/pastlog/cmd/pastlog@latest</code></div>
         <button class="copy-btn" data-copy="go install github.com/wrinfotel/pastlog/cmd/pastlog@latest">copy</button>
       </div>
-      <p class="alt-install">No Go? <a href="https://github.com/wrinfotel/pastlog/releases/tag/v0.1.0">Grab a prebuilt binary</a> — Windows, macOS, Linux · amd64 + arm64.</p>
+      <p class="alt-install">No Go? <a href="https://github.com/wrinfotel/pastlog/releases/tag/v0.2.2">Grab a prebuilt binary</a> — Windows, macOS, Linux · amd64 + arm64.</p>
     </div>
     <div>
       <div class="term" id="demo-term" aria-label="Animated terminal demo of pastlog commands">
         <div class="term-bar"><i></i><i></i><i></i><span>pastlog — zsh</span></div>
         <div class="term-body" id="term-body"></div>
       </div>
-      <p class="term-cap">Excerpt of real output · v0.1.0 binary · fixture data</p>
+      <p class="term-cap">Excerpt of real output · v0.2.2 binary · fixture data</p>
     </div>
   </div>
 </header>
@@ -300,22 +306,23 @@
       <ul class="desktop-feats">
         <li><span><strong>Live search</strong> with progress and cancel — click a hit to open the session.</span></li>
         <li><span><strong>Readable transcripts</strong> — collapsible tool calls, markdown-rendered assistant messages.</span></li>
+        <li><span><strong>Context analysis</strong> in every session card — why the window grew: per-turn curve, five bloat rules, short advice. One CONTEXT click away.</span></li>
         <li><span><strong>Token stats</strong> per agent, project and model, drill down from Home.</span></li>
         <li><span><strong>Export anything</strong> to JSON or markdown — byte-identical to the CLI's output.</span></li>
         <li><span><strong>Hardened by default</strong> — frontend embedded in the binary, strict CSP, zero external assets, links open in your browser, never in-app.</span></li>
       </ul>
     </div>
     <div class="desktop-panel">
-      <h3>pastlog Desktop v0.1.0</h3>
+      <h3>pastlog Desktop v0.2.2</h3>
       <div class="dl-row">
         <span class="dl-chip">Windows · installer / portable</span>
         <span class="dl-chip">macOS · dmg (arm64, amd64)</span>
         <span class="dl-chip">Linux · .deb</span>
       </div>
-      <a class="btn" href="https://github.com/wrinfotel/pastlog/releases/tag/desktop-v0.1.0" rel="noopener">Download Desktop</a>
+      <a class="btn" href="https://github.com/wrinfotel/pastlog/releases/tag/desktop-v0.2.2" rel="noopener">Download Desktop</a>
       <p style="height:12px"></p>
       <a class="btn-ghost" href="https://github.com/wrinfotel/pastlog#pastlog-desktop" rel="noopener">CLI ↔ Desktop feature map</a>
-      <p class="desktop-note">~15–20 MB per platform. Unsigned in v0.1 — SmartScreen or Gatekeeper may ask on first run; the README explains the one-liner to proceed.</p>
+      <p class="desktop-note">~15–20 MB per platform. Unsigned — SmartScreen or Gatekeeper may ask on first run; the README explains the one-liner to proceed.</p>
     </div>
   </div>
 </section>
@@ -329,7 +336,7 @@
       <div class="inst-card">
         <h3>1 · Release binary</h3>
         <p>Prebuilt for six platform targets, SHA256 checksums included.</p>
-        <pre>tar xzf pastlog_0.1.0_linux_amd64.tar.gz
+        <pre>tar xzf pastlog_0.2.2_linux_amd64.tar.gz
 sudo install pastlog /usr/local/bin/
 pastlog version</pre>
       </div>
@@ -347,7 +354,7 @@ cd pastlog
 go build ./cmd/pastlog</pre>
       </div>
     </div>
-    <p class="inst-foot">Homebrew and Scoop formulas are planned — see the <a href="https://github.com/wrinfotel/pastlog#roadmap">roadmap</a>. macOS note: release binaries are not notarized in v0.1; if Gatekeeper objects, run <span class="mono" style="font-size:12.5px">xattr -d com.apple.quarantine ./pastlog</span> or allow it in System Settings.</p>
+    <p class="inst-foot">Homebrew and Scoop formulas are planned — see the <a href="https://github.com/wrinfotel/pastlog#roadmap">roadmap</a>. macOS note: release binaries are not notarized; if Gatekeeper objects, run <span class="mono" style="font-size:12.5px">xattr -d com.apple.quarantine ./pastlog</span> or allow it in System Settings.</p>
   </div>
 </section>
 
@@ -371,6 +378,10 @@ go build ./cmd/pastlog</pre>
     <details>
       <summary>How fast is it, really?</summary>
       <div class="a">No index, pure streaming: ≈178 MB/s literal search and ≈71 MB/s regex over a 500 MB corpus on a dev machine (warm cache). Full benchmark table and caveats are in the README's <a href="https://github.com/wrinfotel/pastlog#performance">Performance</a> section.</div>
+    </details>
+    <details>
+      <summary>Can it explain why a session's context window filled up?</summary>
+      <div class="a">Yes — <code>pastlog context &lt;session-id&gt;</code> (or the CONTEXT button in a desktop session card) reconstructs the per-turn window curve, marks compactions, checks the session against five bloat rules — oversized tool results, repeated reads, error loops, no plateau on long runs — and prints short advice per hit. The same rules run for all five agents; the <a href="https://github.com/wrinfotel/pastlog/blob/main/docs/SPEC-context-analysis.md">spec</a> defines them.</div>
     </details>
     <details>
       <summary>What does it cost?</summary>
@@ -429,6 +440,19 @@ go build ./cmd/pastlog</pre>
       'codex               2    300      90    415         -',
       'gemini-cli          2    200      60    270         -',
       'opencode            2  1,833     507  2,447      0.50'
+    ]},
+    {cmd:'pastlog context dddd4444',out:[
+      'context profile: dddd4444 (codex, ~19k tokens final, 8 turns)',
+      'findings:',
+      '  R4  compact at turn 6: −71%, back at pre-drop level',
+      '  R1  Bash returned 19k go build -v ./… (~98% of result bytes)',
+      '  R2  240 go test ./... called ×4 — re-reads re-enter the window',
+      '  R3  Bash failed 3× in a row (~180 of output burned on retries)',
+      '  R5  turn 4 added ~56k tokens (88% of the peak window)',
+      'advice:',
+      '  • redirect long tool output to a file, read it back (R1)',
+      '  • fix the failing command before retrying the suite (R3)',
+      'precision: exact tokens (codex)'
     ]}
   ];
 
