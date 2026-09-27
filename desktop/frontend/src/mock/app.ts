@@ -16,9 +16,9 @@ const agents: Row[] = [
   // is observable in the browser mock
   { name: 'claude-code', detected: true, path: 'C:\\Users\\dev\\.claude\\projects', sessions: 412, bytes: 2_814_000_000 },
   { name: 'codex', detected: true, path: 'C:\\Users\\dev\\.codex\\sessions', sessions: 187, bytes: 943_000_000 },
-  { name: 'opencode', detected: false, path: null, sessions: 0, bytes: 0 },
+  { name: 'opencode', detected: true, path: 'C:\\Users\\dev\\.local\\share\\opencode', sessions: 28, bytes: 61_400_000 },
   { name: 'zcode', detected: true, path: 'C:\\Users\\dev\\.zcode\\sessions', sessions: 96, bytes: 418_500_000 },
-  { name: 'gemini-cli', detected: true, path: 'C:\\Users\\dev\\.gemini\\tmp', sessions: 41, bytes: 87_200_000 },
+  { name: 'gemini-cli', detected: false, path: null, sessions: 0, bytes: 0 },
 ];
 
 const projects = [
@@ -114,7 +114,7 @@ function statsRows(by: string) {
         cache_write: 1_310_000 - i * 264_000,
         total: 12_796_000 - i * 2_303_000,
       },
-      cost_usd: i < 3 ? 87.3 - i * 24.6 : null,
+      cost_usd: a.name === 'opencode' ? 62.7 : null,
     }));
 }
 
@@ -170,13 +170,13 @@ function windowedHit(text: string, needle: string) {
 // entry_head anchors the viewer scroll: the head of the served transcript
 // entry's full text, exactly what the desktop backend computes per hit.
 const head = (i: number) => transcript[i]!.text.slice(0, 120);
-const toolHit = windowedHit(transcript[3]!.text, 'challenge');
+const toolHit = windowedHit(transcript[3]!.text, 'checkout');
 
 const searchResults = [
   {
     session: allSessions[2]!,
     hits: [
-      { kind: 'message', role: 'assistant', timestamp: null, context: 'fix flaky checkout tests', line: 'the payment step waits for a 3DS challenge iframe', match_start: 26, match_end: 30, entry_head: head(2) },
+      { kind: 'message', role: 'assistant', timestamp: null, context: 'fix flaky checkout tests', line: 'the payment step waits for the checkout iframe to finish', match_start: 31, match_end: 39, entry_head: head(2) },
       { kind: 'tool_call', role: '', timestamp: null, context: '', ...toolHit, entry_head: head(3) },
     ],
   },

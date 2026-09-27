@@ -518,6 +518,15 @@ context analysis (a CONTEXT button shows the same per-turn curve, bloat
 rules and advice the CLI prints), inspect token-usage statistics, and export
 anything to JSON or markdown.
 
+<p align="center">
+  <img src="docs/images/desktop-home.png" alt="pastlog Desktop — Home: detected agents, sessions and indexed size" width="49%">
+  <img src="docs/images/desktop-search.png" alt="pastlog Desktop — live search across all agents with highlighted matches" width="49%">
+</p>
+<p align="center">
+  <img src="docs/images/desktop-session-context.png" alt="pastlog Desktop — session viewer with the context panel: per-turn sparkline, bloat rules and advice" width="49%">
+  <img src="docs/images/desktop-stats.png" alt="pastlog Desktop — token statistics per agent" width="49%">
+</p>
+
 | CLI | Desktop |
 |---|---|
 | `pastlog` (summary) | Home (agent cards drill into their projects) |
@@ -569,8 +578,6 @@ are your chosen export destination and its own settings file in the OS
 app-config dir (theme + home override). Session content is rendered as text
 or sanitized markdown only; nothing shown is ever executable, and links open
 in your system browser, never inside the app.
-
-<!-- TODO: desktop screenshots (Home / Search / Viewer / Stats) -->
 
 ## Exit codes
 
