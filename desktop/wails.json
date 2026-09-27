@@ -7,7 +7,7 @@
   "frontend:dev:serverUrl": "auto",
   "info": {
     "productName": "pastlog Desktop",
-    "productVersion": "0.2.2",
+    "productVersion": "0.2.3",
     "copyright": "MIT License"
   }
 }

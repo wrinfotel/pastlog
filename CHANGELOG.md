@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2026-09-27
+
+The CLI and the desktop app share this entry: the CLI ships as `v0.2.3`,
+the desktop app as `desktop-v0.2.3`. Three features: safe viewing of
+history (secrets masking), a merged cross-session timeline, and related-
+session navigation.
+
+### Added
+
+- Secrets masking in all human output: `show`, `search` and
+  `timeline --messages` render secret-looking tokens — API keys, JWTs,
+  `Bearer` headers, passwords in URLs — as short handshapes (`ghp_…9fZx`:
+  key type visible, last four chars to tell keys apart). `--no-mask`
+  disables it per run. `--json` stays verbatim by design — it is the
+  machine channel, and masking never affects what is searched, only what
+  is printed.
+- `pastlog timeline` — the merged chronological view across sessions and
+  agents. Default mode lists sessions oldest first with durations; with
+  `--messages` the user/assistant messages of every matching session merge
+  into one time-ordered stream (`--max-rows`, default 500, keeps the
+  newest) — the "how did we get here" view. Same filters as `sessions`.
+- `pastlog related <id|prefix>` — the sessions around one session: the
+  subagent parent and children where the agent records them, plus the two
+  nearest same-agent same-project sessions on each side (the continuation
+  heuristic for agents without explicit links).
+- Desktop: secret masking in search results, transcripts and markdown
+  exports with a Settings toggle (on by default; JSON exports stay
+  CLI-identical and verbatim), and a RELATED button in the session viewer
+  with clickable parent / subagents / project-neighbors rows.
+
+### Changed
+
+- Stable JSON schema addition (ruling R-D4): session objects in the
+  `sessions`, `search` and `show` schemas gained an additive `parent_id`
+  field (last position, `""` for top-level sessions). No key was renamed
+  or reordered; consumers keyed by name are unaffected.
+- Sessions now carry their subagent parent: opencode and zcode read the
+  `parent_id` column, gemini-cli derives it from the subagent directory
+  layout; claude-code and codex record no session-level parentage.
+
 ## [0.2.2] - 2026-09-27
 
 The CLI and the desktop app share this entry: the CLI ships as `v0.2.2`,
