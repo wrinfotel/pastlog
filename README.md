@@ -92,8 +92,8 @@ sudo install pastlog /usr/local/bin/
 pastlog version                             # sanity check
 ```
 
-> **macOS Gatekeeper:** release binaries are not notarized (out of scope for
-> v0.1), so macOS may refuse to run a downloaded binary with "cannot be
+> **macOS Gatekeeper:** release binaries are not notarized, so macOS may
+> refuse to run a downloaded binary with "cannot be
 > opened because the developer cannot be verified". Either allow it under
 > *System Settings → Privacy & Security*, or remove the quarantine flag:
 >
@@ -142,6 +142,7 @@ Usage:
 Available Commands:
   agents      list detected agent sources with session counts
   completion  Generate the autocompletion script for the specified shell
+  context     analyze why one session's context grew (what fed the window)
   help        Help about any command
   search      search all session entries across agents
   sessions    list sessions, newest first
@@ -379,6 +380,45 @@ $ pastlog show 3f9c81a2 --json
 }
 ```
 
+`pastlog context <session-id-or-prefix>` — why one session's context window
+grew. It rebuilds the per-turn window proxy (input + cache read + cache
+write, from the agent's own usage records), marks compaction boundaries and
+checks the event stream against five bloat rules — oversized tool results
+(R1), re-reads of the same target (R2), error loops (R3), monotonic growth
+without a plateau (R4), single-turn jumps (R5). Findings print in impact
+order with one short advice line per fired rule; `precision` says whether
+the numbers are the agent's reported tokens or a `bytes/4` estimate. The
+same rules run for every agent; an unknown or ambiguous prefix behaves like
+`show` (candidates listed, exit 2). The example below is the golden fixture
+session, captured from the real binary:
+
+```console
+$ pastlog context dddd4444
+context profile: dddd4444 (codex, ~19k tokens final, 8 turns)
+
+findings:
+  R4  compact at turn 6: −71%, back at pre-drop level after 1 turns
+  R1  Bash returned 19k go build -v ./... 2>&1 | tee /tmp/bui… (~98% of all result bytes)
+  R2  240 go test ./... called ×4 (Bash) — every re-read re-enters the window
+  R3  Bash failed 3× in a row (~180 of output burned on retries)
+  R2  76 /home/dev/app/main.go called ×2 (Read) — every re-read re-enters the window
+  R5  turn 4 added ~56k tokens (88% of the peak window) — inspect what ran there
+
+compactions: 1
+
+advice:
+  • compact earlier: a window near the limit makes every later turn slower and costlier (R4)
+  • redirect long tool output to a file, then read back only what you need (R1)
+  • re-reads re-enter the file in full — ask for diffs or line ranges instead (R2)
+  • fix the failing command before retrying the suite (R3)
+  • one turn moved a third of the window — inspect what ran there (R5)
+
+precision: exact tokens (codex)
+```
+
+The rules, the curve and the per-agent extraction are specified in
+[docs/SPEC-context-analysis.md](docs/SPEC-context-analysis.md).
+
 `pastlog stats` — where your tokens go: token usage aggregated across all
 five agents, grouped with `--by agent|project|day|model` (default `agent`)
 and filterable with the same `--agent`/`--project`/`--since`/`--until`
@@ -456,7 +496,7 @@ link time. A release binary reports the tagged build:
 
 ```console
 $ pastlog version
-pastlog v0.1.0 (commit 15f543aef6a3d48aee44f42077459bf364083b4c, date 2026-09-13T10:00:00Z)
+pastlog v0.2.2 (commit 9af55de181a7b8d51b70f0cd2ce814f825a258e4, date 2026-09-27T16:58:00Z)
 ```
 
 (a plain `go install` build without ldflags reports `pastlog 0.0.0-dev
@@ -473,8 +513,10 @@ the CLI: the same engine, the same guarantees, the same view of your data —
 browse and search the full history of all five agents across all projects,
 click an agent on Home to drill into its projects and see which models each
 one used and at what token cost, read transcripts comfortably (collapsible
-tool calls, markdown-rendered assistant messages), inspect token-usage
-statistics, and export anything to JSON or markdown.
+tool calls, markdown-rendered assistant messages), open a per-session
+context analysis (a CONTEXT button shows the same per-turn curve, bloat
+rules and advice the CLI prints), inspect token-usage statistics, and export
+anything to JSON or markdown.
 
 | CLI | Desktop |
 |---|---|
@@ -483,6 +525,7 @@ statistics, and export anything to JSON or markdown.
 | `pastlog sessions` | Sessions (virtualized, all filters) |
 | `pastlog search` | Search (live, progress + cancel, click a hit to open the session) |
 | `pastlog show` | Session viewer (with `--export md`/`--json` parity) |
+| `pastlog context` | Session viewer → CONTEXT button (same rules R1–R5, the per-turn sparkline, advice) |
 | `pastlog stats` | Stats · Projects (per-agent project list → per-model usage of one project + its sessions) |
 | `pastlog version` | About (in Settings) |
 
@@ -507,7 +550,7 @@ is [desktop-v0.2.2](https://github.com/wrinfotel/pastlog/releases/tag/desktop-v0
 Every desktop release ships a per-platform `checksums-<platform>.txt` with
 SHA256 sums of its artifacts.
 
-- **Windows:** unsigned in v0.1 (SmartScreen may warn — same honesty as the
+- **Windows:** unsigned (SmartScreen may warn — same honesty as the
   CLI). WebView2 is preinstalled on Windows 11 and virtually all Windows 10
   devices; the installer embeds Microsoft's silent Evergreen bootstrapper for
   the rare builds without it. Nothing else is installed.
@@ -535,9 +578,9 @@ grep-style, on every command:
 
 | Code | Meaning |
 |---|---|
-| `0` | ok — including "nothing found" (`agents`/`sessions` list nothing, `stats` prints nothing for an empty selection, `show` prints an empty session) |
+| `0` | ok — including "nothing found" (`agents`/`sessions` list nothing, `stats` prints nothing for an empty selection, `show` prints an empty session, `context` prints a profile even when usage data is missing) |
 | `1` | `search` found no matches (nothing is printed) — stats never exits 1: an empty aggregate is a valid result |
-| `2` | real error — bad flag value (e.g. an invalid `--by`), unknown agent, unreadable `--home`, ambiguous session-ID prefix, unusable storage |
+| `2` | real error — bad flag value (e.g. an invalid `--by`), unknown agent, unreadable `--home`, a session id prefix that is ambiguous or matches nothing (`show`, `context`), unusable storage |
 
 ```console
 $ pastlog search "kubernetes"
@@ -570,7 +613,7 @@ counted: [`internal/adapters/claudecode/SCHEMA.md`](internal/adapters/claudecode
 
 ## Performance
 
-No index in v0.1 — pure streaming over whatever the agents wrote. Measured
+No index — pure streaming over whatever the agents wrote. Measured
 end to end (listing + scan) on a synthetic 500 MB corpus with the benchmark
 suite from [`internal/search/bench_test.go`](internal/search/bench_test.go):
 
