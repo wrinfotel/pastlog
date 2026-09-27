@@ -782,6 +782,7 @@ the shape is enough).
 ## Roadmap
 
 - **Desktop timeline view** — the merged chronological view (`pastlog timeline`) as a GUI page
+- **Desktop per-session model costs** — which models one session used and what each cost, in the session viewer (the per-model usage split already exists in the engine)
 - **MCP server** (`pastlog mcp`) — let your coding agent search its own history
 - **TUI** — interactive browsing on top of the same engine
 - **Homebrew / Scoop packages** — `brew install` and `scoop install` formulas
