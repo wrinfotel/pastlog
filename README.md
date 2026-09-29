@@ -563,7 +563,9 @@ rules and advice the CLI prints), jump between related sessions (a RELATED
 button lists the subagent parent and children plus the nearest same-project
 sessions — click a row to open it), see which models a session used and what
 each consumed (a MODELS button shows the session's per-model token table —
-the same view the project page has), inspect token-usage statistics, and
+the same view the project page has), re-read the history chronologically (a
+Timeline page merges every session's messages into one stream — globally or
+scoped to one project from its page), inspect token-usage statistics, and
 export anything to JSON or markdown. Secrets are masked in search results
 and transcripts (a Settings toggle, on by default); JSON exports stay
 verbatim.
@@ -588,7 +590,7 @@ verbatim.
 | — | Session viewer → MODELS button (the session's per-model token table, like the project page) |
 | `pastlog context` | Session viewer → CONTEXT button (same rules R1–R5, the per-turn sparkline, advice) |
 | `pastlog stats` | Stats · Projects (per-agent project list → per-model usage of one project + its sessions) |
-| `pastlog timeline` | planned for a desktop release (the CLI view ships today) |
+| `pastlog timeline` | Timeline (merged message stream — from Home globally, or scoped to one project from its page) |
 | `pastlog version` | About (in Settings) |
 
 Every GUI JSON export is byte-identical to the CLI's `--json` output —
@@ -784,7 +786,6 @@ the shape is enough).
 
 ## Roadmap
 
-- **Desktop timeline view** — the merged chronological view (`pastlog timeline`) as a GUI page
 - **MCP server** (`pastlog mcp`) — let your coding agent search its own history
 - **TUI** — interactive browsing on top of the same engine
 - **Homebrew / Scoop packages** — `brew install` and `scoop install` formulas
