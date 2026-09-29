@@ -205,6 +205,7 @@
   const backLabel = $derived(
     viewer.from === 'projects' ? 'Back to project'
     : viewer.from === 'search' ? 'Back to search'
+    : viewer.from === 'timeline' ? 'Back to timeline'
     : 'Back to sessions',
   );
 

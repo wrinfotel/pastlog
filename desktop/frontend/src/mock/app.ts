@@ -368,6 +368,38 @@ export async function SessionModels(id: string) {
   };
 }
 
+// The merged cross-session timeline: messages from the fixture sessions in
+// one chronological stream (newest 500 kept, the engine's cap), interleaving
+// agents and projects exactly like the rest of the mock world.
+export async function Timeline(f: { agent?: string; project?: string }) {
+  await delay(300);
+  const pool = allSessions.filter(
+    (s) =>
+      (!f.agent || s.agent === f.agent) && (!f.project || s.project === f.project),
+  );
+  const events = pool.slice(0, 8).flatMap((s, i) => {
+    const base = new Date(s.started_at ?? Date.now()).getTime();
+    return [
+      {
+        timestamp: new Date(base + 4_000).toISOString(),
+        agent: s.agent,
+        role: 'user',
+        text: `opening ${s.title} — look at the failing step first`,
+        session: s.id,
+      },
+      {
+        timestamp: new Date(base + 26_000).toISOString(),
+        agent: s.agent,
+        role: 'assistant',
+        text: 'Pinned the wait to a 5s budget and switched the stub to a fixed 120ms latency. Re-ran the suite 10x locally: green.',
+        session: s.id,
+      },
+    ].slice(0, i % 3 === 2 ? 1 : 2);
+  });
+  events.sort((a, b) => (a.timestamp ?? '').localeCompare(b.timestamp ?? ''));
+  return { events, notes: [] };
+}
+
 export async function ExportSession() {
   return { status: 'ok' };
 }

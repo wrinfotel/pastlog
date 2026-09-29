@@ -11,6 +11,7 @@
   import { go } from '../lib/stores.svelte';
   import { openSession } from '../lib/viewer.svelte';
   import { closeProject, openProject, projectsNav } from '../lib/projects.svelte';
+  import { openTimeline } from '../lib/timeline.svelte';
   import Notes from '../components/Notes.svelte';
   import VirtualList from '../components/VirtualList.svelte';
   import Loader from '../components/Loader.svelte';
@@ -199,7 +200,30 @@
     <div>
       <div class="kicker">// 04 · PROJECT DETAIL</div>
       <h1 class="proj">{projectsNav.project || '-'}</h1>
-      <p class="meta"><span class="chip">{projectsNav.agent}</span> &middot; token usage by model</p>
+      <p class="meta">
+        <span class="chip">{projectsNav.agent}</span> &middot; token usage by model
+        <button
+          class="btn timeline-link"
+          onclick={() => {
+            openTimeline(projectsNav.agent, projectsNav.project, 'projects');
+            go('timeline');
+          }}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="11"
+            height="11"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M3 12h18M3 6h18M3 18h18" />
+          </svg>
+          Timeline
+        </button>
+      </p>
     </div>
     <div class="page-mark">PROJECT DETAIL<br /><strong>MODEL USAGE</strong></div>
   </header>
@@ -371,6 +395,12 @@
     font-size: 16px;
     letter-spacing: 0;
     overflow-wrap: anywhere;
+  }
+  .timeline-link {
+    margin-left: 10px;
+    padding: 2px 9px;
+    font-size: 10.5px;
+    vertical-align: 1px;
   }
   td.key {
     color: var(--text);

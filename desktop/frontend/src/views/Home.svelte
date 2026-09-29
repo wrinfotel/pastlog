@@ -8,6 +8,7 @@
   import { fmtBytes, fmtInt } from '../lib/format';
   import { appMeta, go } from '../lib/stores.svelte';
   import { openAgentProjects } from '../lib/projects.svelte';
+  import { openTimeline } from '../lib/timeline.svelte';
   import Notes from '../components/Notes.svelte';
   import Loader from '../components/Loader.svelte';
 
@@ -180,6 +181,15 @@
       </div>
       <div class="cta-actions">
         <button class="btn primary" onclick={() => go('search')}>Launch search</button>
+        <button
+          class="btn"
+          onclick={() => {
+            openTimeline('', '', 'home');
+            go('timeline');
+          }}
+        >
+          Timeline
+        </button>
         <button class="btn" onclick={() => go('stats')}>Full stats</button>
       </div>
     </section>

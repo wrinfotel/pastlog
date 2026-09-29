@@ -11,9 +11,10 @@ import (
 	"github.com/wrinfotel/pastlog/internal/render"
 )
 
-// defaultMaxTimelineRows caps the --messages stream: a merged timeline is a
-// navigation view, not a transcript dump.
-const defaultMaxTimelineRows = 500
+// DefaultMaxTimelineRows caps the --messages stream: a merged timeline is a
+// navigation view, not a transcript dump. Shared with the desktop binding so
+// both channels cap identically.
+const DefaultMaxTimelineRows = 500
 
 func newTimelineCmd(stdout, stderr io.Writer) *cobra.Command {
 	var (
@@ -108,7 +109,7 @@ func newTimelineCmd(stdout, stderr io.Writer) *cobra.Command {
 	cmd.Flags().StringVar(&since, "since", "", "only sessions started after Nd, Nw or YYYY-MM-DD")
 	cmd.Flags().StringVar(&till, "until", "", "only sessions started before Nd, Nw or YYYY-MM-DD")
 	cmd.Flags().IntVar(&limit, "limit", 0, "include at most N sessions, newest first (0 = no limit)")
-	cmd.Flags().IntVar(&maxRows, "max-rows", defaultMaxTimelineRows, "with --messages, keep the newest N events (0 = no limit)")
+	cmd.Flags().IntVar(&maxRows, "max-rows", DefaultMaxTimelineRows, "with --messages, keep the newest N events (0 = no limit)")
 	cmd.Flags().BoolVar(&noMask, "no-mask", false, "print secrets verbatim (default: masked like ghp_…ABCD)")
 	return cmd
 }

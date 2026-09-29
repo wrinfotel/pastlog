@@ -162,6 +162,19 @@ export type SessionModelsOutcome = {
   notes: string[];
 };
 
+export type TimelineEvent = {
+  timestamp: string | null;
+  agent: string;
+  role: string;
+  text: string;
+  session: string; // full id — the viewer opens it directly
+};
+
+export type TimelineOutcome = {
+  events: TimelineEvent[];
+  notes: string[];
+};
+
 export const api = {
   overview: bindings.Overview,
   diagnostics: bindings.Diagnostics,
@@ -171,6 +184,7 @@ export const api = {
   context: bindings.Context,
   related: bindings.Related,
   sessionModels: bindings.SessionModels,
+  timeline: bindings.Timeline,
   stats: bindings.Stats,
   projects: bindings.Projects,
   projectStats: bindings.ProjectStats,

@@ -1,6 +1,7 @@
 package agentlog
 
 import (
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -26,8 +27,10 @@ const snippetLen = 120
 // that passes the filter, merges them chronologically (ties: agent, session
 // id, then stream order within a session) and keeps the newest maxRows when
 // maxRows > 0. Unreadable storage degrades per adapter with one note, like
-// CollectSessions.
-func CollectTimelineEvents(adapters []Adapter, f SessionFilter, maxRows int, note func(string)) []TimelineEvent {
+// CollectSessions. The optional progress hooks (R-D6) report the running
+// session count and may stop the scan, returning the partial selection —
+// the CLI passes no hook and sees no behavior change.
+func CollectTimelineEvents(adapters []Adapter, f SessionFilter, maxRows int, note func(string), progress ...Progress) []TimelineEvent {
 	var out []TimelineEvent
 	for _, a := range adapters {
 		if f.Agent != "" && a.Name() != f.Agent {
@@ -40,23 +43,34 @@ func CollectTimelineEvents(adapters []Adapter, f SessionFilter, maxRows int, not
 				note(UnreadableNote(a.Name(), err))
 			}
 		}
+		done := 0
+		stopped := false
 		collect := func(s Session) error {
-			if !f.Match(s) {
-				return nil
-			}
-			return a.Entries(s, func(e Entry) error {
-				if e.Kind != Message {
+			if f.Match(s) {
+				if err := a.Entries(s, func(e Entry) error {
+					if e.Kind != Message {
+						return nil
+					}
+					out = append(out, TimelineEvent{
+						Timestamp: e.Timestamp,
+						Agent:     a.Name(),
+						Role:      e.Role,
+						Text:      snippet(e.Text),
+						SessionID: s.ID,
+					})
 					return nil
+				}); err != nil {
+					return err
 				}
-				out = append(out, TimelineEvent{
-					Timestamp: e.Timestamp,
-					Agent:     a.Name(),
-					Role:      e.Role,
-					Text:      snippet(e.Text),
-					SessionID: s.ID,
-				})
-				return nil
-			})
+			}
+			done++
+			for _, p := range progress {
+				if !p(done) {
+					stopped = true
+					return errStopCollect
+				}
+			}
+			return nil
 		}
 		var err error
 		if ms, ok := a.(MetaSource); ok {
@@ -66,8 +80,11 @@ func CollectTimelineEvents(adapters []Adapter, f SessionFilter, maxRows int, not
 		} else {
 			err = a.Sessions(collect)
 		}
-		if err != nil {
+		if err != nil && !errors.Is(err, errStopCollect) {
 			noteOnce(err)
+		}
+		if stopped {
+			break // cancelled (R-D6): return the partial selection
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool {
