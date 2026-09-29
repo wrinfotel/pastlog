@@ -191,7 +191,7 @@ const searchResults = [
   },
 ];
 
-let settings = { home: '', theme: 'system', maskSecrets: true, version: '0.2.3', commit: 'afba759', date: '2026-09-27' };
+let settings = { home: '', theme: 'system', maskSecrets: true, version: '0.2.4', commit: '8003515', date: '2026-09-29' };
 
 const delay = (ms = 120) => new Promise((r) => setTimeout(r, ms));
 

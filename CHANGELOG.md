@@ -5,10 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.4] - 2026-09-29
+
+The CLI and the desktop app share this entry: the CLI ships as `v0.2.4`
+(no CLI changes this cycle — the release tags its current state), the
+desktop app as `desktop-v0.2.4`. Two desktop additions complete the
+viewer: the merged cross-session timeline and the per-model token panel.
 
 ### Added
 
+- Desktop Timeline view: the merged cross-session message stream
+  (`pastlog timeline --messages`) as a GUI page — every matching session's
+  user/assistant messages in one chronological stream, entered from Home
+  (all agents) or scoped to one project from its page. Clicking an event
+  opens the source session in the viewer; progress and cancel behave like
+  the other long operations, and secrets are masked like everywhere in the
+  GUI.
 - Desktop MODELS panel in the session viewer: the session's per-model token
   table (input, output, reasoning, cache read/write, total) — the same view
   the project page shows, scoped to one session. Agents that record no
