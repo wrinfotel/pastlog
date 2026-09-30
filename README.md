@@ -58,17 +58,17 @@ config files. Three ways to get it:
 ### 1. Download a release binary (recommended)
 
 Grab the archive for your platform from the
-[v0.2.3 release](https://github.com/wrinfotel/pastlog/releases/tag/v0.2.3) and
+[v0.2.4 release](https://github.com/wrinfotel/pastlog/releases/tag/v0.2.4) and
 put `pastlog` on your `PATH`:
 
 | Platform | Archive |
 |---|---|
-| Windows, Intel/AMD 64-bit | `pastlog_0.2.3_windows_amd64.zip` |
-| Windows on ARM | `pastlog_0.2.3_windows_arm64.zip` |
-| macOS, Apple Silicon | `pastlog_0.2.3_darwin_arm64.tar.gz` |
-| macOS, Intel | `pastlog_0.2.3_darwin_amd64.tar.gz` |
-| Linux, Intel/AMD 64-bit | `pastlog_0.2.3_linux_amd64.tar.gz` |
-| Linux on ARM | `pastlog_0.2.3_linux_arm64.tar.gz` |
+| Windows, Intel/AMD 64-bit | `pastlog_0.2.4_windows_amd64.zip` |
+| Windows on ARM | `pastlog_0.2.4_windows_arm64.zip` |
+| macOS, Apple Silicon | `pastlog_0.2.4_darwin_arm64.tar.gz` |
+| macOS, Intel | `pastlog_0.2.4_darwin_amd64.tar.gz` |
+| Linux, Intel/AMD 64-bit | `pastlog_0.2.4_linux_amd64.tar.gz` |
+| Linux on ARM | `pastlog_0.2.4_linux_arm64.tar.gz` |
 
 Every release ships a `checksums.txt` with SHA256 sums. Verify on
 macOS/Linux before unpacking:
@@ -80,14 +80,14 @@ sha256sum -c checksums.txt --ignore-missing
 Windows (PowerShell):
 
 ```powershell
-Expand-Archive pastlog_0.2.3_windows_amd64.zip -DestinationPath .
+Expand-Archive pastlog_0.2.4_windows_amd64.zip -DestinationPath .
 Move-Item .\pastlog.exe "$env:USERPROFILE\go\bin\"   # or any folder on PATH
 ```
 
 macOS/Linux:
 
 ```sh
-tar xzf pastlog_0.2.3_darwin_arm64.tar.gz   # your platform's archive
+tar xzf pastlog_0.2.4_darwin_arm64.tar.gz   # your platform's archive
 sudo install pastlog /usr/local/bin/
 pastlog version                             # sanity check
 ```
@@ -540,7 +540,7 @@ link time. A release binary reports the tagged build:
 
 ```console
 $ pastlog version
-pastlog v0.2.3 (commit 9af55de181a7b8d51b70f0cd2ce814f825a258e4, date 2026-09-27T16:58:00Z)
+pastlog v0.2.4 (commit e1f452c4cd04e4caa631362ca05c6f54db9268f7, date 2026-09-29T18:47:40Z)
 ```
 
 (a plain `go install` build without ldflags reports `pastlog 0.0.0-dev
@@ -600,7 +600,7 @@ proven by tests that run both against the same data.
 
 Grab a `desktop-v*` release from the
 [releases page](https://github.com/wrinfotel/pastlog/releases) — the current one
-is [desktop-v0.2.3](https://github.com/wrinfotel/pastlog/releases/tag/desktop-v0.2.3),
+is [desktop-v0.2.4](https://github.com/wrinfotel/pastlog/releases/tag/desktop-v0.2.4),
 ~15–20 MB per platform:
 
 | Platform | Artifact |

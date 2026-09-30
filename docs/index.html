@@ -305,11 +305,12 @@
       <p class="sec-sub" style="margin-bottom:24px">pastlog Desktop is the GUI companion: the same engine, the same guarantees, the same view of your data.</p>
       <ul class="desktop-feats">
         <li><span><strong>Live search</strong> with progress and cancel — click a hit to open the session.</span></li>
-        <li><span><strong>Readable transcripts</strong> — collapsible tool calls, markdown-rendered assistant messages.</span></li>
+        <li><span><strong>Timeline</strong> — every matching session's user/assistant messages in one chronological stream, across all agents from Home or scoped to one project from its page. Click an event to open its session.</span></li>
+        <li><span><strong>Readable transcripts</strong> — collapsible tool calls, markdown-rendered assistant messages, and a RELATED panel: the session's parent, subagents and project neighbors, one click away.</span></li>
         <li><span><strong>Context analysis</strong> in every session card — why the window grew: per-turn curve, five bloat rules, short advice. One CONTEXT click away.</span></li>
-        <li><span><strong>Token stats</strong> per agent, project and model, drill down from Home.</span></li>
+        <li><span><strong>Token stats</strong> per agent, project and model — drill down from Home, and a session's own per-model table behind its MODELS button.</span></li>
         <li><span><strong>Export anything</strong> to JSON or markdown — byte-identical to the CLI's output.</span></li>
-        <li><span><strong>Hardened by default</strong> — frontend embedded in the binary, strict CSP, zero external assets, links open in your browser, never in-app.</span></li>
+        <li><span><strong>Hardened by default</strong> — secrets masked on screen (a Settings toggle turns it off), frontend embedded in the binary, strict CSP, zero external assets, links open in your browser, never in-app.</span></li>
       </ul>
     </div>
     <div class="desktop-panel">
@@ -372,12 +373,20 @@ go build ./cmd/pastlog</pre>
       <div class="a">No — read-only by design and enforced by tests. Adapters only open files for reading, and SQLite-backed sources (OpenCode, ZCode) open with <code>mode=ro</code>; a write attempt is refused by the driver.</div>
     </details>
     <details>
+      <summary>My logs contain API keys and tokens. Do they end up on screen?</summary>
+      <div class="a">Masked by default: <code>show</code>, <code>search</code> and <code>timeline --messages</code> render secret-looking tokens — API keys, JWTs, <code>Bearer</code> headers, passwords in URLs — as short handshapes (<code>ghp_…9fZx</code>: key type visible, last four chars to tell keys apart), so a transcript is safe to screen-share. <code>--no-mask</code> disables it for a run; <code>--json</code> stays verbatim by design — it is the machine channel. Masking never affects what is searched, only what is printed. The desktop app masks the same way, with a toggle in Settings.</div>
+    </details>
+    <details>
       <summary>Is Windows really supported?</summary>
       <div class="a">Yes, first-class: CI runs the race-enabled test suite on Windows, releases include <code>windows/amd64</code> and <code>windows/arm64</code> binaries, and <code>--project</code> matches forward and back slashes alike.</div>
     </details>
     <details>
       <summary>How fast is it, really?</summary>
       <div class="a">No index, pure streaming: ≈178 MB/s literal search and ≈71 MB/s regex over a 500 MB corpus on a dev machine (warm cache). Full benchmark table and caveats are in the README's <a href="https://github.com/wrinfotel/pastlog#performance">Performance</a> section.</div>
+    </details>
+    <details>
+      <summary>Can I follow one project's story across sessions and agents?</summary>
+      <div class="a">That is what <code>pastlog timeline</code> is for. Default mode lists sessions chronologically, oldest first; with <code>--messages</code> the user/assistant messages of every matching session merge into one time-ordered stream — the "how did we get here" view (<code>--max-rows</code>, 500 by default, keeps the newest). <code>pastlog related &lt;id|prefix&gt;</code> shows the sessions around one session: its subagent parent and children where the agent records them, plus the nearest same-project sessions on each side. The desktop app has the timeline as a page — from Home, or scoped to one project from its page.</div>
     </details>
     <details>
       <summary>Can it explain why a session's context window filled up?</summary>
