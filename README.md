@@ -1,4 +1,4 @@
-<p align="center"><img src="https://github.com/wrinfotel/pastlog/releases/download/v0.1.0/demo.gif" alt="pastlog demo: agents, sessions, search and show against fixture data" width="100%"></p>
+<p align="center"><img src="https://github.com/wrinfotel/pastlog/releases/download/v0.2.4/demo.gif" alt="pastlog demo: agents, sessions, search, show, stats and context analysis against fixture data (v0.2.4 binary)" width="100%"></p>
 
 <h1 align="center">Your agent forgot. pastlog remembers.</h1>
 
