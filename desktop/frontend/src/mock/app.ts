@@ -400,6 +400,70 @@ export async function Timeline(f: { agent?: string; project?: string }) {
   return { events, notes: [] };
 }
 
+// The cross-session optimize report: the fixture project carries one finding
+// per rule in the analyzer's impact order (R9's token exposure leads); any
+// other scope comes back empty — same shape the backend returns.
+export async function Optimize(f: { filter?: { agent?: string; project?: string } }) {
+  await delay(400);
+  const proj = f.filter?.project ?? '';
+  if (proj && !proj.includes('shop-backend')) {
+    return {
+      report: { sessions: 0, findings: [], advice: [], truncated: 0 },
+      notes: [],
+    };
+  }
+  return {
+    report: {
+      sessions: 41,
+      findings: [
+        {
+          rule: 'R9',
+          desc: 'static context ~19k tokens (smallest first turn across 41 sessions) rides in every request — ~213M tokens of prefix across 11,180 turns',
+          sessions: 41,
+          count: 11180,
+          bytes: 0,
+          tokens: 213_000_000,
+        },
+        {
+          rule: 'R6',
+          tool: 'Bash',
+          label: 'go build -v ./... 2>&1 | tee /tmp/build.log; cat /tmp/build.log',
+          desc: '(Bash) returned ~19k per run ×34 across 29 sessions — every run pays it again',
+          sessions: 29,
+          count: 34,
+          bytes: 650_000,
+        },
+        {
+          rule: 'R8',
+          tool: 'Bash',
+          label: 'npm test -- --coverage',
+          desc: '(Bash) failed ×14 across 11 sessions — retries burned ~96k of output',
+          sessions: 11,
+          count: 14,
+          bytes: 98_000,
+        },
+        {
+          rule: 'R7',
+          tool: 'Read',
+          label: 'C:\\dev\\shop-backend\\src\\config\\settings.py',
+          desc: '(Read) ×37 across 33 sessions — the same content re-enters the window every session (~142k total)',
+          sessions: 33,
+          count: 37,
+          bytes: 145_000,
+        },
+      ],
+      advice: [
+        { rule: 'R9', text: 'trim the always-loaded context (agent memory files, MCP servers) — every KB rides in every request' },
+        { rule: 'R6', text: 'redirect this command\'s output to a file and read back only what you need — every run pays it again' },
+        { rule: 'R8', text: 'fix the failing command\'s cause — retries burn its output again every session' },
+        { rule: 'R7', text: 'the same content re-enters the window every session — put the answer in agent memory (CLAUDE.md/AGENTS.md) once' },
+      ],
+      truncated: 0,
+    },
+    notes: [],
+  };
+}
+
 export async function ExportSession() {
   return { status: 'ok' };
 }

@@ -39,12 +39,17 @@ type Advice struct {
 }
 
 // advicePool is keyed by rule id; one advice per fired rule (SPEC §4).
+// R6–R9 are the cross-session rules of SPEC-optimize.md.
 var advicePool = map[string]Advice{
 	"R1": {Rule: "R1", Text: "redirect long tool output to a file, then read back only what you need"},
 	"R2": {Rule: "R2", Text: "re-reads re-enter the file in full — ask for diffs or line ranges instead"},
 	"R3": {Rule: "R3", Text: "fix the failing command before retrying the suite"},
 	"R4": {Rule: "R4", Text: "compact earlier: a window near the limit makes every later turn slower and costlier"},
 	"R5": {Rule: "R5", Text: "one turn moved a third of the window — inspect what ran there"},
+	"R6": {Rule: "R6", Text: "redirect this command's output to a file and read back only what you need — every run pays it again"},
+	"R7": {Rule: "R7", Text: "the same content re-enters the window every session — put the answer in agent memory (CLAUDE.md/AGENTS.md) once"},
+	"R8": {Rule: "R8", Text: "fix the failing command's cause — retries burn its output again every session"},
+	"R9": {Rule: "R9", Text: "trim the always-loaded context (agent memory files, MCP servers) — every KB rides in every request"},
 }
 
 // Analyze runs rules R1–R5 over one session's event stream.

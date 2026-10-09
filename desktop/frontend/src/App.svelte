@@ -9,6 +9,7 @@
   import SearchView from './views/SearchView.svelte';
   import SessionsView from './views/SessionsView.svelte';
   import TimelineView from './views/TimelineView.svelte';
+  import OptimizeView from './views/OptimizeView.svelte';
   import StatsView from './views/StatsView.svelte';
   import Viewer from './views/Viewer.svelte';
   import DiagnosticsView from './views/DiagnosticsView.svelte';
@@ -118,6 +119,8 @@
         <StatsView />
       {:else if view.current === 'timeline'}
         <TimelineView />
+      {:else if view.current === 'optimize'}
+        <OptimizeView />
       {:else if view.current === 'viewer'}
         <Viewer />
       {:else if view.current === 'diagnostics'}

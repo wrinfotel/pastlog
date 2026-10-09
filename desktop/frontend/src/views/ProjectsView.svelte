@@ -12,6 +12,7 @@
   import { openSession } from '../lib/viewer.svelte';
   import { closeProject, openProject, projectsNav } from '../lib/projects.svelte';
   import { openTimeline } from '../lib/timeline.svelte';
+  import { openOptimize } from '../lib/optimize.svelte';
   import Notes from '../components/Notes.svelte';
   import VirtualList from '../components/VirtualList.svelte';
   import Loader from '../components/Loader.svelte';
@@ -203,7 +204,7 @@
       <p class="meta">
         <span class="chip">{projectsNav.agent}</span> &middot; token usage by model
         <button
-          class="btn timeline-link"
+          class="btn headlink"
           onclick={() => {
             openTimeline(projectsNav.agent, projectsNav.project, 'projects');
             go('timeline');
@@ -222,6 +223,27 @@
             <path d="M3 12h18M3 6h18M3 18h18" />
           </svg>
           Timeline
+        </button>
+        <button
+          class="btn headlink"
+          onclick={() => {
+            openOptimize(projectsNav.agent, projectsNav.project, 'projects');
+            go('optimize');
+          }}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="11"
+            height="11"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1m0-12.8-2.1 2.1m-8.6 8.6-2.1 2.1" />
+          </svg>
+          Optimize
         </button>
       </p>
     </div>
@@ -396,7 +418,7 @@
     letter-spacing: 0;
     overflow-wrap: anywhere;
   }
-  .timeline-link {
+  .headlink {
     margin-left: 10px;
     padding: 2px 9px;
     font-size: 10.5px;

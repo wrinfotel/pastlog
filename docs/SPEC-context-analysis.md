@@ -176,7 +176,9 @@ Context findings, last 30 days — claude-code, 20 sessions analyzed
 This is `stats` for context instead of tokens — and the natural demo material:
 "your agent re-reads the same files in 70% of sessions" is a shareable
 finding. Sorting = rule frequency, then affected sessions. Session ids stay
-available (drill down with L1).
+available (drill down with L1). The deeper fold — grouping *identical calls*
+across sessions into recurring waste patterns (R6–R9) — is its own feature
+with its own spec: [SPEC-optimize.md](SPEC-optimize.md).
 
 **L3 — the `sessions` listing: untouched.** A per-row context-health badge
 would require a full pass of every listed file; that trades the listing's

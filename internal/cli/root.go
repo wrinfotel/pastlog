@@ -72,6 +72,7 @@ func newRootCmd(stdout, stderr io.Writer) *cobra.Command {
 	root.AddCommand(newShowCmd(stdout, stderr))
 	root.AddCommand(newRelatedCmd(stdout, stderr))
 	root.AddCommand(newContextCmd(stdout, stderr))
+	root.AddCommand(newOptimizeCmd(stdout, stderr))
 	root.AddCommand(newTimelineCmd(stdout, stderr))
 	root.AddCommand(newVersionCmd())
 

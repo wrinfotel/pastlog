@@ -7,6 +7,7 @@ export type ViewName =
   | 'sessions'
   | 'stats'
   | 'timeline'
+  | 'optimize'
   | 'viewer'
   | 'diagnostics'
   | 'settings';

@@ -175,6 +175,34 @@ export type TimelineOutcome = {
   notes: string[];
 };
 
+export type OptimizeFinding = {
+  rule: string; // R6..R9 (SPEC-optimize.md)
+  tool?: string;
+  label?: string; // the recurring call; composed with desc in the UI
+  desc: string;
+  sessions: number;
+  count: number;
+  bytes: number;
+  tokens?: number; // R9's exact-token exposure
+};
+
+export type OptimizeAdvice = {
+  rule: string;
+  text: string;
+};
+
+export type OptimizeReport = {
+  sessions: number; // sessions analyzed
+  findings: OptimizeFinding[];
+  advice: OptimizeAdvice[];
+  truncated: number; // smaller patterns beyond the top list
+};
+
+export type OptimizeOutcome = {
+  report?: OptimizeReport | null;
+  notes: string[];
+};
+
 export const api = {
   overview: bindings.Overview,
   diagnostics: bindings.Diagnostics,
@@ -185,6 +213,7 @@ export const api = {
   related: bindings.Related,
   sessionModels: bindings.SessionModels,
   timeline: bindings.Timeline,
+  optimize: bindings.Optimize,
   stats: bindings.Stats,
   projects: bindings.Projects,
   projectStats: bindings.ProjectStats,
