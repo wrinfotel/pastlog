@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.5] - 2026-10-09
+
+The CLI and the desktop app share this entry: the CLI ships as `v0.2.5`,
+the desktop app as `desktop-v0.2.5`. One feature on both sides: the
+cross-session optimize report — the context analysis folded across every
+matching session.
+
+### Added
+
+- `pastlog optimize` — what burns tokens session after session. The same
+  normalized context stream the per-session `context` rules run on,
+  accumulated across every matching session (same filters as `sessions`)
+  and grouped by call identity: commands whose oversized output is paid
+  again every session (R6), content re-discovered from scratch each time
+  (R7), commands that keep failing (R8), and the always-loaded context
+  prefix — system prompt, tool declarations, agent memory files (R9,
+  exact-token arithmetic). Findings print in impact order with the advice
+  pool keyed to the fired rules; the report keeps the top 10 patterns and
+  counts the rest. `--json` emits the stable schema; masking behaves like
+  everywhere (`--no-mask` opt-out, JSON verbatim). Advice-only by design:
+  pastlog never writes to agent storage or agent config
+  ([docs/SPEC-optimize.md](docs/SPEC-optimize.md)).
+- Desktop: an OPTIMIZE button on a project page (next to Timeline) opens
+  the same report scoped to that project — advice above findings, each
+  pattern with its sessions/occurrence count and total impact, progress
+  and cancel like the other long operations, secrets masked like
+  everywhere in the GUI.
+
 ## [0.2.4] - 2026-09-29
 
 The CLI and the desktop app share this entry: the CLI ships as `v0.2.4`
