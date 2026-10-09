@@ -571,7 +571,7 @@ link time. A release binary reports the tagged build:
 
 ```console
 $ pastlog version
-pastlog v0.2.4 (commit e1f452c4cd04e4caa631362ca05c6f54db9268f7, date 2026-09-29T18:47:40Z)
+pastlog v0.2.5 (commit 15568b666e2d8ac02e12d1ea3ab6577136e2e08e, date 2026-10-09T19:33:49Z)
 ```
 
 (a plain `go install` build without ldflags reports `pastlog 0.0.0-dev
