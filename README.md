@@ -58,17 +58,17 @@ config files. Three ways to get it:
 ### 1. Download a release binary (recommended)
 
 Grab the archive for your platform from the
-[v0.2.4 release](https://github.com/wrinfotel/pastlog/releases/tag/v0.2.4) and
+[v0.2.5 release](https://github.com/wrinfotel/pastlog/releases/tag/v0.2.5) and
 put `pastlog` on your `PATH`:
 
 | Platform | Archive |
 |---|---|
-| Windows, Intel/AMD 64-bit | `pastlog_0.2.4_windows_amd64.zip` |
-| Windows on ARM | `pastlog_0.2.4_windows_arm64.zip` |
-| macOS, Apple Silicon | `pastlog_0.2.4_darwin_arm64.tar.gz` |
-| macOS, Intel | `pastlog_0.2.4_darwin_amd64.tar.gz` |
-| Linux, Intel/AMD 64-bit | `pastlog_0.2.4_linux_amd64.tar.gz` |
-| Linux on ARM | `pastlog_0.2.4_linux_arm64.tar.gz` |
+| Windows, Intel/AMD 64-bit | `pastlog_0.2.5_windows_amd64.zip` |
+| Windows on ARM | `pastlog_0.2.5_windows_arm64.zip` |
+| macOS, Apple Silicon | `pastlog_0.2.5_darwin_arm64.tar.gz` |
+| macOS, Intel | `pastlog_0.2.5_darwin_amd64.tar.gz` |
+| Linux, Intel/AMD 64-bit | `pastlog_0.2.5_linux_amd64.tar.gz` |
+| Linux on ARM | `pastlog_0.2.5_linux_arm64.tar.gz` |
 
 Every release ships a `checksums.txt` with SHA256 sums. Verify on
 macOS/Linux before unpacking:
@@ -80,14 +80,14 @@ sha256sum -c checksums.txt --ignore-missing
 Windows (PowerShell):
 
 ```powershell
-Expand-Archive pastlog_0.2.4_windows_amd64.zip -DestinationPath .
+Expand-Archive pastlog_0.2.5_windows_amd64.zip -DestinationPath .
 Move-Item .\pastlog.exe "$env:USERPROFILE\go\bin\"   # or any folder on PATH
 ```
 
 macOS/Linux:
 
 ```sh
-tar xzf pastlog_0.2.4_darwin_arm64.tar.gz   # your platform's archive
+tar xzf pastlog_0.2.5_darwin_arm64.tar.gz   # your platform's archive
 sudo install pastlog /usr/local/bin/
 pastlog version                             # sanity check
 ```
@@ -144,6 +144,7 @@ Available Commands:
   completion  Generate the autocompletion script for the specified shell
   context     analyze why one session's context grew (what fed the window)
   help        Help about any command
+  optimize    find token waste recurring across sessions (cross-session context report)
   related     show sessions related to one: parent, subagents, project neighbors
   search      search all session entries across agents
   sessions    list sessions, newest first
@@ -463,6 +464,36 @@ precision: exact tokens (codex)
 The rules, the curve and the per-agent extraction are specified in
 [docs/SPEC-context-analysis.md](docs/SPEC-context-analysis.md).
 
+`pastlog optimize` — the same analysis folded across every matching session
+(same filters as `sessions`), reporting what *repeats*: commands whose
+oversized output is paid again every session (R6), content re-discovered
+from scratch each time (R7), commands that keep failing (R8), and the
+always-loaded context prefix — system prompt, tool declarations, agent
+memory files (R9). Findings print in impact order, the report keeps the top
+10 patterns, and advice-only is a design guarantee: pastlog never writes to
+agent storage or config:
+
+```console
+$ pastlog optimize --project myapp --since 30d
+optimize report: 41 sessions analyzed
+
+findings:
+  R9  static context ~19k tokens (smallest first turn across 41 sessions) rides in every request — ~213M tokens of prefix across 11,180 turns
+  R6  go build -v ./… (Bash) returned ~19k per run ×34 across 29 sessions — every run pays it again
+  R7  /home/dev/myapp/src/config/settings.py (Read) ×37 across 33 sessions — the same content re-enters the window every session (~142k total)
+  R8  npm test -- --coverage (Bash) failed ×14 across 11 sessions — retries burned ~96k of output
+
+advice:
+  • trim the always-loaded context (agent memory files, MCP servers) — every KB rides in every request (R9)
+  • redirect this command's output to a file and read back only what you need — every run pays it again (R6)
+  • the same content re-enters the window every session — put the answer in agent memory (CLAUDE.md/AGENTS.md) once (R7)
+  • fix the failing command's cause — retries burn its output again every session (R8)
+```
+
+The cross-session rules, their thresholds and the closed set of things
+optimize will not do are specified in
+[docs/SPEC-optimize.md](docs/SPEC-optimize.md).
+
 `pastlog stats` — where your tokens go: token usage aggregated across all
 five agents, grouped with `--by agent|project|day|model` (default `agent`)
 and filterable with the same `--agent`/`--project`/`--since`/`--until`
@@ -565,7 +596,10 @@ sessions — click a row to open it), see which models a session used and what
 each consumed (a MODELS button shows the session's per-model token table —
 the same view the project page has), re-read the history chronologically (a
 Timeline page merges every session's messages into one stream — globally or
-scoped to one project from its page), inspect token-usage statistics, and
+scoped to one project from its page), see what burns tokens session after
+session (a project's OPTIMIZE button folds the context rules across its
+whole history — recurring heavy commands, re-reads, failures, the
+always-riding prefix), inspect token-usage statistics, and
 export anything to JSON or markdown. Secrets are masked in search results
 and transcripts (a Settings toggle, on by default); JSON exports stay
 verbatim.
@@ -589,6 +623,7 @@ verbatim.
 | `pastlog related` | Session viewer → RELATED button (parent, subagents, project neighbors; click to jump) |
 | — | Session viewer → MODELS button (the session's per-model token table, like the project page) |
 | `pastlog context` | Session viewer → CONTEXT button (same rules R1–R5, the per-turn sparkline, advice) |
+| `pastlog optimize` | Project page → OPTIMIZE button (the cross-session waste report: advice above findings) |
 | `pastlog stats` | Stats · Projects (per-agent project list → per-model usage of one project + its sessions) |
 | `pastlog timeline` | Timeline (merged message stream — from Home globally, or scoped to one project from its page) |
 | `pastlog version` | About (in Settings) |
@@ -600,7 +635,7 @@ proven by tests that run both against the same data.
 
 Grab a `desktop-v*` release from the
 [releases page](https://github.com/wrinfotel/pastlog/releases) — the current one
-is [desktop-v0.2.4](https://github.com/wrinfotel/pastlog/releases/tag/desktop-v0.2.4),
+is [desktop-v0.2.5](https://github.com/wrinfotel/pastlog/releases/tag/desktop-v0.2.5),
 ~15–20 MB per platform:
 
 | Platform | Artifact |
