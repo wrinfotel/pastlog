@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.6] - 2026-10-24
+
+The CLI and the desktop app share this entry: the CLI ships as `v0.2.6`,
+the desktop app as `desktop-v0.2.6`. One fix on both sides, under the hood:
+current Codex CLI rollouts parse again.
+
+### Fixed
+
+- Codex usage and tool calls in the 0.5x rollout format. Current Codex
+  versions moved token counts out of the top-level `token_count` record
+  into `event_msg` envelopes and new `token_usage_record` lines, and
+  switched tool calls to `custom_tool_call`/`custom_tool_call_output` —
+  so codex sessions showed 0 tokens everywhere and their tool calls were
+  missing from transcripts, search and the context reports. Both format
+  generations now parse side by side, so a session resumed across a CLI
+  upgrade stays consistent. Totals read from either usage series (last
+  wins); the per-model split takes its deltas only from the token_count
+  records — `token_usage_record`'s `turn_token_usage` is per-response
+  gross usage, not a per-turn delta, and summing it overshoots ~15×
+  (measured on real rollouts). The new metadata records (`event_msg`,
+  `world_state`, `inter_agent_communication_metadata`, inter-agent
+  traffic, tool definitions, the encrypted `compaction` payload) are
+  recognized-silent — no entries, not counted — and the `compaction`
+  payload marks a compaction boundary in the context flow like the old
+  `compacted` record. Verified against real rollouts (~70M input tokens,
+  4 models, transcript/search/context/stats/optimize flows).
+
 ## [0.2.5] - 2026-10-09
 
 The CLI and the desktop app share this entry: the CLI ships as `v0.2.5`,
