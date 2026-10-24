@@ -113,7 +113,8 @@ func TestSessionsRealisticFixture(t *testing.T) {
 	if !s.StartedAt.Equal(wantStart) {
 		t.Errorf("StartedAt = %v, want %v (session_meta timestamp)", s.StartedAt, wantStart)
 	}
-	// timestamps of skipped records (event_msg etc.) must be ignored
+	// timestamps of skipped records must be ignored; recognized-silent ones
+	// (the event_msg at 14:03:40) do count but precede the final message
 	wantEnd := time.Date(2026, 8, 2, 14, 4, 5, 0, time.UTC)
 	if !s.EndedAt.Equal(wantEnd) {
 		t.Errorf("EndedAt = %v, want %v", s.EndedAt, wantEnd)
@@ -421,13 +422,14 @@ func TestDefensiveParsingCountsSkipped(t *testing.T) {
 
 func TestUnknownShapesCountedAsSkipped(t *testing.T) {
 	// realistic.jsonl carries event_msg and an unknown response_item payload
-	// type — both are skipped and counted. turn_context is NOT counted
-	// anymore: M7 moved it to recognized-silent (controller ruling 4), so
-	// this expectation legitimately changed from 3 to 2.
+	// type. Both were skip+counted until M7 and the 0.2.5 codex-format fix:
+	// turn_context moved to recognized-silent (controller ruling 4, 3→2), and
+	// event_msg envelopes followed when real rollouts showed them carrying
+	// token counts (2→1 — only the unknown web_search_call stays counted).
 	a := newTestAdapter(t, map[string]string{realisticRel: "realistic.jsonl"})
 	_ = listSessions(t, a)
-	if a.SkippedLines() != 2 {
-		t.Errorf("SkippedLines = %d, want 2 (event_msg, web_search_call; turn_context is recognized-silent since M7)", a.SkippedLines())
+	if a.SkippedLines() != 1 {
+		t.Errorf("SkippedLines = %d, want 1 (web_search_call; turn_context and event_msg are recognized-silent)", a.SkippedLines())
 	}
 }
 

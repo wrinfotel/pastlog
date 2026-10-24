@@ -226,7 +226,7 @@ type fileSummary struct {
 	size               int64
 	sawLine            bool
 	model              string              // last non-empty turn_context model
-	tokens             *tokenUsage         // last token_count totals (values are cumulative)
+	tokens             *tokenUsage         // last cumulative usage totals (token_count / token_usage_record)
 	split              agentlog.ModelSplit // per-turn delta per model (TASK.md backlog)
 }
 
@@ -315,12 +315,13 @@ func (a *Adapter) scanFile(path string, keep func([]byte) bool, emit func(agentl
 			sum.split.Note(info.model)
 		}
 		if info.tokens != nil {
-			sum.tokens = info.tokens // last total_token_usage wins (cumulative values)
+			sum.tokens = info.tokens // last cumulative totals win (both series agree)
 		}
 		if info.delta != nil {
 			// TASK.md backlog: the per-turn delta lands on the model in
 			// effect (the turn's turn_context), building the per-model
-			// breakdown; the session totals above stay last-wins (SCHEMA.md)
+			// breakdown; the session totals above stay last-wins (SCHEMA.md).
+			// Only the token_count family yields deltas — see observeDelta.
 			sum.split.Observe("", agentlog.Usage{
 				Input:     info.delta.input,
 				Output:    info.delta.output,

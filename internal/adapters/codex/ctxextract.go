@@ -20,11 +20,15 @@ import (
 //
 // Tokens: a token_count's last_token_usage is the per-request usage, so
 // Input+CacheRead is that turn's window proxy (the repo maps
-// cached_input_tokens to CacheRead, SCHEMA.md). Rollouts missing
-// last_token_usage fall back to the cumulative totals' diff (SPEC §6.2).
-// The `compacted` record type is recognized HERE as a Compact event; the
-// stats flow keeps counting it as skipped (SCHEMA.md). Codex exposes no
-// error flag, so R3 runs on the uniform error-shape regex (SPEC §2.2).
+// cached_input_tokens to CacheRead, SCHEMA.md). The record rides the
+// top-level token_count type in pre-0.5 rollouts and an event_msg envelope
+// in current ones — both map here, while token_usage_record lines (which
+// repeat the same per-turn usage) emit nothing: double-sourcing would
+// double every turn. Rollouts missing last_token_usage fall back to the
+// cumulative totals' diff (SPEC §6.2). The `compacted` record type is
+// recognized HERE as a Compact event; the stats flow keeps counting it as
+// skipped (SCHEMA.md). Codex exposes no error flag, so R3 runs on the
+// uniform error-shape regex (SPEC §2.2).
 
 // ctxRecord mirrors one JSONL line for context extraction: only IR-relevant
 // fields are declared; everything is optional (shapes are undocumented).
@@ -67,9 +71,29 @@ func (a *Adapter) ContextEvents(s agentlog.Session) ([]agentlog.CtxEvent, error)
 			}
 			events = append(events, agentlog.CtxEvent{
 				Seq: next(), At: ts, Kind: agentlog.CtxTurnStart, Role: "assistant",
-				Tokens:     ctxTurnTokens(&tp, &prevTotal),
+				Tokens:     ctxTurnTokens(&tp.Info, &prevTotal),
 				TokensKind: agentlog.CtxTokensExact,
 			})
+			return
+		case "event_msg":
+			// current rollouts wrap token_count in an event envelope; every
+			// other event (item echoes, task lifecycle, …) maps to nothing
+			var ep eventMsgPayload
+			if err := json.Unmarshal(bytes.TrimSpace(rec.Payload), &ep); err != nil {
+				return
+			}
+			if ep.Type != "token_count" {
+				return
+			}
+			events = append(events, agentlog.CtxEvent{
+				Seq: next(), At: ts, Kind: agentlog.CtxTurnStart, Role: "assistant",
+				Tokens:     ctxTurnTokens(&ep.Info, &prevTotal),
+				TokensKind: agentlog.CtxTokensExact,
+			})
+			return
+		case "token_usage_record":
+			// stats-flow source only (see the file comment): the per-turn
+			// usage repeats the token_count envelope's last_token_usage
 			return
 		case "response_item":
 			var ip itemPayload
@@ -91,7 +115,7 @@ func (a *Adapter) ContextEvents(s agentlog.Session) ([]agentlog.CtxEvent, error)
 						Role: e.Role, ResBytes: len(e.Text),
 					})
 				}
-			case "function_call":
+			case "function_call", "custom_tool_call":
 				name := strings.TrimSpace(ip.Name)
 				if name == "" {
 					return // readable line, nothing to record
@@ -101,14 +125,31 @@ func (a *Adapter) ContextEvents(s agentlog.Session) ([]agentlog.CtxEvent, error)
 				} else {
 					unclaimed = append(unclaimed, name)
 				}
+				// function_call logs JSON arguments; custom_tool_call a raw
+				// input string (CanonJSON passes non-JSON through trimmed)
 				input := json.RawMessage(ip.Arguments)
+				if ip.Type == "custom_tool_call" || strings.TrimSpace(string(input)) == "" {
+					if in := strings.TrimSpace(ip.Input); in != "" {
+						input = json.RawMessage(in)
+					}
+				}
 				events = append(events, agentlog.CtxEvent{
 					Seq: next(), At: ts, Kind: agentlog.CtxToolCall, Role: "assistant",
 					Tool: name, ArgsKey: agentlog.CanonArgsKey(name, input),
 					Label: agentlog.ToolLabel(name, input),
 				})
-			case "function_call_output":
-				text := rawText(ip.Output)
+			case "compaction":
+				// the current format's compaction boundary (encrypted
+				// payload); the old top-level `compacted` spelling maps the
+				// same way
+				events = append(events, agentlog.CtxEvent{
+					Seq: next(), At: ts, Kind: agentlog.CtxCompact, Role: "system",
+				})
+			case "function_call_output", "custom_tool_call_output":
+				text, ok := rawText(ip.Output)
+				if !ok {
+					return // malformed output array: skip silently
+				}
 				ev := agentlog.CtxEvent{
 					Seq: next(), At: ts, Kind: agentlog.CtxToolResult, Role: "tool",
 					Err:      agentlog.ErrShaped(text),
@@ -140,27 +181,21 @@ func (a *Adapter) ContextEvents(s agentlog.Session) ([]agentlog.CtxEvent, error)
 // stand in for its turn. Negative diffs (a compaction reset in the
 // cumulative counter) clamp to zero. The cumulative totals are remembered
 // either way.
-func ctxTurnTokens(tp *tokenCountPayload, prevTotal **tokenUsage) agentlog.CtxTokens {
-	total := &tokenUsage{
-		input:     ptrVal(tp.Info.TotalTokenUsage.InputTokens),
-		cached:    ptrVal(tp.Info.TotalTokenUsage.CachedInputTokens),
-		output:    ptrVal(tp.Info.TotalTokenUsage.OutputTokens),
-		reasoning: ptrVal(tp.Info.TotalTokenUsage.ReasoningOutputTokens),
-	}
-	defer func() { *prevTotal = total }()
+func ctxTurnTokens(ti *tokenInfo, prevTotal **tokenUsage) agentlog.CtxTokens {
+	total := ti.TotalTokenUsage.usage()
+	defer func() { *prevTotal = &total }()
 
-	lt := tp.Info.LastTokenUsage
-	if lt.InputTokens != nil || lt.CachedInputTokens != nil ||
-		lt.OutputTokens != nil || lt.ReasoningOutputTokens != nil {
+	if ti.LastTokenUsage.present() {
+		last := ti.LastTokenUsage.usage()
 		return agentlog.CtxTokens{
-			Input:     ptrVal(lt.InputTokens),
-			CacheRead: ptrVal(lt.CachedInputTokens),
-			Output:    ptrVal(lt.OutputTokens),
-			Reasoning: ptrVal(lt.ReasoningOutputTokens),
+			Input:     last.input,
+			CacheRead: last.cached,
+			Output:    last.output,
+			Reasoning: last.reasoning,
 		}
 	}
 
-	per := *total
+	per := total
 	if p := *prevTotal; p != nil {
 		per = tokenUsage{
 			input:     ctxNonNeg(total.input - p.input),

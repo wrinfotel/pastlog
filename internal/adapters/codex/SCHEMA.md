@@ -1,12 +1,26 @@
-# codex storage schema (assumed — no real data on this machine)
+# codex storage schema (observed + community notes)
 
 The Codex CLI keeps one JSONL "rollout" file per session. pastlog reads only;
-nothing here is written back. This document describes the schema the adapter is
-built against. It was compiled from publicly documented community observations,
-not from live data — **no real Codex data existed on the build machine** (all
-fixtures under `testdata/` are synthetic and anonymized). Whenever the real
-format diverges, the adapter is defensive: unknown shapes are skipped and
-counted, never fatal, never a panic.
+nothing here is written back. This document describes the schema the adapter
+is built against. It was originally compiled from publicly documented
+community observations; since 2026-10 it is confirmed against **real
+rollouts** written by the 0.5x-era CLI (fixtures under `testdata/` stay
+synthetic and anonymized). Whenever the real format diverges, the adapter is
+defensive: unknown shapes are skipped and counted, never fatal, never a
+panic.
+
+Two format generations are supported side by side — a rollout file can even
+mix them (a session resumed across a CLI upgrade appends new-generation
+lines to an old file):
+
+- **pre-0.5 (legacy)**: usage rides top-level `token_count` records; tool
+  calls are `function_call` / `function_call_output`.
+- **0.5x (current)**: usage rides `event_msg` envelopes
+  (`payload.type:"token_count"`) and top-level `token_usage_record` lines;
+  tool calls are `custom_tool_call` / `custom_tool_call_output` (with
+  `function_call*` still appearing); inter-agent traffic, tool definitions
+  and compaction payloads appear as extra `response_item` payload types;
+  `world_state` and `inter_agent_communication_metadata` records interleave.
 
 ## Location
 
@@ -21,13 +35,14 @@ counted, never fatal, never a panic.
 
 ## Record shapes
 
-Each line is a JSON object with a top-level `timestamp` (ISO 8601) and `type`.
-Fields the adapter uses:
+Each line is a JSON object with a top-level `timestamp` (ISO 8601) and `type`
+(current rollouts add an `ordinal` between them; ignored). Fields the
+adapter uses:
 
 | Field | Meaning |
 |---|---|
-| `type` | record types: `session_meta`, `response_item`, and — since M7 — the recognized-silent `token_count` and `turn_context`; anything else (`event_msg`, `compacted`, …) is skipped **and counted** |
-| `timestamp` | ISO 8601, e.g. `2026-08-02T14:03:22.150Z` → session start/end bounds |
+| `type` | record types: `session_meta`, `response_item`, and the recognized-silent `token_count` (legacy), `event_msg`, `token_usage_record`, `turn_context`, `world_state`, `inter_agent_communication_metadata`; anything else (`compacted`, …) is skipped **and counted** |
+| `timestamp` | ISO 8601, e.g. `2026-10-24T10:28:08.144Z` → session start/end bounds |
 | `payload` | type-specific object, see below |
 
 ### `session_meta` payload
@@ -35,16 +50,19 @@ Fields the adapter uses:
 One per file, typically the first line. Fields: `id` (session id),
 `cwd` (project working dir), `cli_version`, `instructions` (optional; not used
 by pastlog). The payload is the only source for `Session.ID` and
-`Session.Project`.
+`Session.Project`. (The search fast path still lists from this first line.)
 
 ### `response_item` payloads
 
 | payload type | pastlog entry |
 |---|---|
 | `{"type":"message","role":"user"\|"assistant",...,"content":[...]}` | one `Message` per content item `{"type":"input_text"\|"output_text","text":...}`; role = payload role |
-| `{"type":"function_call","name":...,"arguments":"..."}` | `ToolCall`, role `assistant`, text = raw `arguments` JSON (falls back to `name` when arguments are empty) |
+| `{"type":"function_call","name":...,"arguments":"<json>"}` | `ToolCall`, role `assistant`, text = raw `arguments` JSON (falls back to `input`, then `name` when empty) |
+| `{"type":"custom_tool_call","name":...,"input":"<raw text>"}` (current) | `ToolCall`, role `assistant`, text = raw `input` string (a JS orchestration snippet in the observed rollouts; falls back to `name`) |
 | `{"type":"function_call_output","call_id":...,"output":...}` | `ToolResult`, role `tool`, text = `output` (a JSON string unquotes; any other JSON value is kept raw) |
+| `{"type":"custom_tool_call_output","call_id":...,"output":[{"type":"input_text","text":...},…]}` (current) | `ToolResult`, role `tool`, the output array's item texts joined with newlines (a plain string output works too) |
 | `{"type":"reasoning","summary":[{"type":"summary_text","text":...}]}` | one `Summary` with the item texts joined by newlines (best effort) |
+| `agent_message`, `additional_tools`, `compaction` (current) | recognized-silent: inter-agent traffic (routing headers + `encrypted_content`), tool definitions and the compaction payload carry nothing transcript-worthy; `compaction` still marks a Compact event in the context flow |
 | anything else | skipped **and counted** |
 
 A message `content` that is a plain JSON string (defensive tolerance) is
@@ -52,25 +70,42 @@ treated as one text part. Unknown item types inside a readable `content` /
 `summary` array are ignored silently; a *malformed* item (invalid JSON) marks
 the whole line skipped.
 
-### `token_count` payload (recognized-silent, M7)
+### usage records (recognized-silent, M7 + the 0.2.5 format fix)
 
-```json
-{"info": {"total_token_usage": {"input_tokens": N, "cached_input_tokens": N,
-          "output_tokens": N, "reasoning_output_tokens": N?},
-          "last_token_usage": {…}}}
-```
+Three record shapes carry token usage; the info/usage objects share one
+field set (`input_tokens`, `cached_input_tokens`, `output_tokens`,
+`reasoning_output_tokens` — all optional):
 
-- **Recognized-silent** (controller ruling, M7): the record yields no entries
-  and is NOT counted as skipped — only `event_msg`, `compacted` and other
-  unknown top-level types remain skip+counted.
-- `total_token_usage` values are **cumulative** over the rollout, so the
-  session's usage is the LAST `token_count` record (last wins). Compaction
-  resets are documented best-effort: after a reset the last record still
-  wins, so post-compaction usage reflects the reset baseline.
-- `last_token_usage` (the per-turn delta) does not touch the session totals —
-  only the last cumulative record maps to the session. The delta feeds the
-  per-model breakdown (`Models`, TASK.md backlog): each delta lands on the
-  model its preceding `turn_context` named. Missing `reasoning_output_tokens`
+1. **top-level `token_count`** (legacy): `payload.info` with
+   `total_token_usage` (cumulative) and `last_token_usage` (the turn's
+   delta).
+2. **`event_msg` with `payload.type:"token_count"`** (current): the same
+   `payload.info` object. Every other event payload type (`item_completed`,
+   `task_started`, `task_complete`, `thread_settings_applied`,
+   `user_message`, `agent_message`, …) is recognized-silent — no entries,
+   not counted.
+3. **top-level `token_usage_record`** (current): `thread_token_usage` (a
+   cumulative totals source, observed to track the token_count envelope's
+   total within ~2%) and `turn_token_usage` (**not** a summable delta — it
+   is per-response gross usage, counting the same window once per API call
+   inside a turn; summing it overshoots the totals ~15× on real rollouts —
+   so pastlog ignores it).
+
+Semantics:
+
+- **Recognized-silent** (controller ruling, M7): these records yield no
+  entries and are NOT counted as skipped — `compacted` and other unknown
+  top-level types remain skip+counted. Recognized-silent records' timestamps
+  DO count toward the session bounds (they are classified activity).
+- Totals are **cumulative** in both series, so the session's usage is the
+  LAST totals observation (last wins, whichever record it came from).
+  Compaction resets are documented best-effort: after a reset the last
+  record still wins, so post-compaction usage reflects the reset baseline.
+- The per-turn delta comes **only from the token_count family**
+  (`last_token_usage`, legacy top-level or event envelope — the same
+  series; a resumed-across-upgrade rollout stays consistent). The delta
+  feeds the per-model breakdown (`Models`): each delta lands on the model
+  its preceding `turn_context` named. Missing `reasoning_output_tokens`
   contributes 0.
 - A payload that is missing/null/unparsable (or a wrong-typed `info`) stays
   in the skip+counted class, like every known type with an unusable payload.
@@ -79,8 +114,14 @@ the whole line skipped.
 
 `{"cwd":…, "model":"gpt-…", "effort":…}` — **recognized-silent** since M7 (no
 entries, not counted). The `model` field feeds `Usage.Model`: the LAST
-non-empty `turn_context.model` in the rollout wins. `cwd` here does not
-override the session project (that stays `session_meta`, first wins).
+non-empty `turn_context.model` in the rollout wins (still a top-level record
+in current rollouts). `cwd` here does not override the session project (that
+stays `session_meta`, first wins).
+
+### `world_state` / `inter_agent_communication_metadata`
+
+Pure metadata records interleaved by current rollouts; nothing is consumed
+and nothing validated — recognized-silent (no entries, not counted).
 
 ## Mapping to pastlog's model
 
@@ -93,10 +134,11 @@ override the session project (that stays `session_meta`, first wins).
 - `Session.Title` = first user message text, best effort: whitespace runs
   collapsed to single spaces, truncated to 80 runes with an ellipsis.
 - `Session.StartedAt` / `EndedAt` = first / last `timestamp` on records the
-  adapter actually classified (skipped records contribute nothing).
+  adapter actually classified (skipped records contribute nothing;
+  recognized-silent ones do).
 - `Session.SizeBytes` = JSONL file size.
 - `Messages` (message count, spec §9) = number of `Message`-kind entries
-  (user/assistant text parts). `reasoning` → Summary, function calls and
+  (user/assistant text parts). `reasoning` → Summary, tool calls and
   unknown records are excluded.
 - A file yields a session if it contains at least one non-empty line.
 
@@ -106,16 +148,16 @@ override the session project (that stays `session_meta`, first wins).
 sessions (`agentlog.UsageSource`; one walk, same sorted order, same
 skip-accounting):
 
-| Usage field | Source (LAST `token_count` record wins — values are cumulative) |
+| Usage field | Source (LAST cumulative totals win — token_count envelopes and token_usage_records agree) |
 |---|---|
-| `Input` | `total_token_usage.input_tokens` |
-| `Output` | `total_token_usage.output_tokens` |
-| `Reasoning` | `total_token_usage.reasoning_output_tokens` (0 when absent) |
+| `Input` | `total_token_usage.input_tokens` / `thread_token_usage.input_tokens` |
+| `Output` | `…​.output_tokens` |
+| `Reasoning` | `…​.reasoning_output_tokens` (0 when absent) |
 | `CacheWrite` | — codex reports no separate cache-write total; stays 0 |
-| `CacheRead` | `total_token_usage.cached_input_tokens` |
+| `CacheRead` | `…​.cached_input_tokens` |
 | `Model` | LAST non-empty `turn_context.payload.model`; "" when the rollout has none |
 | `CostUSD` / `HasCost` | — rollouts carry no per-session cost; `HasCost` stays false |
-| `Models` | per-model breakdown (TASK.md backlog): each `token_count`'s `last_token_usage` delta lands on the model its turn named — the last non-empty `turn_context.model` before it. Entries keep first-use order. On a healthy rollout the deltas accumulate, so the split sums to the session totals; after a compaction reset (or a rollout missing `last_token_usage`) the split may drift from the last-wins totals — documented best-effort |
+| `Models` | per-model breakdown (TASK.md backlog): each token_count envelope's `last_token_usage` delta lands on the model its turn named — the last non-empty `turn_context.model` before it. Entries keep first-use order. On a healthy rollout the deltas accumulate, so the split sums to the session totals; after a compaction reset (or a rollout without token_count envelopes — records only) the split drifts or stays empty — documented best-effort. `turn_token_usage` never feeds it (see above) |
 
 - `Messages` keeps the `SessionsMeta` semantic, so sessions and messages of
   zero-usage rollouts still count in the aggregates.
@@ -126,11 +168,15 @@ skip-accounting):
 
 - Corrupt / truncated / non-object lines → skipped, counted
   (`SkippedLines()`); the CLI summarizes as "N unreadable lines skipped".
-- Unknown top-level `type` (`event_msg`, `compacted`, …) and unknown
-  `response_item` payload types → skipped and counted.
-- `token_count` and `turn_context` → recognized-silent (M7 controller
-  ruling): no entries, NOT counted; unusable payloads of these two types
-  stay skip+counted, like every known type.
+- Unknown top-level `type` (`compacted`, …) and unknown `response_item`
+  payload types → skipped and counted.
+- `token_count`, `event_msg`, `token_usage_record`, `turn_context`,
+  `world_state` and `inter_agent_communication_metadata` →
+  recognized-silent (M7 controller ruling + the 0.2.5 format fix): no
+  entries, NOT counted; unusable payloads of these types stay
+  skip+counted, like every known type. (`world_state` /
+  `inter_agent_communication_metadata` consume nothing, so their payloads
+  are not validated at all.)
 - Known types with a missing/null/unparsable payload → skipped and counted.
 - Unknown item types inside a recognized content/summary array are ignored
   silently (the line itself was readable).
@@ -163,15 +209,24 @@ engine can skip JSON parsing entirely for lines that cannot contain the query
 ## Context analysis (`pastlog context`, SPEC-context-analysis)
 
 The adapter implements `agentlog.CtxSource` (`ctxextract.go`): one streaming
-pass over the rollout maps records onto the normalized `CtxEvent` IR.
+pass over the rollout JSONL maps records onto the normalized `CtxEvent` IR.
 
-- `token_count` → one TurnStart per turn with **exact** tokens:
-  `last_token_usage` is the per-request usage, so Input+CacheRead is that
-  turn's window proxy (Input/Cached map like the stats view above). Rollouts
-  without `last_token_usage` fall back to the cumulative totals' diff
-  (negatives clamp to 0 after compaction resets).
-- `compacted` → a Compact event **in the context flow only**; the
-  listing/stats flows keep counting the type as skipped (see above).
-- `function_call`/`function_call_output` → ToolCall/ToolResult, correlated
-  via `call_id` (FIFO fallback for id-less pairs). Codex exposes no error
-  flag, so R3 runs on the uniform error-shape regex (SPEC §2.2).
+- one TurnStart per token_count record with **exact** tokens — the legacy
+  top-level spelling and the current `event_msg` envelope both map (a mixed
+  rollout emits each turn once); `token_usage_record` lines emit nothing
+  (their per-turn usage repeats the envelope's `last_token_usage` —
+  double-sourcing would double every turn). `last_token_usage` is the
+  per-request usage, so Input+CacheRead is that turn's window proxy
+  (Input/Cached map like the stats view above). Records missing
+  `last_token_usage` fall back to the cumulative totals' diff (negatives
+  clamp to 0 after compaction resets).
+- a Compact event per compaction boundary — the legacy top-level `compacted`
+  record and the current `response_item` `compaction` payload (encrypted)
+  both map.
+- `function_call`/`custom_tool_call` and `function_call_output`/
+  `custom_tool_call_output` → ToolCall/ToolResult, correlated via `call_id`
+  (FIFO fallback for id-less pairs). A `custom_tool_call`'s `input` is a raw
+  string, not JSON — it passes through the args canonicalizer trimmed
+  (ctxcanon.go), so repeated identical snippets still share an ArgsKey.
+  Codex exposes no error flag, so R3 runs on the uniform error-shape regex
+  (SPEC §2.2).
