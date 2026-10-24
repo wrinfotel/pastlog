@@ -200,12 +200,12 @@ func newFormatLines() []string {
 	}
 }
 
-// TestSessionsUsageNewRolloutFormat pins the 0.2.5 regression fix: current
+// TestSessionsUsageNewRolloutFormat pins the 0.2.6 regression fix: current
 // codex rollouts carry usage in event_msg token_count envelopes and
 // token_usage_record lines (the top-level token_count record is gone), so
 // sessions showed all-zero usage. Totals are last-wins cumulative from either
-// series; the per-model split takes deltas from ONE source only (the first
-// delta's source locks) — observing both would double-count every turn.
+// series; the per-model split takes deltas only from the token_count family
+// (see observeDelta) — turn_token_usage never feeds it.
 func TestSessionsUsageNewRolloutFormat(t *testing.T) {
 	a := writeRolloutLines(t, newFormatLines()...)
 	got := listUsage(t, a)

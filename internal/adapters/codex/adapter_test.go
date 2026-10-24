@@ -422,7 +422,7 @@ func TestDefensiveParsingCountsSkipped(t *testing.T) {
 
 func TestUnknownShapesCountedAsSkipped(t *testing.T) {
 	// realistic.jsonl carries event_msg and an unknown response_item payload
-	// type. Both were skip+counted until M7 and the 0.2.5 codex-format fix:
+	// type. Both were skip+counted until M7 and the 0.2.6 codex-format fix:
 	// turn_context moved to recognized-silent (controller ruling 4, 3→2), and
 	// event_msg envelopes followed when real rollouts showed them carrying
 	// token counts (2→1 — only the unknown web_search_call stays counted).

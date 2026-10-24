@@ -70,7 +70,7 @@ treated as one text part. Unknown item types inside a readable `content` /
 `summary` array are ignored silently; a *malformed* item (invalid JSON) marks
 the whole line skipped.
 
-### usage records (recognized-silent, M7 + the 0.2.5 format fix)
+### usage records (recognized-silent, M7 + the 0.2.6 format fix)
 
 Three record shapes carry token usage; the info/usage objects share one
 field set (`input_tokens`, `cached_input_tokens`, `output_tokens`,
@@ -172,7 +172,7 @@ skip-accounting):
   payload types → skipped and counted.
 - `token_count`, `event_msg`, `token_usage_record`, `turn_context`,
   `world_state` and `inter_agent_communication_metadata` →
-  recognized-silent (M7 controller ruling + the 0.2.5 format fix): no
+  recognized-silent (M7 controller ruling + the 0.2.6 format fix): no
   entries, NOT counted; unusable payloads of these types stay
   skip+counted, like every known type. (`world_state` /
   `inter_agent_communication_metadata` consume nothing, so their payloads

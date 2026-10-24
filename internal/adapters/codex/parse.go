@@ -198,7 +198,7 @@ func processLine(line []byte) (info lineInfo, entries []agentlog.Entry, ok bool)
 		info.observeDelta(tp.Info.LastTokenUsage)
 		return info, nil, true
 	case "event_msg":
-		// Recognized-silent envelope since the 0.2.5 format fix: current
+		// Recognized-silent envelope since the 0.2.6 format fix: current
 		// rollouts deliver token counts (and echo items, task lifecycle, …)
 		// as events. token_count feeds the usage views; every other payload
 		// type yields nothing and is not counted (SCHEMA.md).
