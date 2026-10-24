@@ -34,9 +34,14 @@ jobs:
       - name: golangci-lint (uses the committed .golangci.yml, v2 syntax)
         uses: golangci/golangci-lint-action@v7
         with:
-          # Keep in sync with the locally verified v2.13.2 (.golangci.yml is
-          # v2 config and fails on golangci-lint v1).
-          version: v2.13.2
+          # Keep in sync with the locally verified v2.15.0 (.golangci.yml is
+          # v2 config and fails on golangci-lint v1). v2.13.2 broke when CI's
+          # go stable moved to 1.27.3: its typechecker cannot decode the v5
+          # export data that toolchain writes ("export data version 5 is
+          # greater than maximum supported version 4" on every stdlib
+          # import); v2.15.0 reads it — verified locally with GOTOOLCHAIN=
+          # go1.27.3 (0 issues) and by the same error reproducing on v2.13.2.
+          version: v2.15.0
           args: --timeout=5m
 
   test:
