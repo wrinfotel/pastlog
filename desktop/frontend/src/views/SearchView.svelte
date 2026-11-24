@@ -12,10 +12,11 @@
   } from '../lib/api';
   import { fmtDay, shortProject, idPrefix } from '../lib/format';
   import { debounce } from '../lib/debounce';
-  import { go, view } from '../lib/stores.svelte';
+  import { go } from '../lib/stores.svelte';
   import { openSession } from '../lib/viewer.svelte';
   import FilterBar from '../components/FilterBar.svelte';
   import Highlight from '../components/Highlight.svelte';
+  import JsonExport from '../components/JsonExport.svelte';
   import Notes from '../components/Notes.svelte';
   import Loader from '../components/Loader.svelte';
 
@@ -32,6 +33,7 @@
   let searched = $state(false); // true once a run completed (drives "no matches")
   let progress = $state<{ scanned: number; hits: number } | null>(null);
   let searching = $state(false); // true while a run is in flight (hides stale results)
+  let writeExport = $state<((path: string) => Promise<void>) | null>(null);
 
   api.diagnostics().then((d) => (agents = d.agents.map((a) => a.name)));
   const stopProgress = onProgress((e) => {
@@ -47,6 +49,7 @@
       if (mine !== seq) return;
       outcome = null;
       results = [];
+      writeExport = null;
       searched = false;
       error = '';
       searching = false;
@@ -54,21 +57,24 @@
     }
     searching = true;
     try {
-      const o = await api.search(q, {
+      const options = {
         filter: { ...filters },
         maxHits: maxHits,
         caseSensitive,
         regex,
-      });
+      };
+      const o = await api.search(q, options);
       if (mine !== seq) return; // a newer query superseded this run
       outcome = o;
       results = o.results;
+      writeExport = o.cancelled ? null : (path) => api.exportSearch(q, options, path);
       searched = true;
       error = '';
     } catch (e) {
       if (mine !== seq) return;
       outcome = null;
       results = [];
+      writeExport = null;
       searched = false;
       error = String(e);
     } finally {
@@ -149,6 +155,7 @@
     max hits
     <input class="maxhits" type="number" min="0" bind:value={maxHits} />
   </label>
+  <JsonExport filename="pastlog-search.json" write={searching ? null : writeExport} />
 </FilterBar>
 {#if !searching}<Notes notes={outcome?.notes ?? []} />{/if}
 

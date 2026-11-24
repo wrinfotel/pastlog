@@ -19,11 +19,10 @@ func newRelatedCmd(stdout, stderr io.Writer) *cobra.Command {
 			"same agent and project — the continuation heuristic. Accepts an unambiguous id prefix.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			home, err := homeDir(cmd)
+			home, reg, err := commandRegistry(cmd)
 			if err != nil {
 				return err
 			}
-			reg := NewRegistry(home)
 			adapters := reg.Adapters()
 
 			meta, _, err := resolveSession(adapters, args[0])

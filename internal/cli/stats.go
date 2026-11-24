@@ -37,11 +37,10 @@ func newStatsCmd(stdout, stderr io.Writer) *cobra.Command {
 			default:
 				return fmt.Errorf("invalid --by value %q: use agent, project, day or model", by)
 			}
-			home, err := homeDir(cmd)
+			home, reg, err := commandRegistry(cmd)
 			if err != nil {
 				return err
 			}
-			reg := NewRegistry(home)
 			adapters := reg.Adapters()
 
 			if agentName != "" {

@@ -116,7 +116,7 @@ func TestSessionsRealisticFixture(t *testing.T) {
 	if messages != 4 { // 2 user strings + 1 assistant text + 1 system
 		t.Errorf("Messages = %d, want 4", messages)
 	}
-	info, err := os.Stat(filepath.Join(a.home, ".claude", "projects",
+	info, err := os.Stat(filepath.Join(a.StoragePath(),
 		"weird-escaped-name", "3f9c81a2-1111-4222-8333-cccccccccccc.jsonl"))
 	if err != nil {
 		t.Fatal(err)
@@ -207,11 +207,8 @@ func TestSessionsGlobMetacharacterHome(t *testing.T) {
 	}
 }
 
-// TestSessionFilesOnlyProjectDirJSONL pins the documented scope (SCHEMA.md):
-// only *.jsonl files directly inside project directories are sessions — files
-// directly under projects/ or nested deeper are ignored, exactly like the old
-// Glob pattern projects/*/*.jsonl.
-func TestSessionFilesOnlyProjectDirJSONL(t *testing.T) {
+// Files outside the main and subagent layouts are not sessions.
+func TestSessionFilesIgnoreOtherLayouts(t *testing.T) {
 	a := newTestAdapter(t, map[string]string{
 		"proj/11111111-1111-4111-8111-111111111111.jsonl": "realistic.jsonl",
 	})
@@ -221,7 +218,7 @@ func TestSessionFilesOnlyProjectDirJSONL(t *testing.T) {
 		filepath.Join("stray.jsonl"),
 		filepath.Join("proj", "nested", "deeper.jsonl"),
 	} {
-		dst := filepath.Join(a.home, ".claude", "projects", rel)
+		dst := filepath.Join(a.StoragePath(), rel)
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -231,6 +228,60 @@ func TestSessionFilesOnlyProjectDirJSONL(t *testing.T) {
 	}
 	if got := listSessions(t, a); len(got) != 1 {
 		t.Fatalf("got %d sessions, want 1 (stray and nested files ignored)", len(got))
+	}
+}
+
+func TestNestedSubagentWithSharedSessionID(t *testing.T) {
+	home := t.TempDir()
+	project := filepath.Join(home, ".claude", "projects", "proj")
+	files := map[string]string{
+		"parent-file.jsonl":                         `{"type":"user","sessionId":"parent-id","cwd":"/demo/project","timestamp":"2026-11-21T10:00:00Z","message":{"content":"parent message"}}`,
+		"parent-file/subagents/agent-explore.jsonl": `{"type":"assistant","isSidechain":true,"agentId":"explore","sessionId":"parent-id","timestamp":"2026-11-21T10:01:00Z","message":{"content":"child message","id":"child-response","usage":{"input_tokens":31}}}`,
+		"parent-file/tool-results/ignore.jsonl":     `{"type":"user","message":{"content":"not a session"}}`,
+	}
+	for rel, data := range files {
+		path := filepath.Join(project, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	a := New(home)
+	metas := listMetas(t, a)
+	if len(metas) != 2 {
+		t.Fatalf("sessions = %+v, want parent and subagent", metas)
+	}
+	parent, child := metas[0], metas[1]
+	if parent.ID != "parent-id" || child.ID == parent.ID || child.ParentID != parent.ID || child.Project != parent.Project {
+		t.Fatalf("parent = %+v, child = %+v", parent, child)
+	}
+	if got := agentlog.Related([]agentlog.Adapter{a}, parent); len(got.Children) != 1 || got.Children[0].ID != child.ID {
+		t.Errorf("related(parent) = %+v", got)
+	}
+	if got := agentlog.Related([]agentlog.Adapter{a}, child); got.Parent == nil || got.Parent.ID != parent.ID {
+		t.Errorf("related(child) = %+v", got)
+	}
+	var fast []agentlog.SessionMeta
+	forSearch := New(home)
+	used, err := forSearch.SessionsMetaFast(func(m agentlog.SessionMeta) error { fast = append(fast, m); return nil })
+	if err != nil || !used || len(fast) != 2 || fast[1].ID != child.ID || fast[1].ParentID != child.ParentID || fast[1].Project != child.Project {
+		t.Fatalf("fast listing = %+v, used=%v, err=%v", fast, used, err)
+	}
+	for _, adapter := range []*Adapter{New(home), forSearch, a} {
+		texts := []string{}
+		for _, meta := range metas {
+			if err := adapter.Entries(meta.Session, func(e agentlog.Entry) error { texts = append(texts, e.Text); return nil }); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got := strings.Join(texts, "/"); got != "parent message/child message" {
+			t.Errorf("entries = %q", got)
+		}
+	}
+	if usage := listUsage(t, a); len(usage) != 2 || usage[0].Input != 0 || usage[1].Input != 31 {
+		t.Errorf("usage = %+v, want only the child to count its tokens", usage)
 	}
 }
 
@@ -268,11 +319,11 @@ func TestScanFileIOErrorNotCountedAsSkipped(t *testing.T) {
 	a := newTestAdapter(t, nil)
 	// a directory named *.jsonl: os.Open succeeds, reading fails with an I/O
 	// error that is not bufio.ErrTooLong
-	dirFile := filepath.Join(a.home, ".claude", "projects", "proj", "iam-a-directory.jsonl")
+	dirFile := filepath.Join(a.StoragePath(), "proj", "iam-a-directory.jsonl")
 	if err := os.MkdirAll(dirFile, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	sum, err := a.scanFile(dirFile, nil, nil)
+	sum, err := a.scanFile(dirFile, nil, nil, false)
 	if err != nil {
 		t.Fatalf("I/O failures stay non-fatal, got %v", err)
 	}
@@ -432,6 +483,26 @@ func TestDefensiveParsingCountsSkipped(t *testing.T) {
 	}
 	if a.SkippedLines() != 1 {
 		t.Errorf("SkippedLines = %d, want 1 (truncated json line)", a.SkippedLines())
+	}
+}
+
+func TestServiceMetadataDoesNotCountAsUnreadable(t *testing.T) {
+	a := writeHomeLine(t,
+		`{"type":"mode","sessionId":"session-one","mode":"normal"}`,
+		`{"type":"permission-mode","sessionId":"session-one","permissionMode":"default"}`,
+		`{"type":"atis-latch","sessionId":"session-one","atis":true}`,
+		`{"type":"ai-title","sessionId":"session-one","aiTitle":"A title"}`,
+		`{"type":"last-prompt","sessionId":"session-one","lastPrompt":"A prompt"}`,
+		`{"type":"file-history-delta","timestamp":"2026-07-01T09:00:00Z"}`,
+		`{"type":"queue-operation","timestamp":"2026-07-01T09:00:00Z"}`,
+		`{"type":"user","sessionId":"session-one","cwd":"/home/dev/app","timestamp":"2026-07-01T10:00:00Z","message":{"content":"Hello"}}`,
+		`{"type":"system","subtype":"turn_duration","timestamp":"2026-07-01T10:00:10Z"}`,
+		`{"type":"cost-state","sessionId":"session-one"}`,
+		`{"type":`,
+	)
+	meta := listMetas(t, a)[0]
+	if meta.Messages != 1 || meta.StartedAt.IsZero() || meta.StartedAt != meta.EndedAt || a.SkippedLines() != 1 {
+		t.Errorf("meta = %+v, skipped = %d, want one timed message and one corrupt line", meta, a.SkippedLines())
 	}
 }
 

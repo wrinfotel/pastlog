@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/wrinfotel/pastlog/internal/agentlog"
-	"github.com/wrinfotel/pastlog/internal/cli"
 	"github.com/wrinfotel/pastlog/internal/ctx"
 	"github.com/wrinfotel/pastlog/internal/render"
 )
@@ -51,11 +50,11 @@ type ContextAdviceJSON struct {
 // Context resolves a session id or prefix and analyzes why its context grew —
 // the `pastlog context` contract: the same rules R1–R5 for every agent.
 func (a *App) Context(idPrefix string) (ContextOutcome, error) {
-	home, err := a.effectiveHome()
+	_, reg, err := a.registry()
 	if err != nil {
 		return ContextOutcome{}, err
 	}
-	adapters := cli.NewRegistry(home).Adapters()
+	adapters := reg.Adapters()
 	// ResolveSession's error is the plain "no match" reason — it is true
 	// exactly when !res.Found(), and every outcome below is resolution-driven.
 	res, _ := agentlog.ResolveSession(adapters, idPrefix) //nolint:errcheck // see above

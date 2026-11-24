@@ -31,11 +31,10 @@ func newShowCmd(stdout, stderr io.Writer) *cobra.Command {
 			if jsonOut && export != "" {
 				return errors.New("--json and --export cannot be combined")
 			}
-			home, err := homeDir(cmd)
+			home, reg, err := commandRegistry(cmd)
 			if err != nil {
 				return err
 			}
-			reg := NewRegistry(home)
 			adapters := reg.Adapters()
 
 			meta, adapter, err := resolveSession(adapters, args[0])

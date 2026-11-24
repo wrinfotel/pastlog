@@ -1,5 +1,5 @@
-# CI (spec §10): lint, race tests, bench smoke. Read-only posture extends to
-# CI — nothing is published or uploaded from this workflow (spec §2).
+# CI (spec §10): lint, race tests, bench smoke, and Desktop builds.
+# Windows build artifacts are attached to the workflow run for smoke testing.
 name: CI
 
 on:
@@ -129,7 +129,7 @@ jobs:
     name: desktop build (${{ matrix.os }})
     # The Wails GUI app (TASK-DESKTOP.md). Linux needs the webkit/gtk
     # platform glue (CGo — platform shell only, R-D8; the data layer stays
-    # CGO-free). Windows stays CGO_ENABLED=0.
+    # CGO-free). Run on every change because Desktop shares the CLI engine.
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -141,42 +141,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Skip when desktop did not change
-        id: scope
-        shell: bash
-        run: |
-          if git diff --name-only HEAD^ HEAD 2>/dev/null | grep -qE '^(desktop/|\.github/|go\.(mod|sum))'; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - uses: actions/setup-go@v5
-        if: steps.scope.outputs.run == 'true'
         with:
           go-version: stable
           cache: true
           cache-dependency-path: go.sum
 
       - name: Install webkit/gtk dev packages (linux platform glue)
-        if: steps.scope.outputs.run == 'true' && matrix.os == 'ubuntu-latest'
+        if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
 
       - name: Install wails CLI
-        if: steps.scope.outputs.run == 'true'
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.16.0
 
+      - name: Install NSIS
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          choco install nsis -y --no-progress
+          echo 'C:\Program Files (x86)\NSIS' >> "$GITHUB_PATH"
+
       - name: Build (linux/amd64)
-        if: steps.scope.outputs.run == 'true' && matrix.os == 'ubuntu-latest'
-        run: wails build -platform linux/amd64
+        if: runner.os == 'Linux'
+        working-directory: desktop
+        run: wails build -platform linux/amd64 -tags webkit2_41
 
       - name: Build (windows/amd64)
-        if: steps.scope.outputs.run == 'true' && matrix.os == 'windows-latest'
+        if: runner.os == 'Windows'
         shell: bash
+        working-directory: desktop
         run: wails build -platform windows/amd64 -webview2 embed -nsis
 
       - name: Frontend tests
-        if: steps.scope.outputs.run == 'true'
         shell: bash
         working-directory: desktop/frontend
         run: |
@@ -185,7 +181,6 @@ jobs:
           npm run audit:bundle
 
       - name: Go tests incl. desktop glue and the CSP middleware
-        if: steps.scope.outputs.run == 'true'
         shell: bash
         run: |
           go test -race ./internal/... ./desktop/app/...
@@ -193,7 +188,7 @@ jobs:
           go vet -tags desktop ./desktop/...
 
       - name: Artifact size guard (<= 30 MB, spec §8)
-        if: steps.scope.outputs.run == 'true' && matrix.os == 'windows-latest'
+        if: runner.os == 'Windows'
         shell: bash
         run: |
           size=$(stat -c %s desktop/build/bin/pastlog-desktop.exe)
@@ -201,7 +196,7 @@ jobs:
           test "$size" -le 31457280
 
       - name: Upload windows artifacts (manual smoke)
-        if: steps.scope.outputs.run == 'true' && matrix.os == 'windows-latest'
+        if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: pastlog-desktop-windows

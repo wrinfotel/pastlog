@@ -14,7 +14,7 @@ describe('orderByDetection', () => {
 
   it('keeps registry order within each group (stable)', () => {
     const rows = [
-      row('gemini-cli', false),
+      row('antigravity', false),
       row('claude-code', true),
       row('opencode', false),
       row('codex', true),
@@ -24,7 +24,7 @@ describe('orderByDetection', () => {
       'claude-code',
       'codex',
       'zcode',
-      'gemini-cli',
+      'antigravity',
       'opencode',
     ]);
   });

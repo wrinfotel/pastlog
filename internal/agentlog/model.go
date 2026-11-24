@@ -7,7 +7,7 @@ import "time"
 
 type Session struct {
 	ID        string
-	Agent     string // "claude-code" | "codex" | "gemini-cli" | "opencode" | "zcode"
+	Agent     string // name of the adapter that owns the session
 	Project   string // working dir, "" if unknown
 	Title     string // optional
 	ParentID  string // subagent parent session id, "" for top-level sessions
@@ -105,9 +105,15 @@ type TotalSizer interface {
 type Usage struct {
 	Input, Output, Reasoning int64
 	CacheRead, CacheWrite    int64
+	ReasoningIncluded        int64 // reasoning tokens already included in Output
 	CostUSD                  float64
 	HasCost                  bool
 	Model                    string
+}
+
+// TotalTokens counts input and generated tokens without overlapping fields.
+func (u Usage) TotalTokens() int64 {
+	return u.Input + u.Output + u.Reasoning - u.ReasoningIncluded
 }
 
 // SessionUsage is a Session plus the usage facts adapters compute in the

@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	"github.com/wrinfotel/pastlog/internal/agentlog"
-	"github.com/wrinfotel/pastlog/internal/cli"
 	"github.com/wrinfotel/pastlog/internal/render"
 )
 
@@ -33,11 +32,10 @@ func (a *App) Stats(o StatsOptions) (StatsOutcome, error) {
 	if err != nil {
 		return StatsOutcome{}, err
 	}
-	home, err := a.effectiveHome()
+	home, reg, err := a.registry()
 	if err != nil {
 		return StatsOutcome{}, err
 	}
-	reg := cli.NewRegistry(home)
 	if err := validateAgent(reg, o.Filter.Agent); err != nil {
 		return StatsOutcome{}, err
 	}
@@ -76,11 +74,10 @@ func (a *App) ExportStats(o StatsOptions, destPath string) error {
 	if err != nil {
 		return err
 	}
-	home, err := a.effectiveHome()
+	home, reg, err := a.registry()
 	if err != nil {
 		return err
 	}
-	reg := cli.NewRegistry(home)
 	if err := validateAgent(reg, o.Filter.Agent); err != nil {
 		return err
 	}

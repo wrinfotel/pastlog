@@ -1,17 +1,14 @@
-# claude-code storage schema (assumed — no real data on this machine)
+# Claude Code storage schema
 
-Claude Code keeps one JSONL file per session. pastlog reads only; nothing here
-is written back. This document describes the schema the adapter is built
-against. It was compiled from publicly documented community observations, not
-from live data — **no real Claude Code data existed on the build machine**
-(all fixtures under `testdata/` are synthetic and anonymized). Whenever the
-real format diverges, the adapter is defensive: unknown shapes are skipped and
-counted, never fatal, never a panic.
+pastlog reads Claude Code JSONL transcripts. The checked-in fixtures under
+`testdata/` are synthetic. The adapter was also checked against [public,
+sanitized logs from real Claude Code sessions](https://github.com/frederick-douglas-pearce/claude-code-sessions/tree/main/fixtures/sanitized).
 
 ## Location
 
 ```
 ~/.claude/projects/<escaped-cwd>/<session-uuid>.jsonl
+~/.claude/projects/<escaped-cwd>/<session-uuid>/subagents/agent-<agent-id>.jsonl
 ```
 
 - `<escaped-cwd>` is the session's working directory with every
@@ -20,8 +17,13 @@ counted, never fatal, never a panic.
 - Directory names are ambiguous (several paths escape to the same name), so
   pastlog **always reads the project from the records' `cwd` field and never
   decodes the directory name**.
-- Detection = `~/.claude/projects` exists and is a directory.
-- Only `*.jsonl` files directly inside project directories are considered.
+- With automatic home discovery, `CLAUDE_CONFIG_DIR` selects the Claude
+  configuration directory. An explicit CLI or Desktop home takes precedence.
+  Detection checks for the `projects` directory under the chosen location.
+- Subagent files use the ID `agent-<agent-id>@<parent-file-stem>` because
+  Claude can write the parent's `sessionId` into a child's records.
+  Their `parent_id` resolves to the containing session. A child with no
+  `cwd` inherits the parent's project when the parent is available.
 
 ## Record shapes
 
@@ -29,10 +31,11 @@ Each line is a JSON object. Fields the adapter uses:
 
 | Field | Meaning |
 |---|---|
-| `type` | record type: `user`, `assistant`, `system`, `summary`; anything else is skipped and counted |
+| `type` | transcript types are `user`, `assistant`, `system`, and `summary`; known bookkeeping is ignored |
 | `message` | `{role, content}` on `user`/`assistant`/`system` records; `content` is a string **or** an array of typed blocks |
 | `message.model` | the model that produced the record (assistant messages carry it) → `Usage.Model` |
 | `message.usage` | `{input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens}` → token statistics (M7) |
+| `message.id`, `requestId` | shared ID for blocks of an assistant response; `requestId` is used when `message.id` is absent |
 | `timestamp` | ISO 8601 UTC, e.g. `2026-08-02T14:03:22.150Z` |
 | `sessionId` | session UUID; fallback: JSONL filename minus `.jsonl` |
 | `cwd` | working dir → `Session.Project` (first non-empty wins) |
@@ -54,7 +57,8 @@ results are always role `tool`.
 
 ## Mapping to pastlog's model
 
-- `Session.ID` = `sessionId` field (first seen), else filename minus extension.
+- A main session's ID is the first transcript `sessionId`, with the file
+  stem as fallback. Subagent IDs are derived from their file and parent layout.
 - `Session.Project` = first non-empty record `cwd`.
 - `Session.Title` = first `summary` record.
 - `Session.StartedAt` / `EndedAt` = first / last `timestamp` on records the
@@ -74,23 +78,25 @@ skip-accounting):
 
 | Usage field | Source |
 |---|---|
-| `Input` | sum of `message.usage.input_tokens` over the session's records |
+| `Input` | sum of `message.usage.input_tokens` over distinct responses in a transcript |
 | `Output` | sum of `message.usage.output_tokens` |
 | `Reasoning` | — claude-code records carry no separate reasoning count; stays 0 |
 | `CacheWrite` | sum of `message.usage.cache_creation_input_tokens` |
 | `CacheRead` | sum of `message.usage.cache_read_input_tokens` |
 | `Model` | LAST non-empty `message.model` in the file (assistant records carry it); "" when none |
 | `CostUSD` / `HasCost` | — claude-code logs carry no per-session cost; `HasCost` stays false |
-| `Models` | per-model breakdown (TASK.md backlog): each record's usage lands on its `message.model`; a record without a model keeps the model in effect (the last non-empty one seen), so the entries keep first-use order and sum to the session totals |
+| `Models` | usage grouped by the model that produced each response, in first-use order |
 
+- Blocks sharing a response ID update one usage snapshot. The latest valid
+  value of each field is used. Records without either ID are counted individually.
 - `Messages` keeps the `SessionsMeta` semantic, so sessions and messages of
   zero-usage sessions still count in the aggregates.
 - Malformed usage never makes a line unreadable: a `message.usage` that is
   not a JSON object (missing, null, string, number) contributes zero, and a
   field of the wrong JSON type contributes zero for that field alone (the
   other fields of the same object still count).
-- `SessionsMetaFast` (the search fast path) reads only line 1 and carries no
-  usage — the stats flow always uses the full `SessionsUsage` pass.
+- `SessionsMetaFast` reads through leading bookkeeping to the first
+  transcript record. Statistics use the full `SessionsUsage` pass.
 
 ### usable content
 
@@ -105,7 +111,10 @@ empty) message: the line is readable and not counted.
 - Corrupt / truncated / non-object lines → skipped, counted
   (`SkippedLines()`); the CLI summarizes as "N unreadable lines skipped".
 - Records with unknown `type`, or known types without a usable `message`,
-  are skipped and counted.
+  are skipped and counted unless they are recognized bookkeeping.
+- Bookkeeping such as `permission-mode`, `last-prompt`, `cost-state` and
+  message-less system subtypes does not affect transcript entries, timestamps
+  or the unreadable-line counter.
 - Unknown block types inside a recognized record are ignored silently (the
   line itself was readable).
 - A shape-mismatched element inside an otherwise readable content array
@@ -146,7 +155,8 @@ dropped early.
 ## Context analysis (`pastlog context`, SPEC-context-analysis)
 
 The adapter implements `agentlog.CtxSource` (`ctxextract.go`): one streaming
-pass over the session's JSONL maps assistant records (with `message.usage`),
+pass over the session's JSONL maps assistant responses (with one turn and one
+usage snapshot per response),
 tool_use/tool_result blocks, text blocks and compact markers (`isCompact` or
 a `/compact` user text) onto the normalized `CtxEvent` IR. The rules run on
 that stream for every agent; this adapter contributes exact tokens. An

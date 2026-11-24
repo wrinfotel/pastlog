@@ -112,6 +112,7 @@ func (acc statsAccumulator) add(key string, messages int, u agentlog.Usage) {
 	g.Usage.Input += u.Input
 	g.Usage.Output += u.Output
 	g.Usage.Reasoning += u.Reasoning
+	g.Usage.ReasoningIncluded += u.ReasoningIncluded
 	g.Usage.CacheRead += u.CacheRead
 	g.Usage.CacheWrite += u.CacheWrite
 	if u.HasCost {
@@ -163,8 +164,8 @@ func statsColumns(withCost bool) []statsColumn {
 		{"reasoning", func(r StatsRow) string { return groupDigits(r.Usage.Reasoning) }},
 		{"cache read", func(r StatsRow) string { return groupDigits(r.Usage.CacheRead) }},
 		{"cache write", func(r StatsRow) string { return groupDigits(r.Usage.CacheWrite) }},
-		{"total", func(r StatsRow) string { // ruling 3: input+output+reasoning
-			return groupDigits(r.Usage.Input + r.Usage.Output + r.Usage.Reasoning)
+		{"total", func(r StatsRow) string {
+			return groupDigits(r.Usage.TotalTokens())
 		}},
 	}
 	if withCost {

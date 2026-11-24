@@ -18,12 +18,13 @@ type partRaw struct {
 	State *toolStateRaw `json:"state"`
 }
 
-// toolStateRaw is the tool part's state payload. input is a JSON object,
-// output a plain (possibly large) string.
+// toolStateRaw is the tool part's state payload. Input is a JSON object;
+// output and error are usually strings.
 type toolStateRaw struct {
 	Status string          `json:"status"`
 	Input  json.RawMessage `json:"input"`
 	Output json.RawMessage `json:"output"`
+	Error  json.RawMessage `json:"error"`
 }
 
 // partToEntries maps one part.data row to entries. skip=true counts the row
@@ -77,7 +78,7 @@ func isUnknownPartType(t string) bool { return !recognizedPartTypes[t] }
 
 // toolEntries maps a tool part to a ToolCall entry (compact JSON of
 // state.input, falling back to the tool name when input is missing) plus,
-// when state.output is non-empty, a ToolResult entry with the output text.
+// when state carries output or an error, a ToolResult entry with its text.
 func toolEntries(p partRaw, ts time.Time) []agentlog.Entry {
 	var entries []agentlog.Entry
 	input := ""
@@ -92,11 +93,20 @@ func toolEntries(p partRaw, ts time.Time) []agentlog.Entry {
 		entries = append(entries, agentlog.Entry{Kind: agentlog.ToolCall, Role: "tool", Text: input, Timestamp: ts})
 	}
 	if p.State != nil {
-		if out := outputText(p.State.Output); out != "" {
+		if out, _ := p.State.result(); out != "" {
 			entries = append(entries, agentlog.Entry{Kind: agentlog.ToolResult, Role: "tool", Text: out, Timestamp: ts})
 		}
 	}
 	return entries
+}
+
+func (s *toolStateRaw) result() (text string, hasErrorText bool) {
+	text = outputText(s.Output)
+	failure := outputText(s.Error)
+	if text == "" {
+		text = failure
+	}
+	return text, failure != ""
 }
 
 // outputText flattens a tool state.output: a JSON string unquotes to its

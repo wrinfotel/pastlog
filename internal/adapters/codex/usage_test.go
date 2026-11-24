@@ -357,8 +357,8 @@ func TestSessionsUsageModelBreakdown(t *testing.T) {
 	want := []agentlog.Usage{
 		// the first turn ran on gpt-5.3-mini, the second switched to
 		// gpt-5.3-codex: each keeps its own delta
-		{Model: "gpt-5.3-mini", Input: 100, Output: 30, Reasoning: 5, CacheRead: 20},
-		{Model: "gpt-5.3-codex", Input: 150, Output: 50, Reasoning: 7, CacheRead: 25},
+		{Model: "gpt-5.3-mini", Input: 100, Output: 30, Reasoning: 5, ReasoningIncluded: 5, CacheRead: 20},
+		{Model: "gpt-5.3-codex", Input: 150, Output: 50, Reasoning: 7, ReasoningIncluded: 7, CacheRead: 25},
 	}
 	if len(su.Models) != len(want) {
 		t.Fatalf("Models = %d entries, want %d", len(su.Models), len(want))

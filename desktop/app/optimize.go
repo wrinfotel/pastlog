@@ -2,7 +2,6 @@ package app
 
 import (
 	"github.com/wrinfotel/pastlog/internal/agentlog"
-	"github.com/wrinfotel/pastlog/internal/cli"
 	"github.com/wrinfotel/pastlog/internal/ctx"
 	"github.com/wrinfotel/pastlog/internal/mask"
 	"github.com/wrinfotel/pastlog/internal/render"
@@ -26,11 +25,10 @@ type OptimizeOutcome struct {
 // progress events under the "optimize" op, cancellation keeps the partial
 // report.
 func (a *App) Optimize(o OptimizeOptions) (OptimizeOutcome, error) {
-	home, err := a.effectiveHome()
+	_, reg, err := a.registry()
 	if err != nil {
 		return OptimizeOutcome{}, err
 	}
-	reg := cli.NewRegistry(home)
 	if err := validateAgent(reg, o.Filter.Agent); err != nil {
 		return OptimizeOutcome{}, err
 	}

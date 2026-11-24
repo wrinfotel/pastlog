@@ -160,6 +160,21 @@ func TestKeepRawDisabledForEscapedNeedle(t *testing.T) {
 	}
 }
 
+func TestKeepRawPreservesEscapedMatches(t *testing.T) {
+	for _, tc := range []struct{ query, line string }{
+		{"2 < 3", `{"text":"2 \u003c 3"}`},
+		{"a/b", `{"text":"a\/b"}`},
+		{"match", `{"text":"\u006datch"}`},
+	} {
+		for _, sensitive := range []bool{false, true} {
+			m := mustMatcher(t, tc.query, MatchOptions{CaseSensitive: sensitive})
+			if !m.KeepRaw()([]byte(tc.line)) {
+				t.Errorf("raw filter rejected %q for %q (case-sensitive=%v)", tc.line, tc.query, sensitive)
+			}
+		}
+	}
+}
+
 func TestKeepRawNilForRegex(t *testing.T) {
 	m := mustMatcher(t, "a+", MatchOptions{Regex: true})
 	if m.KeepRaw() != nil {

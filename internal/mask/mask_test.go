@@ -1,6 +1,9 @@
 package mask
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // Synthetic fixture tokens, split into concatenated fragments: the runtime
 // value is identical, but the literal never appears contiguously in source,
@@ -80,6 +83,11 @@ func TestMaskTokenFamilies(t *testing.T) {
 			want: "https://api.example.com/v1?API_KEY=…8888",
 		},
 		{
+			name: "query param with an equals sign in its value",
+			in:   "https://example.test/?token=sample=value1234&x=1",
+			want: "https://example.test/?token=…1234&x=1",
+		},
+		{
 			name: "two secrets on one line",
 			in:   ghpClassic + " and sk-aaaa1111bbbb2222cccc",
 			want: "ghp_…ABCD and sk-a…cccc",
@@ -122,5 +130,27 @@ func TestMaskIdempotent(t *testing.T) {
 	once := Mask("key " + ghpClassic + " end")
 	if twice := Mask(once); twice != once {
 		t.Errorf("Mask not idempotent: %q then %q", once, twice)
+	}
+}
+
+func TestMaskMatchKeepsOffsetsOnMaskedText(t *testing.T) {
+	input := ghpClassic + " https://example.test/?token=sample1234&x=1 " + ghpClassic + " результат"
+	for _, tc := range []struct {
+		match   string
+		want    string
+		visible bool
+	}{
+		{"token", "token", true},
+		{"результат", "результат", true},
+		{"sample", "…1234", false},
+		{"sample1234&x", "…1234&x", false},
+	} {
+		t.Run(tc.match, func(t *testing.T) {
+			start := strings.Index(input, tc.match)
+			text, start, end, visible := MaskMatch(input, start, start+len(tc.match))
+			if text != Mask(input) || text[start:end] != tc.want || visible != tc.visible {
+				t.Errorf("masked match = %q, visible = %v; want %q, visible = %v", text[start:end], visible, tc.want, tc.visible)
+			}
+		})
 	}
 }

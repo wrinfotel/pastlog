@@ -25,13 +25,13 @@ const (
 {"timestamp":"2026-08-02T14:10:08Z","type":"turn_context","payload":{"cwd":"/home/dev/cal","model":"gpt-5.3-codex","effort":"high"}}
 {"timestamp":"2026-08-02T14:10:10Z","type":"token_count","payload":{"info":{"total_token_usage":{"input_tokens":300,"cached_input_tokens":80,"output_tokens":90,"reasoning_output_tokens":25},"last_token_usage":{"input_tokens":10,"cached_input_tokens":0,"output_tokens":12}}}}`
 
-	allGeminiContent = `{"sessionId":"gccc3333-3333-4333-8333-333333333333","startTime":"2026-08-02T14:20:00Z","lastUpdated":"2026-08-02T14:21:00Z","kind":"main","directories":["/home/dev/cal"],"summary":"calibration review"}
-{"id":"gm1","timestamp":"2026-08-02T14:20:10Z","type":"user","content":"review the calibration constants"}
-{"id":"gm2","timestamp":"2026-08-02T14:20:30Z","type":"gemini","content":"calibration corrected","model":"gemini-2.5-pro","tokens":{"input":200,"output":60,"cached":15,"thoughts":10,"tool":5,"total":275}}`
+	allAntigravityID      = "accc3333-3333-4333-8333-333333333333"
+	allAntigravityContent = `{"step_index":0,"created_at":"2026-08-02T14:20:10Z","type":"USER_INPUT","content":"review the calibration constants","cwd":"/home/dev/cal"}
+{"step_index":1,"created_at":"2026-08-02T14:20:30Z","type":"PLANNER_RESPONSE","content":"calibration corrected","model":"gemini-2.5-pro","input_tokens":185,"output_tokens":60,"cache_read_tokens":15}`
 )
 
 // allAgentsHome builds a synthetic home with data for all five agents:
-// claude-code and codex JSONL, a gemini-cli JSONL session, an opencode
+// claude-code and codex JSONL, an Antigravity JSONL session, an opencode
 // database generated into <home>/.local/share/opencode (the storage root
 // discovery falls back to once the per-OS env override is neutralized), and
 // a zcode database generated into <home>/.zcode/cli/db.
@@ -51,7 +51,7 @@ func allAgentsHome(t *testing.T) string {
 	write(filepath.Join(".claude", "projects", "C--Users-dev-cal", "ccaa1111-1111-4111-8111-111111111111.jsonl"), allClaudeContent)
 	write(filepath.Join(".codex", "sessions", "2026", "08", "02",
 		"rollout-2026-08-02T14-10-00-ccbb2222-2222-4222-8222-222222222222.jsonl"), allCodexContent)
-	write(filepath.Join(".gemini", "tmp", "ca11bad5foo", "chats", "session-2026-08-02T14-20-gccc3333.jsonl"), allGeminiContent)
+	write(filepath.Join(".gemini", "antigravity-cli", "brain", allAntigravityID, ".system_generated", "logs", "transcript.jsonl"), allAntigravityContent)
 
 	if _, err := opencode.GenerateTestDB(filepath.Join(home, ".local", "share", "opencode")); err != nil {
 		t.Fatalf("GenerateTestDB: %v", err)
@@ -71,7 +71,7 @@ func TestSessionsAllAgents(t *testing.T) {
 	for _, want := range []string{
 		`"agent": "claude-code"`,
 		`"agent": "codex"`,
-		`"agent": "gemini-cli"`,
+		`"agent": "antigravity"`,
 		`"agent": "opencode"`,
 		`"agent": "zcode"`,
 	} {
@@ -90,7 +90,7 @@ func TestSearchAllAgents(t *testing.T) {
 	for _, want := range []string{
 		`"agent": "claude-code"`,
 		`"agent": "codex"`,
-		`"agent": "gemini-cli"`,
+		`"agent": "antigravity"`,
 		`"agent": "opencode"`,
 		`"agent": "zcode"`,
 	} {
@@ -115,13 +115,13 @@ func TestShowAllAgents(t *testing.T) {
 			t.Errorf("show should print the opencode transcript, got:\n%s", out)
 		}
 	})
-	t.Run("gemini-cli by id prefix", func(t *testing.T) {
-		code, out, errOut := run(t, "--home", home, "show", "gccc3333")
+	t.Run("antigravity by id prefix", func(t *testing.T) {
+		code, out, errOut := run(t, "--home", home, "show", "accc3333")
 		if code != 0 {
 			t.Fatalf("show exit = %d, stderr: %s", code, errOut)
 		}
 		if !strings.Contains(out, "review the calibration constants") {
-			t.Errorf("show should print the gemini transcript, got:\n%s", out)
+			t.Errorf("show should print the Antigravity transcript, got:\n%s", out)
 		}
 	})
 	t.Run("zcode by id prefix", func(t *testing.T) {

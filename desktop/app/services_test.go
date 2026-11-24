@@ -230,7 +230,7 @@ func TestOutcomesNeverMarshalNullLists(t *testing.T) {
 func TestSessionsFilterErrors(t *testing.T) {
 	a := homeApp(t, claudeHome(t, "realistic.jsonl"))
 	if _, err := a.Sessions(FilterOptions{Agent: "nope"}); err == nil ||
-		err.Error() != `unknown agent "nope" (available: claude-code, codex, gemini-cli, opencode, zcode)` {
+		err.Error() != `unknown agent "nope" (available: claude-code, codex, antigravity, opencode, zcode)` {
 		t.Errorf("unknown agent error = %v", err)
 	}
 	if _, err := a.Sessions(FilterOptions{Limit: -1}); err == nil ||

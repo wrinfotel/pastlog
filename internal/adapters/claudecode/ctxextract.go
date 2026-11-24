@@ -19,29 +19,6 @@ import (
 // the shared skipped counter is not used here — the context flow is
 // best-effort by nature and skips corrupt lines silently.
 
-// claudeUsage mirrors message.usage for the context stream.
-type claudeUsage struct {
-	InputTokens              *int64 `json:"input_tokens"`
-	OutputTokens             *int64 `json:"output_tokens"`
-	CacheCreationInputTokens *int64 `json:"cache_creation_input_tokens"`
-	CacheReadInputTokens     *int64 `json:"cache_read_input_tokens"`
-}
-
-// ctxRecord mirrors one JSONL line for context extraction: only IR-relevant
-// fields are declared; everything is optional (shapes are undocumented).
-type ctxRecord struct {
-	Type      string        `json:"type"`
-	Timestamp string        `json:"timestamp"`
-	Message   *ctxMsgRecord `json:"message"`
-	IsCompact bool          `json:"isCompact"`
-}
-
-type ctxMsgRecord struct {
-	Role    string          `json:"role"`
-	Content json.RawMessage `json:"content"` // string or array of blocks
-	Usage   json.RawMessage `json:"usage"`
-}
-
 // ctxBlock mirrors one typed content block plus its raw encoding (the
 // tool_use/tool_result id is only needed for call↔result correlation).
 // IsError is a pointer: is_error is documented but may be absent — absent
@@ -70,9 +47,10 @@ func (a *Adapter) ContextEvents(s agentlog.Session) ([]agentlog.CtxEvent, error)
 	seq := 0
 	next := func() int { seq++; return seq }
 	pending := map[string]ctxCall{} // tool_use id -> call facts
+	turns := map[string]int{}       // response key -> its CtxTurnStart index
 
 	err := scanCtxLines(path, func(line []byte) {
-		var rec ctxRecord
+		var rec record
 		if err := json.Unmarshal(line, &rec); err != nil {
 			return // corrupt line: skip silently (best-effort flow)
 		}
@@ -94,22 +72,24 @@ func (a *Adapter) ContextEvents(s agentlog.Session) ([]agentlog.CtxEvent, error)
 			}
 		}
 
-		// assistant turn marker with the record's usage (exact tokens).
+		// One turn marker per response. Continuation blocks can update its
+		// usage and still emit their own tool calls or text.
 		if rec.Type == "assistant" {
-			usage, kind := agentlog.CtxTokens{}, agentlog.CtxTokensNone
-			if u := parseCtxUsage(msg.Usage); u != nil {
-				usage = agentlog.CtxTokens{
-					Input:      derefCtx(u.InputTokens),
-					Output:     derefCtx(u.OutputTokens),
-					CacheRead:  derefCtx(u.CacheReadInputTokens),
-					CacheWrite: derefCtx(u.CacheCreationInputTokens),
+			key := rec.responseKey()
+			idx, seen := turns[key]
+			if !seen {
+				idx = len(events)
+				if key != "" {
+					turns[key] = idx
 				}
-				kind = agentlog.CtxTokensExact
+				events = append(events, agentlog.CtxEvent{
+					Seq: next(), At: ts, Kind: agentlog.CtxTurnStart, Role: "assistant",
+				})
 			}
-			events = append(events, agentlog.CtxEvent{
-				Seq: next(), At: ts, Kind: agentlog.CtxTurnStart, Role: "assistant",
-				Tokens: usage, TokensKind: kind,
-			})
+			if u := parseUsage(msg.Usage); u != nil {
+				u.apply(&events[idx].Tokens)
+				events[idx].TokensKind = agentlog.CtxTokensExact
+			}
 		}
 
 		blocks, ok := contentCtxBlocks(msg.Content)
@@ -185,13 +165,6 @@ func scanCtxLines(path string, fn func([]byte)) error {
 	return nil
 }
 
-func derefCtx(p *int64) int64 {
-	if p == nil {
-		return 0
-	}
-	return *p
-}
-
 // parseCtxTimestamp parses RFC 3339 best effort; zero on failure.
 func parseCtxTimestamp(s string) time.Time {
 	if s == "" {
@@ -201,19 +174,6 @@ func parseCtxTimestamp(s string) time.Time {
 		return ts
 	}
 	return time.Time{}
-}
-
-// parseCtxUsage defensively extracts message.usage.
-func parseCtxUsage(raw json.RawMessage) *claudeUsage {
-	trimmed := bytes.TrimSpace(raw)
-	if len(trimmed) == 0 || trimmed[0] != '{' {
-		return nil
-	}
-	var u claudeUsage
-	if err := json.Unmarshal(trimmed, &u); err != nil {
-		return nil
-	}
-	return &u
 }
 
 // plainString returns the content as a plain string when it is one.

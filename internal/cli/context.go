@@ -18,11 +18,10 @@ func newContextCmd(stdout, stderr io.Writer) *cobra.Command {
 			"advice. Accepts an unambiguous id prefix. The same rules run for every agent.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			home, err := homeDir(cmd)
+			_, reg, err := commandRegistry(cmd)
 			if err != nil {
 				return err
 			}
-			reg := NewRegistry(home)
 			adapters := reg.Adapters()
 
 			meta, adapter, err := resolveSession(adapters, args[0])

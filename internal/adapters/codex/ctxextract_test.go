@@ -144,8 +144,8 @@ func TestContextEventsCumulativeFallback(t *testing.T) {
 			sums = append(sums, ev.Tokens.Sum())
 		}
 	}
-	if len(sums) != 2 || sums[0] != 1000 || sums[1] != 2000 {
-		t.Errorf("cumulative-diff windows = %v, want [1000 2000]", sums)
+	if len(sums) != 2 || sums[0] != 1000 || sums[1] != 1400 {
+		t.Errorf("cumulative-diff windows = %v, want [1000 1400]", sums)
 	}
 }
 
@@ -203,8 +203,8 @@ func TestContextEventsNewRolloutFormat(t *testing.T) {
 			compacts++
 		}
 	}
-	if len(turns) != 2 || turns[0] != 1500 || turns[1] != 2700 {
-		t.Errorf("window sums = %v, want [1500 2700] (token_usage_record must not add turns)", turns)
+	if len(turns) != 2 || turns[0] != 1200 || turns[1] != 1400 {
+		t.Errorf("window sums = %v, want [1200 1400] (cache is already included in input)", turns)
 	}
 	if calls != 1 || results != 1 {
 		t.Errorf("custom tool calls=%d results=%d, want 1/1", calls, results)

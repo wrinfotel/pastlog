@@ -56,17 +56,82 @@ var queryValueRule = regexp.MustCompile(`(?i)([?&](?:api_?key|access_?token|toke
 // values keep name and last four runes ("token=…9fZx"), URL passwords become
 // "***". Plain text passes through unchanged.
 func Mask(s string) string {
+	return redact(s, nil)
+}
+
+type matchRange struct {
+	start, end int
+	visible    bool
+}
+
+// MaskMatch masks text and maps a match's byte offsets into the masked text.
+// A match that intersects a secret still has a location for the snippet, but
+// it should not be highlighted.
+func MaskMatch(s string, start, end int) (text string, maskedStart, maskedEnd int, visible bool) {
+	span := matchRange{start: start, end: end, visible: true}
+	text = redact(s, &span)
+	return text, span.start, span.end, span.visible
+}
+
+func redact(s string, span *matchRange) string {
 	for _, r := range tokenRules {
-		s = r.re.ReplaceAllStringFunc(s, func(m string) string {
+		s = replace(s, r.re, 0, span, func(m string) string {
 			return tokenShort(m, r.keep)
 		})
 	}
-	s = urlPasswordRule.ReplaceAllString(s, "$1***@")
-	s = queryValueRule.ReplaceAllStringFunc(s, func(m string) string {
-		i := strings.LastIndex(m, "=")
-		return m[:i+1] + valueShort(m[i+1:])
-	})
-	return s
+	s = replace(s, urlPasswordRule, 2, span, func(string) string { return "***" })
+	return replace(s, queryValueRule, 2, span, valueShort)
+}
+
+// replace changes only the selected capture group (0 means the whole match)
+// and adjusts both match boundaries for the edits made by this rule.
+func replace(s string, rule *regexp.Regexp, group int, span *matchRange, replacement func(string) string) string {
+	var matches [][]int
+	if group == 0 {
+		matches = rule.FindAllStringIndex(s, -1)
+	} else {
+		matches = rule.FindAllStringSubmatchIndex(s, -1)
+	}
+	if len(matches) == 0 {
+		return s
+	}
+
+	var out strings.Builder
+	var adjusted matchRange
+	if span != nil {
+		adjusted = *span
+	}
+	previousEnd := 0
+	for _, indices := range matches {
+		start, end := indices[2*group], indices[2*group+1]
+		out.WriteString(s[previousEnd:start])
+		newStart := out.Len()
+		out.WriteString(replacement(s[start:end]))
+		if span != nil {
+			delta := out.Len() - end
+			switch {
+			case end <= span.start:
+				adjusted.start = span.start + delta
+			case start < span.start:
+				adjusted.start = newStart
+			}
+			switch {
+			case end <= span.end:
+				adjusted.end = span.end + delta
+			case start < span.end:
+				adjusted.end = out.Len()
+			}
+			if start < span.end && span.start < end {
+				adjusted.visible = false
+			}
+		}
+		previousEnd = end
+	}
+	out.WriteString(s[previousEnd:])
+	if span != nil {
+		*span = adjusted
+	}
+	return out.String()
 }
 
 // tokenShort renders a matched token as its first keep runes, an ellipsis and

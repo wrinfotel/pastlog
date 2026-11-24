@@ -36,11 +36,10 @@ func newTimelineCmd(stdout, stderr io.Writer) *cobra.Command {
 			"one stream (newest --max-rows kept) — the \"how did we get here\" view.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			home, err := homeDir(cmd)
+			home, reg, err := commandRegistry(cmd)
 			if err != nil {
 				return err
 			}
-			reg := NewRegistry(home)
 			adapters := reg.Adapters()
 
 			if limit < 0 {

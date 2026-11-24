@@ -126,17 +126,16 @@ func TestSearchHumanHighlightsMatch(t *testing.T) {
 	}}
 
 	out := &bytes.Buffer{}
-	// restore the global NoColor on every exit path — mutating package
-	// globals leaks into parallel/later tests otherwise (test hygiene, M4)
-	prevNoColor := color.NoColor
-	color.NoColor = false
-	t.Cleanup(func() { color.NoColor = prevNoColor })
+	previous := matchColor
+	matchColor = color.New(color.Bold)
+	t.Cleanup(func() { matchColor = previous })
+	matchColor.EnableColor()
 	SearchHuman(out, results)
 	if !strings.Contains(out.String(), "\x1b[1mjwt") {
 		t.Errorf("match should be wrapped in the bold color, got %q", out.String())
 	}
 
-	color.NoColor = true
+	matchColor.DisableColor()
 	plain := &bytes.Buffer{}
 	SearchHuman(plain, results)
 	if strings.Contains(plain.String(), "\x1b[") {

@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 
 	"github.com/wrinfotel/pastlog/internal/agentlog"
-	"github.com/wrinfotel/pastlog/internal/cli"
 	"github.com/wrinfotel/pastlog/internal/mask"
 	"github.com/wrinfotel/pastlog/internal/render"
+	"github.com/wrinfotel/pastlog/internal/search"
 )
 
 // SessionExport reports an ExportSession call: written, or the ambiguous
@@ -28,11 +28,11 @@ func (a *App) ExportSession(idPrefix, format, destPath string) (SessionExport, e
 	if err := validateExport(format, destPath); err != nil {
 		return SessionExport{}, err
 	}
-	home, err := a.effectiveHome()
+	_, reg, err := a.registry()
 	if err != nil {
 		return SessionExport{}, err
 	}
-	adapters := cli.NewRegistry(home).Adapters()
+	adapters := reg.Adapters()
 	res, err := agentlog.ResolveSession(adapters, idPrefix)
 	if !res.Found() {
 		if len(res.Candidates) > 0 {
@@ -79,6 +79,35 @@ func (a *App) ExportSessions(f FilterOptions, destPath string) error {
 	return err
 }
 
+// ExportSearch writes the query's results using the CLI's verbatim JSON schema.
+func (a *App) ExportSearch(query string, o SearchOptions, destPath string) error {
+	if err := validateExport("json", destPath); err != nil {
+		return err
+	}
+	adapters, matcher, opts, err := a.prepareSearch(query, o)
+	if err != nil {
+		return err
+	}
+	results := search.Run(adapters, matcher, opts)
+	file, err := os.CreateTemp(filepath.Dir(destPath), ".pastlog-search-*.json")
+	if err != nil {
+		return fmt.Errorf("cannot write the export: %v", err)
+	}
+	defer os.Remove(file.Name()) //nolint:errcheck // Best-effort cleanup after writing or renaming.
+	writeErr := render.SearchJSON(file, results)
+	closeErr := file.Close()
+	if writeErr != nil {
+		return fmt.Errorf("cannot write the export: %v", writeErr)
+	}
+	if closeErr != nil {
+		return fmt.Errorf("cannot close the export: %v", closeErr)
+	}
+	if err := os.Rename(file.Name(), destPath); err != nil {
+		return fmt.Errorf("cannot save the export: %v", err)
+	}
+	return nil
+}
+
 // exportList re-runs a listing server-side and writes it; kind picks the
 // renderer. Returns the rendered byte count for callers that report it.
 func (a *App) exportList(f FilterOptions, destPath, kind string) (int, error) {
@@ -88,11 +117,10 @@ func (a *App) exportList(f FilterOptions, destPath, kind string) (int, error) {
 	if !filepath.IsAbs(destPath) {
 		return 0, fmt.Errorf("export path must be absolute: %s", destPath)
 	}
-	home, err := a.effectiveHome()
+	_, reg, err := a.registry()
 	if err != nil {
 		return 0, err
 	}
-	reg := cli.NewRegistry(home)
 	if err := validateAgent(reg, f.Agent); err != nil {
 		return 0, err
 	}

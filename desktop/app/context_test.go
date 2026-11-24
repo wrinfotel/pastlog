@@ -83,10 +83,8 @@ func TestContextGolden(t *testing.T) {
 	if p.Precision != "exact tokens" {
 		t.Errorf("precision = %q, want exact tokens", p.Precision)
 	}
-	// the fixture's context-only records are skipped by the regular listing
-	// parser and surface as the shared stderr note — same as the CLI
-	if len(out.Notes) != 1 || out.Notes[0] != "1 unreadable lines skipped" {
-		t.Errorf("notes = %v, want the skipped-lines note", out.Notes)
+	if len(out.Notes) != 0 {
+		t.Errorf("valid compaction should not cause a warning, got %v", out.Notes)
 	}
 }
 
@@ -108,7 +106,12 @@ func TestContextAmbiguousPrefix(t *testing.T) {
 }
 
 func TestContextNotFound(t *testing.T) {
-	a := homeApp(t, ctxHome(t, appCtxID))
+	home := ctxHome(t, appCtxID)
+	broken := filepath.Join(home, ".codex", "sessions", "2026", "08", "03", "rollout-broken.jsonl")
+	if err := os.WriteFile(broken, []byte("{\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := homeApp(t, home)
 	out, err := a.Context("nope1234")
 	if err != nil {
 		t.Fatalf("Context: %v", err)

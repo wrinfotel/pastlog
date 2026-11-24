@@ -18,25 +18,10 @@ import (
 // skipped counter is not used here — the context flow is best-effort by
 // nature and skips unusable rows silently.
 //
-// Tokens: token facts come from model_usage, one row per model request
-// (SCHEMA.md), so each row is a TurnStart with that request's window proxy
-// Input+CacheRead+CacheWrite (Anthropic-style separate cache columns). Rows
-// stream in started_at order and merge with the parts cursor by timestamp —
-// a request lands before the parts it produced (ties included). Databases
-// older than the model_usage table degrade to a token-less stream. Error
-// shape: a part state.status naming an error is exact; an absent status
-// falls back to the uniform regex (SPEC §2.2) — observed statuses are
-// "completed"/"pending".
-
-// ctxPart mirrors part.data for context extraction (the same shapes the
-// opencode adapter observes; step-finish carries no usable usage here —
-// token facts live in model_usage).
-type ctxPart struct {
-	Type  string        `json:"type"`
-	Text  string        `json:"text"`
-	Tool  string        `json:"tool"`
-	State *toolStateRaw `json:"state"`
-}
+// A model request with measured input contributes a TurnStart. The mapper
+// counts cached input once and merges the requests with parts by timestamp.
+// A tool result with explicit error text or an error status is flagged as
+// failed; without either, the standard status classifier applies.
 
 // ContextEvents implements agentlog.CtxSource.
 func (a *Adapter) ContextEvents(s agentlog.Session) ([]agentlog.CtxEvent, error) {
@@ -74,11 +59,7 @@ func (a *Adapter) ContextEvents(s agentlog.Session) ([]agentlog.CtxEvent, error)
 		tokens agentlog.CtxTokens
 	}
 	var requests []ctxRequest
-	rows, err := db.Query(`SELECT started_at, input_tokens, output_tokens, reasoning_tokens,
-			cache_creation_input_tokens, cache_read_input_tokens
-		FROM model_usage
-		WHERE session_id = ? AND started_at IS NOT NULL
-		ORDER BY started_at, id`, s.ID)
+	rows, err := queryModelUsage(db, s.ID)
 	if err != nil && !isNoSuchTable(err) {
 		// older database: no telemetry table, zero turns (SCHEMA.md)
 		if a.markLocked(err) {
@@ -88,13 +69,15 @@ func (a *Adapter) ContextEvents(s agentlog.Session) ([]agentlog.CtxEvent, error)
 	}
 	if err == nil {
 		for rows.Next() {
-			var startedAt int64
-			var t agentlog.CtxTokens
-			if err := rows.Scan(&startedAt, &t.Input, &t.Output, &t.Reasoning,
-				&t.CacheWrite, &t.CacheRead); err != nil {
+			row, err := scanUsageRow(rows)
+			if err != nil {
 				continue // unreadable row: skip
 			}
-			requests = append(requests, ctxRequest{at: time.UnixMilli(startedAt), tokens: t})
+			tokens := row.contextTokens()
+			if tokens.Sum() <= 0 {
+				continue // no input usage to measure a context window
+			}
+			requests = append(requests, ctxRequest{at: time.UnixMilli(row.startedAt), tokens: tokens})
 		}
 		if err := rows.Err(); err != nil {
 			rows.Close()
@@ -171,7 +154,7 @@ func (a *Adapter) ContextEvents(s agentlog.Session) ([]agentlog.CtxEvent, error)
 		}
 		return nil, fmt.Errorf("cannot read zcode session %s: %v", s.ID, err)
 	}
-	// requests without later parts (failed/cancelled calls) still count
+	// Measured requests without later parts still count.
 	for _, r := range requests[ri:] {
 		c.emit(agentlog.CtxEvent{
 			At: r.at, Kind: agentlog.CtxTurnStart, Role: "assistant",
@@ -223,7 +206,7 @@ func (c *ctxMapper) insertCompact(at time.Time) {
 // shapes skip silently; recognized-but-unmapped types (file, timeline,
 // step-start, step-finish) contribute nothing.
 func (c *ctxMapper) parts(role, data string, ts time.Time) {
-	var p ctxPart
+	var p partRaw
 	if err := json.Unmarshal([]byte(data), &p); err != nil {
 		return // malformed part.data
 	}
@@ -243,9 +226,8 @@ func (c *ctxMapper) parts(role, data string, ts time.Time) {
 	}
 }
 
-// tool maps a tool part: one ToolCall for state.input plus, when
-// state.output is non-empty, a ToolResult with the output text.
-func (c *ctxMapper) tool(p ctxPart, ts time.Time) {
+// tool maps a tool part to a ToolCall and, if present, a ToolResult.
+func (c *ctxMapper) tool(p partRaw, ts time.Time) {
 	name := strings.TrimSpace(p.Tool)
 	if name == "" {
 		return
@@ -262,11 +244,11 @@ func (c *ctxMapper) tool(p ctxPart, ts time.Time) {
 	if p.State == nil {
 		return
 	}
-	if out := outputText(p.State.Output); out != "" {
+	if out, hasErrorText := p.State.result(); out != "" {
 		c.emit(agentlog.CtxEvent{
 			At: ts, Kind: agentlog.CtxToolResult, Role: "tool",
 			Tool:     name,
-			Err:      agentlog.ErrFromStatus(p.State.Status, out),
+			Err:      hasErrorText || agentlog.ErrFromStatus(p.State.Status, out),
 			ResBytes: len(out),
 			Head:     agentlog.FirstLine(out),
 		})

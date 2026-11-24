@@ -86,7 +86,7 @@ func TestAgentsHumanGolden(t *testing.T) {
 	}
 	want := fmt.Sprintf("claude-code  2 sessions  %s  ~/.claude/projects\n"+
 		"codex        0 sessions  (not found)\n"+
-		"gemini-cli   0 sessions  (not found)\n"+
+		"antigravity  0 sessions  (not found)\n"+
 		"opencode     0 sessions  (not found)\n"+
 		"zcode        0 sessions  (not found)\n",
 		render.HumanBytes(sizeA+sizeB))
@@ -104,7 +104,7 @@ func TestAgentsNotFound(t *testing.T) {
 	}
 	want := "claude-code  0 sessions  (not found)\n" +
 		"codex        0 sessions  (not found)\n" +
-		"gemini-cli   0 sessions  (not found)\n" +
+		"antigravity  0 sessions  (not found)\n" +
 		"opencode     0 sessions  (not found)\n" +
 		"zcode        0 sessions  (not found)\n" +
 		"nothing found — install an agent or pass --home <dir>\n"
@@ -138,7 +138,7 @@ func TestAgentsJSONGolden(t *testing.T) {
     "bytes": 0
   },
   {
-    "name": "gemini-cli",
+    "name": "antigravity",
     "detected": false,
     "path": null,
     "sessions": 0,

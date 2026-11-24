@@ -13,18 +13,37 @@ import (
 // (see SCHEMA.md). Everything is optional — shapes are undocumented.
 type record struct {
 	Type      string         `json:"type"`
+	Subtype   string         `json:"subtype"`
 	Timestamp string         `json:"timestamp"`
 	SessionID string         `json:"sessionId"`
+	RequestID string         `json:"requestId"`
 	Cwd       string         `json:"cwd"`
 	Summary   string         `json:"summary"`
 	Message   *messageRecord `json:"message"`
+	IsCompact bool           `json:"isCompact"`
 }
 
 type messageRecord struct {
+	ID      string          `json:"id"`
 	Role    string          `json:"role"`
 	Content json.RawMessage `json:"content"` // string or array of blocks
 	Model   string          `json:"model"`   // assistant records carry it
 	Usage   json.RawMessage `json:"usage"`   // parsed defensively, see parseUsage
+}
+
+// responseKey identifies all blocks Claude writes for one assistant response.
+// Old transcripts may have neither ID.
+func (r record) responseKey() string {
+	if r.Type != "assistant" || r.Message == nil {
+		return ""
+	}
+	if r.Message.ID != "" {
+		return "message:" + r.Message.ID
+	}
+	if r.RequestID != "" {
+		return "request:" + r.RequestID
+	}
+	return ""
 }
 
 // usageRecord mirrors message.usage (M7 token statistics). Every field is a
@@ -70,14 +89,16 @@ type lineInfo struct {
 	ts        time.Time
 	model     string       // message.model, "" when the record had none
 	usage     *usageRecord // message.usage, nil when absent/unusable
+	response  string       // shared by the blocks of one assistant response
 }
 
 // lineResult is the outcome of classifying one non-empty JSONL line.
 type lineResult struct {
 	info    lineInfo
 	entries []agentlog.Entry
-	ok      bool // false: the line was unreadable or an unknown shape — skipped and counted, no entries
+	ok      bool // false: unreadable or unknown, unless ignored
 	skip    bool // true (with ok): a readable line that also counts as skipped — hybrid semantics, see yieldContent
+	ignored bool // recognized bookkeeping that does not describe transcript entries
 }
 
 // processLine classifies one non-empty JSONL line into at most a handful of
@@ -94,6 +115,9 @@ func processLine(line []byte) lineResult {
 	}
 	if rec.Type == "" && rec.SessionID == "" && rec.Cwd == "" && rec.Summary == "" && rec.Message == nil {
 		return lineResult{} // null or an object with none of the known fields
+	}
+	if rec.isBookkeeping() {
+		return lineResult{ignored: true}
 	}
 
 	info := lineInfo{
@@ -120,6 +144,7 @@ func processLine(line []byte) lineResult {
 		}
 		info.model = rec.Message.Model
 		info.usage = parseUsage(rec.Message.Usage)
+		info.response = rec.responseKey()
 		role := rec.Message.Role
 		if role == "" {
 			role = rec.Type
@@ -136,13 +161,16 @@ func processLine(line []byte) lineResult {
 	}
 }
 
-// ptrVal dereferences an optional usage field: nil (missing or wrong-typed)
-// contributes zero.
-func ptrVal(p *int64) int64 {
-	if p == nil {
-		return 0
+func (r record) isBookkeeping() bool {
+	switch r.Type {
+	case "mode", "permission-mode", "atis-latch", "last-prompt", "ai-title", "custom-title",
+		"file-history-snapshot", "file-history-delta", "queue-operation", "cost-state", "progress", "attachment":
+		return true
+	case "system":
+		return r.Message == nil && r.Subtype != ""
+	default:
+		return false
 	}
-	return *p
 }
 
 // yieldContent walks message content (string or block array), appending

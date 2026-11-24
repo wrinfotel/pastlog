@@ -2,7 +2,6 @@ package app
 
 import (
 	"github.com/wrinfotel/pastlog/internal/agentlog"
-	"github.com/wrinfotel/pastlog/internal/cli"
 	"github.com/wrinfotel/pastlog/internal/render"
 )
 
@@ -23,11 +22,11 @@ type RelatedOutcome struct {
 
 // Related resolves a session id or prefix and returns its relatedness graph.
 func (a *App) Related(idPrefix string) (RelatedOutcome, error) {
-	home, err := a.effectiveHome()
+	_, reg, err := a.registry()
 	if err != nil {
 		return RelatedOutcome{}, err
 	}
-	adapters := cli.NewRegistry(home).Adapters()
+	adapters := reg.Adapters()
 	res, err := agentlog.ResolveSession(adapters, idPrefix)
 	if !res.Found() {
 		out := RelatedOutcome{Status: "notfound", Notes: a.combineNotes(adapters, nil)}

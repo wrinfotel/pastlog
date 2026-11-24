@@ -2,7 +2,6 @@ package app
 
 import (
 	"github.com/wrinfotel/pastlog/internal/agentlog"
-	"github.com/wrinfotel/pastlog/internal/cli"
 	"github.com/wrinfotel/pastlog/internal/render"
 )
 
@@ -29,11 +28,11 @@ type SessionModelsOutcome struct {
 // token usage: the engine's per-model split where the agent records one,
 // otherwise a single row attributed to the session's model.
 func (a *App) SessionModels(idPrefix string) (SessionModelsOutcome, error) {
-	home, err := a.effectiveHome()
+	_, reg, err := a.registry()
 	if err != nil {
 		return SessionModelsOutcome{}, err
 	}
-	adapters := cli.NewRegistry(home).Adapters()
+	adapters := reg.Adapters()
 	res, err := agentlog.ResolveSession(adapters, idPrefix)
 	if !res.Found() {
 		out := SessionModelsOutcome{Status: "notfound", Notes: a.combineNotes(adapters, nil)}
@@ -66,7 +65,7 @@ func (a *App) SessionModels(idPrefix string) (SessionModelsOutcome, error) {
 				Reasoning:  u.Reasoning,
 				CacheRead:  u.CacheRead,
 				CacheWrite: u.CacheWrite,
-				Total:      u.Input + u.Output + u.Reasoning,
+				Total:      u.TotalTokens(),
 			},
 		})
 	}

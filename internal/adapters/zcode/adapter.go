@@ -267,10 +267,7 @@ func (a *Adapter) walkUsage(iter func(agentlog.SessionUsage) error) error {
 func (a *Adapter) usage(db *sql.DB) (splits map[string]agentlog.ModelSplit, err error) {
 	splits = map[string]agentlog.ModelSplit{}
 
-	rows, err := db.Query(`SELECT session_id, model_id, started_at,
-			input_tokens, output_tokens, reasoning_tokens,
-			cache_creation_input_tokens, cache_read_input_tokens
-		FROM model_usage ORDER BY started_at, id`)
+	rows, err := queryModelUsage(db, "")
 	if err != nil {
 		if isNoSuchTable(err) {
 			return splits, nil // older database: zero usage everywhere
@@ -279,16 +276,13 @@ func (a *Adapter) usage(db *sql.DB) (splits map[string]agentlog.ModelSplit, err 
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var sessionID, modelID string
-		var startedAt int64
-		var t agentlog.Usage
-		if err := rows.Scan(&sessionID, &modelID, &startedAt,
-			&t.Input, &t.Output, &t.Reasoning, &t.CacheWrite, &t.CacheRead); err != nil {
+		row, err := scanUsageRow(rows)
+		if err != nil {
 			continue // unreadable row: skip
 		}
-		s := splits[sessionID]
-		s.Observe(modelID, t)
-		splits[sessionID] = s
+		s := splits[row.sessionID]
+		s.Observe(row.modelID, row.tokens)
+		splits[row.sessionID] = s
 	}
 	return splits, rows.Err()
 }

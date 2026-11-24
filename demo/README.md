@@ -8,7 +8,7 @@ records against `demo/fixture-home`, never against real agent data.
 ## Fixture home
 
 `demo/fixture-home` is a synthetic, anonymized agent-data home: claude-code
-and codex JSONL sessions, a gemini-cli JSONL session, and an OpenCode
+and codex JSONL sessions, an Antigravity CLI JSONL session, and an OpenCode
 database. Per spec §9 no binary `.db` is committed: the OpenCode store is
 created at render time from committed source,
 

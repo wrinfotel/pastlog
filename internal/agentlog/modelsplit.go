@@ -26,6 +26,7 @@ func (s *ModelSplit) Observe(model string, u Usage) {
 	s.total.Input += u.Input
 	s.total.Output += u.Output
 	s.total.Reasoning += u.Reasoning
+	s.total.ReasoningIncluded += u.ReasoningIncluded
 	s.total.CacheRead += u.CacheRead
 	s.total.CacheWrite += u.CacheWrite
 	if u.HasCost {
@@ -42,6 +43,7 @@ func (s *ModelSplit) Observe(model string, u Usage) {
 	cur.Input += u.Input
 	cur.Output += u.Output
 	cur.Reasoning += u.Reasoning
+	cur.ReasoningIncluded += u.ReasoningIncluded
 	cur.CacheRead += u.CacheRead
 	cur.CacheWrite += u.CacheWrite
 	if u.HasCost {

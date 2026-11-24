@@ -24,11 +24,10 @@ func newSessionsCmd(stdout, stderr io.Writer) *cobra.Command {
 		Long:  "list sessions, newest first: agent, project, date, message count, size and id prefix",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			home, err := homeDir(cmd)
+			home, reg, err := commandRegistry(cmd)
 			if err != nil {
 				return err
 			}
-			reg := NewRegistry(home)
 			adapters := reg.Adapters()
 
 			if limit < 0 {

@@ -13,7 +13,7 @@ pastlog timeline --messages --since 2w   # how did we get here?
 pastlog show <session-id>
 ```
 
-<p align="center">Works with <b>Claude Code</b> · <b>Codex CLI</b> · <b>Gemini CLI</b> · <b>OpenCode</b> · <b>ZCode</b></p>
+<p align="center">Works with <b>Claude Code</b> · <b>Codex CLI</b> · <b>Antigravity CLI</b> · <b>OpenCode</b> · <b>ZCode</b></p>
 
 ---
 
@@ -159,7 +159,7 @@ Flags:
       --no-color      disable colored output (also honors NO_COLOR and non-TTY)
 
 Use "pastlog [command] --help" for more information about a command.
-claude-code: 2 sessions, codex: 1 session, gemini-cli: 1 session, opencode: 2 sessions
+claude-code: 2 sessions, codex: 1 session, antigravity: 1 session, opencode: 2 sessions
 ```
 
 `pastlog agents` — detected agent sources with session counts and on-disk
@@ -169,7 +169,7 @@ footprints (paths shown relative to your home directory):
 $ pastlog agents
 claude-code  2 sessions  1.7 KB  ~/.claude/projects
 codex        1 session   664 B  ~/.codex/sessions
-gemini-cli   1 session   548 B  ~/.gemini/tmp
+antigravity  1 session   339 B  ~/.gemini/antigravity-cli
 opencode     2 sessions  28.0 KB  ~/.local/share/opencode
 zcode        0 sessions  (not found)
 ```
@@ -194,11 +194,11 @@ $ pastlog agents --json
     "bytes": 664
   },
   {
-    "name": "gemini-cli",
+    "name": "antigravity",
     "detected": true,
-    "path": "/home/dev/.gemini/tmp",
+    "path": "/home/dev/.gemini/antigravity-cli",
     "sessions": 1,
-    "bytes": 548
+    "bytes": 339
   },
   {
     "name": "opencode",
@@ -226,7 +226,7 @@ with `--limit N`:
 $ pastlog sessions --limit 5
 codex        ~/dev/myapp    2026-08-02 17:10  2 messages   664 B  9b2d4c1e
 claude-code  ~/dev/myapp    2026-08-02 17:03  2 messages  1.1 KB  3f9c81a2
-gemini-cli   ~/dev/myapp    2026-08-02 17:03  2 messages   548 B  e4a7f2b3
+antigravity  ~/dev/myapp    2026-08-02 17:03  2 messages   339 B  e4a7f2b3
 claude-code  ~/dev/website  2026-08-01 21:22  2 messages   645 B  aaaa1111
 opencode     ~/dev/api      2026-07-29 19:48  2 messages   251 B  7c1e9a0f
 ```
@@ -235,7 +235,7 @@ opencode     ~/dev/api      2026-07-29 19:48  2 messages   251 B  7c1e9a0f
 $ pastlog sessions --project myapp --since 60d
 codex        ~/dev/myapp  2026-08-02 17:10  2 messages   664 B  9b2d4c1e
 claude-code  ~/dev/myapp  2026-08-02 17:03  2 messages  1.1 KB  3f9c81a2
-gemini-cli   ~/dev/myapp  2026-08-02 17:03  2 messages   548 B  e4a7f2b3
+antigravity  ~/dev/myapp  2026-08-02 17:03  2 messages   339 B  e4a7f2b3
 opencode     ~/dev/myapp  2026-07-28 19:35  1 message     98 B  2f8d6b3a
 ```
 
@@ -276,7 +276,7 @@ claude-code · dev/myapp · 2026-08-02 · sess 3f9c81a2
   → Fix jwt refresh token rotation
   → the jwt refresh kept failing because the old token was still accepted — moving it to an httpOnly cookie and rotating on every use.
 
-gemini-cli · dev/myapp · 2026-08-02 · sess e4a7f2b3
+antigravity · dev/myapp · 2026-08-02 · sess e4a7f2b3
   → can you add a jwt refresh regression test?
 ```
 
@@ -410,7 +410,7 @@ $ pastlog show 3f9c81a2 --json
 
 `pastlog related <session-id-or-prefix>` — the sessions around one session:
 its subagent parent and children where the agent records them (opencode,
-zcode and gemini-cli subagent sessions; claude-code and codex record none),
+agents that expose a parent session link),
 plus the nearest same-agent, same-project sessions before and after — the
 continuation heuristic. Each row in the sections opens directly in `show`:
 
@@ -508,7 +508,7 @@ $ pastlog stats
 agent        sessions  messages  input  output  reasoning  cache read  cache write  total  cost usd
 claude-code         3         6    120      45          0         200           30    165         -
 codex               2         3    300      90         25          80            0    415         -
-gemini-cli          2         4    200      60         10          15            0    270         -
+antigravity         2         4    200      60         10          15            0    260         -
 opencode            2         3  1,833     507        107      10,240          640  2,447      0.50
 ```
 
@@ -600,9 +600,9 @@ scoped to one project from its page), see what burns tokens session after
 session (a project's OPTIMIZE button folds the context rules across its
 whole history — recurring heavy commands, re-reads, failures, the
 always-riding prefix), inspect token-usage statistics, and
-export anything to JSON or markdown. Secrets are masked in search results
-and transcripts (a Settings toggle, on by default); JSON exports stay
-verbatim.
+export transcripts to JSON or Markdown and search results and statistics to
+JSON. The Settings toggle masks secrets in search results and transcripts by
+default. JSON exports stay verbatim.
 
 <p align="center">
   <img src="docs/images/desktop-home.png" alt="pastlog Desktop — Home: detected agents, sessions and indexed size" width="49%">
@@ -696,16 +696,16 @@ the OpenCode database with SQLite's `mode=ro` (see the
 
 | Agent | Storage location (home-relative) | Notes |
 |---|---|---|
-| claude-code | `~/.claude/projects/<escaped-cwd>/<session-uuid>.jsonl` | one JSONL file per session; the project comes from each record's `cwd` field (directory names are ambiguous and never decoded) |
-| codex | `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl` | one rollout JSONL per session (`session_meta` + `response_item` records) |
-| gemini-cli | `~/.gemini/tmp/<project-hash>/chats/session-*.jsonl` (+ `chats.json` for legacy stores) | `<project-hash>` is not decodable; the project comes from the records' `directories[]` |
+| claude-code | `~/.claude/projects/<escaped-cwd>/<session-uuid>.jsonl`, plus `<session-uuid>/subagents/*.jsonl` | Auto-discovery also honors `CLAUDE_CONFIG_DIR/projects`. An explicit home takes precedence. Project paths come from `cwd`. |
+| codex | `~/.codex/sessions/YYYY/MM/DD/` and `~/.codex/archived_sessions/` | Reads `rollout-*.jsonl` and `rollout-*.jsonl.zst`. Auto-discovery honors `CODEX_HOME` when set. |
+| antigravity | `~/.gemini/antigravity-cli/brain/<id>/.system_generated/logs/` and `~/.gemini/antigravity-cli/conversations/<id>.db` | Reads `agy` transcripts and token data from SQLite in read-only mode. Prefers `transcript_full.jsonl` when both transcript versions exist. |
 | opencode | `~/.local/share/opencode/opencode.db`; on Windows `%LOCALAPPDATA%\opencode\opencode.db` first, falling back to `~/.local/share/opencode/opencode.db`; on macOS/Linux `$XDG_DATA_HOME/opencode/opencode.db` (when the variable is set) first, falling back to `~/.local/share/opencode/opencode.db` (first existing wins) | SQLite database, opened strictly read-only (`?mode=ro`); if it is locked by a running OpenCode instance, pastlog warns once and continues with the other agents |
 | zcode | `~/.zcode/cli/db/db.sqlite` | SQLite database, opened strictly read-only (`?mode=ro`); if it is locked by a running ZCode instance, pastlog warns once and continues with the other agents |
 
 Schema details per agent, including exactly what is parsed, skipped, and
 counted: [`internal/adapters/claudecode/SCHEMA.md`](internal/adapters/claudecode/SCHEMA.md),
 [`internal/adapters/codex/SCHEMA.md`](internal/adapters/codex/SCHEMA.md),
-[`internal/adapters/geminicli/SCHEMA.md`](internal/adapters/geminicli/SCHEMA.md),
+[`internal/adapters/antigravity/SCHEMA.md`](internal/adapters/antigravity/SCHEMA.md),
 [`internal/adapters/opencode/SCHEMA.md`](internal/adapters/opencode/SCHEMA.md),
 [`internal/adapters/zcode/SCHEMA.md`](internal/adapters/zcode/SCHEMA.md).
 
@@ -811,7 +811,7 @@ its count is a lower bound.
 Per-agent schema notes live next to the adapters —
 [claude-code](internal/adapters/claudecode/SCHEMA.md),
 [codex](internal/adapters/codex/SCHEMA.md),
-[gemini-cli](internal/adapters/geminicli/SCHEMA.md),
+[antigravity](internal/adapters/antigravity/SCHEMA.md),
 [opencode](internal/adapters/opencode/SCHEMA.md) — including what is parsed,
 skipped, and counted. If a format change makes pastlog miss or misread your
 sessions, open an issue at

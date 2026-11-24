@@ -10,7 +10,7 @@
   import { fmtTime } from '../lib/format';
   import { renderMarkdown } from '../lib/markdown';
   import { go } from '../lib/stores.svelte';
-  import { viewer } from '../lib/viewer.svelte';
+  import { openSession, viewer } from '../lib/viewer.svelte';
   import Notes from '../components/Notes.svelte';
   import Loader from '../components/Loader.svelte';
 
@@ -147,8 +147,7 @@
 
   // a related row opens that session in the same viewer
   function openRelated(id: string) {
-    openSession(id, undefined, 'viewer');
-    go('viewer');
+    openSession(id);
   }
 
   async function loadModels() {

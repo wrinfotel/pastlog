@@ -33,11 +33,10 @@ func newOptimizeCmd(stdout, stderr io.Writer) *cobra.Command {
 			"advice only — pastlog never writes to agent storage or config.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			home, err := homeDir(cmd)
+			_, reg, err := commandRegistry(cmd)
 			if err != nil {
 				return err
 			}
-			reg := NewRegistry(home)
 			adapters := reg.Adapters()
 			if agentName != "" {
 				if _, ok := reg.Get(agentName); !ok {

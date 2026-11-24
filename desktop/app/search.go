@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wrinfotel/pastlog/internal/cli"
-	"github.com/wrinfotel/pastlog/internal/mask"
+	"github.com/wrinfotel/pastlog/internal/agentlog"
 	"github.com/wrinfotel/pastlog/internal/render"
 	"github.com/wrinfotel/pastlog/internal/search"
 )
@@ -53,67 +52,59 @@ type SearchOutcome struct {
 // per R-D10: cards never render fields living beyond record line 1) with
 // progress events and cancellation. Long-op #1 of the GUI.
 func (a *App) Search(query string, o SearchOptions) (SearchOutcome, error) {
-	if strings.TrimSpace(query) == "" {
-		return SearchOutcome{}, fmt.Errorf("empty query")
-	}
-	home, err := a.effectiveHome()
-	if err != nil {
-		return SearchOutcome{}, err
-	}
-	reg := cli.NewRegistry(home)
-	if err := validateAgent(reg, o.Filter.Agent); err != nil {
-		return SearchOutcome{}, err
-	}
-	filter, err := a.buildFilter(o.Filter)
-	if err != nil {
-		return SearchOutcome{}, err
-	}
-	m, err := search.NewMatcher(query, search.MatchOptions{CaseSensitive: o.CaseSensitive, Regex: o.Regex})
+	adapters, matcher, opts, err := a.prepareSearch(query, o)
 	if err != nil {
 		return SearchOutcome{}, err
 	}
 
 	gen, searchHook, _ := a.begin("search")
-	adapters := reg.Adapters()
 	var notes []string
-	results := search.Run(adapters, m, search.EngineOptions{
-		Filter:      filter,
-		Sessions:    o.Filter.Limit,
-		MaxHits:     o.MaxHits,
-		FastListing: true,
-		Progress:    searchHook,
-		Note:        func(note string) { notes = append(notes, note) },
-	})
+	opts.FastListing = true
+	opts.MaskSecrets = a.masking()
+	opts.Progress = searchHook
+	opts.Note = func(note string) { notes = append(notes, note) }
+	results := search.Run(adapters, matcher, opts)
 	hits := 0
 	for _, r := range results {
 		hits += len(r.Hits)
 	}
-	// Render-time redaction (GUI counterpart of the CLI's default masking):
-	// the raw data was already searched; only what the user sees changes.
-	// Match offsets were computed on raw lines, so re-locate them on the
-	// masked line — a needle inside a secret renders unhighlighted.
-	if a.masking() {
-		for i := range results {
-			for j := range results[i].Hits {
-				h := &results[i].Hits[j]
-				h.Line = mask.Mask(h.Line)
-				h.Context = mask.Mask(h.Context)
-				if start, end, ok := m.Locate(h.Line); ok {
-					h.MatchStart, h.MatchEnd = start, end
-				} else {
-					h.MatchStart, h.MatchEnd = -1, 0
-				}
-				h.Entry.Text = mask.Mask(h.Entry.Text)
-			}
-		}
-	}
 	return SearchOutcome{
 		Results:   guiResults(results),
 		Hits:      hits,
-		Truncated: o.MaxHits > 0 && hits >= o.MaxHits,
+		Truncated: opts.MaxHits > 0 && hits >= opts.MaxHits,
 		Cancelled: !a.stillActive(gen),
 		Notes:     a.combineNotes(adapters, notes),
 	}, nil
+}
+
+func (a *App) prepareSearch(query string, o SearchOptions) ([]agentlog.Adapter, *search.Matcher, search.EngineOptions, error) {
+	var opts search.EngineOptions
+	if strings.TrimSpace(query) == "" {
+		return nil, nil, opts, fmt.Errorf("empty query")
+	}
+	if o.MaxHits < 0 {
+		return nil, nil, opts, fmt.Errorf("max hits must be non-negative")
+	}
+	_, reg, err := a.registry()
+	if err != nil {
+		return nil, nil, opts, err
+	}
+	if err := validateAgent(reg, o.Filter.Agent); err != nil {
+		return nil, nil, opts, err
+	}
+	filter, err := a.buildFilter(o.Filter)
+	if err != nil {
+		return nil, nil, opts, err
+	}
+	m, err := search.NewMatcher(query, search.MatchOptions{CaseSensitive: o.CaseSensitive, Regex: o.Regex})
+	if err != nil {
+		return nil, nil, opts, err
+	}
+
+	opts.Filter = filter
+	opts.Sessions = filter.Limit
+	opts.MaxHits = o.MaxHits
+	return reg.Adapters(), m, opts, nil
 }
 
 // guiResults maps engine results to the GUI surface: the stable search-schema

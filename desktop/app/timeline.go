@@ -22,11 +22,10 @@ type TimelineOutcome struct {
 // output, never shows raw secrets; the JSON schema itself stays verbatim and
 // masking applies to the rendered Text only.
 func (a *App) Timeline(f FilterOptions) (TimelineOutcome, error) {
-	home, err := a.effectiveHome()
+	_, reg, err := a.registry()
 	if err != nil {
 		return TimelineOutcome{}, err
 	}
-	reg := cli.NewRegistry(home)
 	if err := validateAgent(reg, f.Agent); err != nil {
 		return TimelineOutcome{}, err
 	}

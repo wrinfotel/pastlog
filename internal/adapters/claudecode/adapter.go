@@ -34,18 +34,21 @@ const (
 // goroutine. Reading SkippedLines concurrently with a scan races; read it
 // after scans finish.
 type Adapter struct {
-	home    string
+	dir     string
 	skipped int               // unreadable/unknown lines, accumulated across scans (see type doc)
 	index   map[string]string // session id -> file path, built lazily (see fileForSession)
 }
 
 // New builds an adapter rooted at the given user home directory.
-func New(home string) *Adapter { return &Adapter{home: home} }
+func New(home string) *Adapter { return NewProjectsDir(filepath.Join(home, ".claude", "projects")) }
+
+// NewProjectsDir uses an explicit Claude projects directory.
+func NewProjectsDir(dir string) *Adapter { return &Adapter{dir: dir} }
 
 func (a *Adapter) Name() string { return agentName }
 
 func (a *Adapter) Detect() bool {
-	info, err := os.Stat(a.projectsDir())
+	info, err := os.Stat(a.dir)
 	return err == nil && info.IsDir()
 }
 
@@ -56,11 +59,7 @@ func (a *Adapter) SkippedLines() int { return a.skipped }
 
 // StoragePath implements agentlog.PathSource: the directory scanned for
 // sessions, for display in `agents`.
-func (a *Adapter) StoragePath() string { return a.projectsDir() }
-
-func (a *Adapter) projectsDir() string {
-	return filepath.Join(a.home, ".claude", "projects")
-}
+func (a *Adapter) StoragePath() string { return a.dir }
 
 func (a *Adapter) Sessions(iter func(agentlog.Session) error) error {
 	return a.walk(func(m agentlog.SessionMeta) error {
@@ -75,50 +74,44 @@ func (a *Adapter) SessionsMeta(iter func(agentlog.SessionMeta) error) error {
 }
 
 // SessionsUsage implements agentlog.UsageSource (M7): token usage comes from
-// the same streaming pass that yields sessions — message.usage fields
-// accumulate per session (input/output/cache read/cache write), Model is the
-// LAST non-empty message.model in the file. Usage of the wrong shape
-// contributes zero and keeps the line readable (SCHEMA.md). claude-code
-// records carry no per-session cost: HasCost stays false.
+// the same pass that yields sessions. Blocks sharing a response ID update one
+// usage snapshot. The last non-empty model remains the session model.
 func (a *Adapter) SessionsUsage(iter func(agentlog.SessionUsage) error) error {
-	return a.walkSummaries(func(sum fileSummary, path string) error {
-		meta := sum.meta(path)
+	return a.walkSummaries(true, func(meta agentlog.SessionMeta, split agentlog.ModelSplit) error {
+		usage := split.Total()
+		usage.Model = split.Latest()
 		return iter(agentlog.SessionUsage{
 			Session:  meta.Session,
 			Messages: meta.Messages,
-			Usage:    sum.usage(),
-			Models:   sum.split.Split(),
+			Usage:    usage,
+			Models:   split.Split(),
 		})
 	})
 }
 
 // SessionsMetaFast implements agentlog.FastMetaSource: the search flow lists
 // sessions from the FIRST record line of each file plus a stat, instead of
-// parsing every line (spec §7: listing must not dominate a search run).
-// Line 1 carries sessionId, cwd and timestamp in practice; when it does not,
-// the file falls back to the full parse so ids, projects, start timestamps,
-// filters and sort order stay identical to SessionsMeta. Fields beyond line 1
-// (last timestamp, message counts, summary titles) are zero on this path.
+// parsing every line. Leading bookkeeping is skipped. If the first
+// transcript record lacks required metadata, the full parse provides it.
 func (a *Adapter) SessionsMetaFast(iter func(agentlog.SessionMeta) error) (bool, error) {
 	files, err := a.sessionFiles()
 	if err != nil {
 		return true, fmt.Errorf("cannot list claude-code storage: %v", err)
 	}
-	for _, path := range files {
-		m, fast := a.fastMeta(path)
+	parents := make(map[string]agentlog.Session)
+	for _, file := range files {
+		m, fast := a.fastMeta(file)
 		if !fast {
-			sum, err := a.scanFile(path, nil, nil)
+			sum, err := a.scanFile(file.path, nil, nil, false)
 			if err != nil {
 				return true, err
 			}
 			if !sum.sawLine {
 				continue // empty (or blank) file: not a session
 			}
-			a.registerIDs(path, sum.sessionID)
-			m = sum.meta(path)
-		} else {
-			a.registerIDs(path, m.ID)
+			m = sum.meta(file)
 		}
+		a.linkSession(file, &m, parents)
 		if err := iter(m); err != nil {
 			return true, err
 		}
@@ -129,8 +122,8 @@ func (a *Adapter) SessionsMetaFast(iter func(agentlog.SessionMeta) error) (bool,
 // fastMeta builds session metadata from the file's first non-empty line plus
 // a stat. fast=false when that line is not a classified record carrying all
 // of sessionId, cwd and timestamp — the caller then does a full parse.
-func (a *Adapter) fastMeta(path string) (agentlog.SessionMeta, bool) {
-	f, err := os.Open(path)
+func (a *Adapter) fastMeta(file sessionFile) (agentlog.SessionMeta, bool) {
+	f, err := os.Open(file.path)
 	if err != nil {
 		return agentlog.SessionMeta{}, false
 	}
@@ -149,12 +142,15 @@ func (a *Adapter) fastMeta(path string) (agentlog.SessionMeta, bool) {
 			continue
 		}
 		res := processLine(line)
-		if !res.ok || res.info.sessionID == "" || res.info.cwd == "" || res.info.ts.IsZero() {
+		if res.ignored {
+			continue
+		}
+		if !res.ok || (res.info.sessionID == "" && file.parentPath == "") || res.info.cwd == "" || res.info.ts.IsZero() {
 			return agentlog.SessionMeta{}, false
 		}
 		return agentlog.SessionMeta{
 			Session: agentlog.Session{
-				ID:        res.info.sessionID,
+				ID:        file.id(res.info.sessionID),
 				Agent:     agentName,
 				Project:   res.info.cwd,
 				StartedAt: res.info.ts,
@@ -182,14 +178,14 @@ func (a *Adapter) entriesFor(s agentlog.Session, keep func([]byte) bool, iter fu
 	if !found {
 		return fmt.Errorf("session %s not found in claude-code storage", s.ID)
 	}
-	_, err := a.scanFile(path, keep, iter)
+	_, err := a.scanFile(path, keep, iter, false)
 	return err
 }
 
 // walk streams every session file, in sorted path order, through iter.
 func (a *Adapter) walk(iter func(agentlog.SessionMeta) error) error {
-	return a.walkSummaries(func(sum fileSummary, path string) error {
-		return iter(sum.meta(path))
+	return a.walkSummaries(false, func(meta agentlog.SessionMeta, _ agentlog.ModelSplit) error {
+		return iter(meta)
 	})
 }
 
@@ -197,25 +193,45 @@ func (a *Adapter) walk(iter func(agentlog.SessionMeta) error) error {
 // one shared storage walk behind Sessions, SessionsMeta (meta view) and
 // SessionsUsage (usage view), so all listing passes scan the files once, in
 // the same sorted order, and skip/usage accounting stays identical.
-func (a *Adapter) walkSummaries(iter func(sum fileSummary, path string) error) error {
+func (a *Adapter) walkSummaries(withUsage bool, iter func(agentlog.SessionMeta, agentlog.ModelSplit) error) error {
 	files, err := a.sessionFiles()
 	if err != nil {
 		return fmt.Errorf("cannot list claude-code storage: %v", err)
 	}
-	for _, path := range files {
-		sum, err := a.scanFile(path, nil, nil)
+	parents := make(map[string]agentlog.Session)
+	for _, file := range files {
+		sum, err := a.scanFile(file.path, nil, nil, withUsage)
 		if err != nil {
 			return err // with a nil emit this cannot fire today; propagation keeps listing honest if scanFile ever gains an error path
 		}
 		if !sum.sawLine {
 			continue // empty (or blank) file: not a session
 		}
-		a.registerIDs(path, sum.sessionID)
-		if err := iter(sum, path); err != nil {
+		meta := sum.meta(file)
+		a.linkSession(file, &meta, parents)
+		if err := iter(meta, sum.split); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// linkSession uses the parent's canonical ID, which can differ from its
+// filename. A child without cwd inherits its parent's project.
+func (a *Adapter) linkSession(file sessionFile, meta *agentlog.SessionMeta, parents map[string]agentlog.Session) {
+	a.registerIDs(file, meta.ID)
+	if file.parentPath == "" {
+		parents[file.path] = meta.Session
+		return
+	}
+	parent, found := parents[file.parentPath]
+	meta.ParentID = file.parentStem()
+	if found {
+		meta.ParentID = parent.ID
+		if meta.Project == "" {
+			meta.Project = parent.Project
+		}
+	}
 }
 
 // fileSummary aggregates one scanned file.
@@ -227,21 +243,13 @@ type fileSummary struct {
 	messages           int
 	size               int64
 	sawLine            bool
-	split              agentlog.ModelSplit // per-model usage accumulation (M7, TASK.md backlog)
+	split              agentlog.ModelSplit
 }
 
-// usage renders the session's totals: every observed record summed, with
-// Model = the last non-empty message.model (pre-split semantics preserved).
-func (f fileSummary) usage() agentlog.Usage {
-	u := f.split.Total()
-	u.Model = f.split.Latest()
-	return u
-}
-
-func (f fileSummary) meta(path string) agentlog.SessionMeta {
+func (f fileSummary) meta(file sessionFile) agentlog.SessionMeta {
 	return agentlog.SessionMeta{
 		Session: agentlog.Session{
-			ID:        f.id(path),
+			ID:        file.id(f.sessionID),
 			Agent:     agentName,
 			Project:   f.cwd,
 			Title:     f.title,
@@ -253,22 +261,15 @@ func (f fileSummary) meta(path string) agentlog.SessionMeta {
 	}
 }
 
-// id prefers the records' sessionId field; the filename is the fallback.
-func (f fileSummary) id(path string) string {
-	if f.sessionID != "" {
-		return f.sessionID
-	}
-	return strings.TrimSuffix(filepath.Base(path), ".jsonl")
-}
-
 // scanFile streams one JSONL file. keep may be nil (keep every line); when
 // set, lines failing it are skipped before parsing (search prefilter).
 // emit may be nil (listing mode); when set, every classified entry is
 // forwarded and a non-nil error aborts the scan (early cutoff). Unreadable
 // lines increment the adapter-wide skipped counter. Never panics on
 // malformed input.
-func (a *Adapter) scanFile(path string, keep func([]byte) bool, emit func(agentlog.Entry) error) (fileSummary, error) {
+func (a *Adapter) scanFile(path string, keep func([]byte) bool, emit func(agentlog.Entry) error, withUsage bool) (fileSummary, error) {
 	var sum fileSummary
+	var usage sessionUsage
 
 	f, err := os.Open(path)
 	if err != nil {
@@ -292,6 +293,9 @@ func (a *Adapter) scanFile(path string, keep func([]byte) bool, emit func(agentl
 			continue // prefilter: not a candidate, not an error
 		}
 		res := processLine(line)
+		if res.ignored {
+			continue
+		}
 		if !res.ok {
 			a.skipped++
 			continue
@@ -312,18 +316,8 @@ func (a *Adapter) scanFile(path string, keep func([]byte) bool, emit func(agentl
 		if info.summary != "" && sum.title == "" {
 			sum.title = info.summary
 		}
-		// TASK.md backlog: each record's usage lands on its message.model, so
-		// tokens from mid-session model switches stay with the model that
-		// consumed them; a record without a model keeps the model in effect
-		if u := info.usage; u != nil {
-			sum.split.Observe(info.model, agentlog.Usage{
-				Input:      ptrVal(u.InputTokens),
-				Output:     ptrVal(u.OutputTokens),
-				CacheWrite: ptrVal(u.CacheCreationInputTokens),
-				CacheRead:  ptrVal(u.CacheReadInputTokens),
-			})
-		} else if info.model != "" {
-			sum.split.Note(info.model) // last non-empty message.model wins
+		if withUsage {
+			usage.observe(info)
 		}
 		if !info.ts.IsZero() {
 			if sum.startedAt.IsZero() {
@@ -356,20 +350,39 @@ func (a *Adapter) scanFile(path string, keep func([]byte) bool, emit func(agentl
 			a.skipped++
 		}
 	}
+	if withUsage {
+		sum.split = usage.split()
+	}
 	return sum, nil
 }
 
-// sessionFiles lists all session JSONL paths, sorted for determinism
-// (WalkDir visits entries lexically, and files sort inside their directory).
-// It deliberately uses WalkDir instead of filepath.Glob: Glob silently
-// matches nothing when the home path contains glob metacharacters ([, *, ?),
-// while a directory walk is immune (M4). Only *.jsonl files directly inside
-// project directories are considered (SCHEMA.md) — files directly under
-// projects/ or nested deeper are ignored, exactly like the old
-// projects/*/*.jsonl pattern.
-func (a *Adapter) sessionFiles() ([]string, error) {
-	root := a.projectsDir()
-	var files []string
+type sessionFile struct {
+	path       string
+	parentPath string // sibling transcript of a subagent's containing directory
+}
+
+func (f sessionFile) parentStem() string {
+	return strings.TrimSuffix(filepath.Base(f.parentPath), ".jsonl")
+}
+
+func (f sessionFile) id(recordID string) string {
+	stem := strings.TrimSuffix(filepath.Base(f.path), ".jsonl")
+	if f.parentPath != "" {
+		// Some Claude versions reuse the parent's sessionId. The filename
+		// identifies the child, scoped by the containing parent session.
+		return stem + "@" + f.parentStem()
+	}
+	if recordID != "" {
+		return recordID
+	}
+	return stem
+}
+
+// sessionFiles walks the two transcript layouts and skips other sidecars.
+// Main sessions are returned first so each child can resolve its parent.
+func (a *Adapter) sessionFiles() ([]sessionFile, error) {
+	root := a.dir
+	var main, children []sessionFile
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if path == root && os.IsNotExist(err) {
@@ -377,24 +390,36 @@ func (a *Adapter) sessionFiles() ([]string, error) {
 			}
 			return err // unreadable storage: surfaced, not silently truncated
 		}
+		if path == root {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		parts := strings.Split(rel, string(filepath.Separator))
 		if d.IsDir() {
-			if path != root && filepath.Dir(path) != root {
-				return fs.SkipDir // sessions live exactly one level deep
+			if len(parts) > 3 || (len(parts) == 3 && parts[2] != "subagents") {
+				return fs.SkipDir
 			}
 			return nil
 		}
-		if filepath.Dir(path) == root {
-			return nil // stray file directly under projects/: not a session
+		if !strings.HasSuffix(d.Name(), ".jsonl") {
+			return nil
 		}
-		if strings.HasSuffix(d.Name(), ".jsonl") {
-			files = append(files, path)
+		switch {
+		case len(parts) == 2:
+			main = append(main, sessionFile{path: path})
+		case len(parts) == 4 && parts[2] == "subagents" && strings.HasPrefix(d.Name(), "agent-"):
+			parentPath := filepath.Join(root, parts[0], parts[1]+".jsonl")
+			children = append(children, sessionFile{path: path, parentPath: parentPath})
 		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return files, nil
+	return append(main, children...), nil
 }
 
 // fileForSession locates the JSONL file backing a session: first by filename
@@ -416,20 +441,15 @@ func (a *Adapter) fileForSession(id string) (string, bool) {
 	return path, ok
 }
 
-// registerIDs records a file's id spellings — filename minus .jsonl and the
-// first sessionId seen in the records — in the index. Files are visited in
-// sorted order and the first registration of an id wins.
-func (a *Adapter) registerIDs(path, recordID string) {
+// registerIDs indexes the canonical ID and the filename fallback. The first
+// registration wins when copied transcripts share a main session ID.
+func (a *Adapter) registerIDs(file sessionFile, id string) {
 	if a.index == nil {
 		a.index = map[string]string{}
 	}
-	base := strings.TrimSuffix(filepath.Base(path), ".jsonl")
-	if _, ok := a.index[base]; !ok {
-		a.index[base] = path
-	}
-	if recordID != "" {
-		if _, ok := a.index[recordID]; !ok {
-			a.index[recordID] = path
+	for _, key := range []string{file.id(""), id} {
+		if _, ok := a.index[key]; !ok {
+			a.index[key] = file.path
 		}
 	}
 }
@@ -442,8 +462,12 @@ func (a *Adapter) buildIndex() {
 		a.index = map[string]string{}
 		return
 	}
-	for _, path := range files {
-		a.registerIDs(path, a.fileSessionID(path))
+	for _, file := range files {
+		id := file.id("")
+		if file.parentPath == "" {
+			id = file.id(a.fileSessionID(file.path))
+		}
+		a.registerIDs(file, id)
 	}
 }
 

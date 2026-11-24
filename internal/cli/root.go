@@ -9,7 +9,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/wrinfotel/pastlog/internal/agentlog"
-	"github.com/wrinfotel/pastlog/internal/discovery"
 	"github.com/wrinfotel/pastlog/internal/version"
 )
 
@@ -41,11 +40,11 @@ func newRootCmd(stdout, stderr io.Writer) *cobra.Command {
 			if err := cmd.Help(); err != nil {
 				return err
 			}
-			home, err := homeDir(cmd)
+			_, reg, err := commandRegistry(cmd)
 			if err != nil {
 				return err
 			}
-			printAgentSummary(cmd.OutOrStdout(), stderr, NewRegistry(home))
+			printAgentSummary(cmd.OutOrStdout(), stderr, reg)
 			return nil
 		},
 	}
@@ -79,13 +78,12 @@ func newRootCmd(stdout, stderr io.Writer) *cobra.Command {
 	return root
 }
 
-// homeDir resolves the effective home from the persistent --home flag.
-func homeDir(cmd *cobra.Command) (string, error) {
+func commandRegistry(cmd *cobra.Command) (string, *agentlog.Registry, error) {
 	override, err := cmd.Flags().GetString("home")
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
-	return discovery.Home(override)
+	return ResolveRegistry(override)
 }
 
 // printAgentSummary writes the one-line detected-agents summary shown by a

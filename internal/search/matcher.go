@@ -48,18 +48,10 @@ func NewMatcher(query string, o MatchOptions) (*Matcher, error) {
 	}
 	// The raw-line prefilter is enabled only for ASCII needles containing no
 	// JSON-escaped characters (control bytes, `"` or `\`) — controller
-	// ruling. Such bytes appear in the raw JSONL line verbatim whenever they
-	// appear in the parsed text, so rejecting a raw line can never lose a
-	// match. Documented limitations of that trade-off:
-	//   - encoders that escape printable ASCII (`\/`, HTML-escaped `< > &`)
-	//     can hide raw-line occurrences; such needles still match whenever
-	//     the raw line contains them verbatim, but the prefilter may skip
-	//     the line unparsed;
-	//   - case-insensitivity differs per path: a prefilter-eligible needle is
-	//     pure ASCII and matches via ASCII folding only (so exotic Unicode
-	//     case pairs like KELVIN SIGN in the text never match an ASCII
-	//     needle); a needle that is not prefilter-eligible is matched with
-	//     full Unicode case-folding instead, where such pairs do match.
+	// ruling. KeepRaw also keeps lines with escapes that might encode those
+	// printable characters. A prefilter-eligible needle uses ASCII case
+	// folding (so the Kelvin sign never matches "k"); other needles use
+	// Unicode case folding.
 	m.prefilter = prefilterEligible(query)
 	if m.prefilter && !o.CaseSensitive {
 		m.folded = asciiFold(query)
@@ -109,13 +101,19 @@ func (m *Matcher) KeepRaw() func(rawLine []byte) bool {
 	if !m.prefilter {
 		return nil
 	}
+	// Printable ASCII can be represented by \u escapes, and a slash can
+	// also be written as \/. Leave those lines to the normal JSON parser.
+	hasSlash := strings.Contains(m.literal, "/")
+	mayEncodeMatch := func(line []byte) bool {
+		return bytes.Contains(line, []byte("\\u")) || hasSlash && bytes.Contains(line, []byte("\\/"))
+	}
 	if m.opts.CaseSensitive {
 		needle := []byte(m.literal)
-		return func(line []byte) bool { return bytes.Contains(line, needle) }
+		return func(line []byte) bool { return bytes.Contains(line, needle) || mayEncodeMatch(line) }
 	}
 	folded := []byte(m.folded)
 	probe := probeIndex(folded)
-	return func(line []byte) bool { return containsASCIIFold(line, folded, probe) }
+	return func(line []byte) bool { return containsASCIIFold(line, folded, probe) || mayEncodeMatch(line) }
 }
 
 // prefilterEligible reports whether the query is ASCII with no JSON-escaped

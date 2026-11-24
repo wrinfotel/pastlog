@@ -58,7 +58,7 @@ mapping (identical to the opencode adapter):
 |---|---|
 | `text` (`.text` non-empty) | Message (role from the message) |
 | `reasoning` (`.text` non-empty) | Summary, role `assistant` |
-| `tool` | ToolCall (compact JSON of `.state.input`, falling back to `.tool`) and, when `.state.output` is non-empty, ToolResult with the output text |
+| `tool` | ToolCall (compact JSON of `.state.input`, falling back to `.tool`) and ToolResult with `.state.output` or, if absent, `.state.error` |
 | `file`, `timeline`, `step-start`, `step-finish`, `compaction` | recognized on real data, mapped to no entry, **dropped silently** |
 | anything else | unknown shape → counted as skipped (spec §8) |
 
@@ -76,6 +76,13 @@ pastlog sums this table per session (`SessionsUsage`; also powers `stats`):
 | `input_tokens`, `output_tokens`, `reasoning_tokens` | summed into Usage.Input/Output/Reasoning |
 | `cache_creation_input_tokens`, `cache_read_input_tokens` | summed into Usage.CacheWrite / CacheRead |
 | `model_id` | Usage.Model = the model of the **latest** request (rows stream in `started_at` order, last non-empty wins), and the group key of the per-model breakdown below |
+| `provider_total_tokens`, `computed_total_tokens` | used to distinguish gross token counts from separate counters |
+
+When a reported total matches input plus output, the adapter treats input
+as cache-inclusive and avoids adding reasoning to output a second time.
+The breakdown still lists cache and reasoning separately. If the provider
+total is absent, the adapter checks the computed total. Older records
+without usable totals keep the separate-counter convention.
 
 Rows with failed/cancelled status keep their token counts (tokens spent are
 tokens spent). ZCode exposes **no cost**: Usage.HasCost stays `false` and
@@ -118,18 +125,18 @@ The adapter implements `agentlog.CtxSource` (`ctxextract.go`): the session's
 parts (the same ordered cursor `Entries` uses) merged with `model_usage`
 rows, mapped onto the normalized `CtxEvent` IR.
 
-- One `model_usage` row per model request → one TurnStart with **exact**
-  tokens: Input+CacheWrite+CacheRead is that turn's window proxy (columns
-  map like the stats view above). Rows stream in `started_at` order and are
-  merged with the parts cursor by timestamp — a request lands before the
-  parts it produced (ties included). Databases older than the table degrade
-  to a token-less stream.
+- A `model_usage` row with measured input emits one TurnStart with exact
+  tokens. The window sums uncached input, cache writes and cache reads.
+  For gross input the cache counts are subtracted from the input field
+  before the sum. Failed or cancelled requests with no measured input
+  leave the last known window intact. Requests stream in `started_at`
+  order and merge with the parts cursor by timestamp. Databases older
+  than the table degrade to a token-less stream.
 - `compaction` parts → Compact events; sessions recording only
   `session.time_compacting` get one synthesized there.
-- `tool` parts → ToolCall/ToolResult. A `state.status` naming an error
-  ("error"/"failed") is an exact flag; absent statuses fall back to the
-  uniform error-shape regex (SPEC §2.2) — observed statuses are
-  "completed"/"pending".
+- `tool` parts → ToolCall/ToolResult. An explicit `state.error` or an
+  error status flags the result as failed. With no error text or status,
+  the uniform error-shape regex applies (SPEC §2.2).
 
 The context flow skips unusable rows silently and does not touch the shared
 skipped counter.

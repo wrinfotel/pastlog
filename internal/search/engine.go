@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/wrinfotel/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/mask"
 )
 
 // DefaultMaxHits caps the total hits printed when --max-hits is not given
@@ -40,6 +41,9 @@ type EngineOptions struct {
 	Filter   agentlog.SessionFilter
 	Sessions int // max sessions scanned, 0 = unlimited
 	MaxHits  int // total hits cap across all sessions, 0 = unlimited
+	// MaskSecrets redacts displayed entries and context before building
+	// snippets. Matching still runs on the original text.
+	MaskSecrets bool
 	// FastListing lets adapters implementing agentlog.FastMetaSource list
 	// sessions from cheap sources (first record line + stat) instead of a
 	// full parse — spec §7: the search flow must not spend most of its time
@@ -104,9 +108,20 @@ func Run(adapters []agentlog.Adapter, m *Matcher, o EngineOptions) []Result {
 				return nil // nothing to match or show
 			}
 			if start, end, ok := m.Locate(e.Text); ok {
-				sn := buildSnippet(prev, e.Text, start, end)
+				context, text := prev, e.Text
+				highlight := true
+				if o.MaskSecrets {
+					context = mask.Mask(context)
+					text, start, end, highlight = mask.MaskMatch(text, start, end)
+				}
+				sn := buildSnippet(context, text, start, end)
+				if !highlight {
+					sn.matchStart, sn.matchEnd = -1, 0
+				}
+				displayEntry := e
+				displayEntry.Text = text
 				res.Hits = append(res.Hits, Hit{
-					Entry:      e,
+					Entry:      displayEntry,
 					Context:    sn.context,
 					Line:       sn.line,
 					MatchStart: sn.matchStart,

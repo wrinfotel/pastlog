@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/wrinfotel/pastlog/internal/agentlog"
+	"github.com/wrinfotel/pastlog/internal/cli"
 	"github.com/wrinfotel/pastlog/internal/discovery"
 )
 
@@ -83,13 +85,12 @@ func (a *App) effectiveHomeFor(override string) (string, error) {
 	return discovery.Home(override)
 }
 
-// effectiveHome resolves the home the services scan: the stored override
-// when set, else auto-discovery — the zero-config default.
-func (a *App) effectiveHome() (string, error) {
+// registry snapshots the saved home override before resolving agent storage.
+func (a *App) registry() (string, *agentlog.Registry, error) {
 	a.mu.Lock()
 	override := a.cfg.Home
 	a.mu.Unlock()
-	return discovery.Home(override)
+	return cli.ResolveRegistry(override)
 }
 
 // errInvalidTheme builds the theme validation error.

@@ -16,11 +16,11 @@ func newAgentsCmd(stdout, stderr io.Writer) *cobra.Command {
 		Short: "list detected agent sources with session counts",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			home, err := homeDir(cmd)
+			home, reg, err := commandRegistry(cmd)
 			if err != nil {
 				return err
 			}
-			adapters := NewRegistry(home).Adapters()
+			adapters := reg.Adapters()
 
 			rows := make([]render.AgentRow, len(adapters))
 			for i, a := range adapters {

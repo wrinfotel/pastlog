@@ -4,6 +4,7 @@ go 1.27
 
 require (
 	github.com/fatih/color v1.19.0
+	github.com/klauspost/compress v1.19.2
 	github.com/spf13/cobra v1.10.2
 	github.com/wailsapp/wails/v2 v2.16.0
 	modernc.org/sqlite v1.58.0

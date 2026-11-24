@@ -8,6 +8,7 @@
   import { go } from '../lib/stores.svelte';
   import { openAgentProjects } from '../lib/projects.svelte';
   import FilterBar from '../components/FilterBar.svelte';
+  import JsonExport from '../components/JsonExport.svelte';
   import Notes from '../components/Notes.svelte';
   import Loader from '../components/Loader.svelte';
 
@@ -28,6 +29,7 @@
   let error = $state('');
   let progress = $state<{ scanned: number } | null>(null);
   let loading = $state(true);
+  let writeExport = $state<((path: string) => Promise<void>) | null>(null);
 
   api.diagnostics().then((d) => (agents = d.agents.map((a) => a.name)));
   const stopProgress = onProgress((e) => {
@@ -41,19 +43,22 @@
     loading = true;
     progress = null;
     try {
-      const o = await api.stats({
+      const options = {
         filter: { ...filters },
         by,
         model,
-      });
+      };
+      const o = await api.stats(options);
       if (mine !== seq) return; // a newer selection superseded this load
       rows = o.rows as Row[];
       notes = o.notes ?? [];
+      writeExport = (path) => api.exportStats(options, path);
       error = '';
     } catch (e) {
       if (mine !== seq) return;
       rows = [];
       notes = [];
+      writeExport = null;
       error = String(e);
     } finally {
       if (mine === seq) {
@@ -110,6 +115,7 @@
     model
     <input type="text" bind:value={model} placeholder="substring" oninput={loadDebounced} />
   </label>
+  <JsonExport filename="pastlog-stats.json" write={loading ? null : writeExport} />
 </FilterBar>
 {#if !loading}<Notes {notes} />{/if}
 

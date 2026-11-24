@@ -6,6 +6,56 @@ import (
 	"github.com/wrinfotel/pastlog/internal/agentlog"
 )
 
+func TestSplitAssistantResponseCountsOnce(t *testing.T) {
+	a := writeHomeLine(t,
+		`{"type":"assistant","message":{"id":"first","model":"sonnet","content":[{"type":"text","text":"first block"}],"usage":{"input_tokens":100,"output_tokens":1,"cache_read_input_tokens":50}}}`,
+		`{"type":"assistant","message":{"id":"second","model":"opus","content":"another response","usage":{"input_tokens":7,"output_tokens":3}}}`,
+		`{"type":"assistant","message":{"id":"first","content":[{"type":"tool_use","name":"Read","input":{"file_path":"example.txt"}}],"usage":{"output_tokens":20,"cache_read_input_tokens":50}}}`,
+		`{"type":"assistant","requestId":"legacy-request","message":{"content":"without message id","usage":{"input_tokens":3,"output_tokens":2}}}`,
+		`{"type":"assistant","requestId":"legacy-request","message":{"content":[],"usage":{"input_tokens":3,"output_tokens":2}}}`,
+	)
+	session := listUsage(t, a)[0]
+	if session.Input != 110 || session.Output != 25 || session.CacheRead != 50 || session.Model != "opus" {
+		t.Errorf("usage = %+v, want input=110 output=25 cache read=50 latest=opus", session.Usage)
+	}
+	want := []agentlog.Usage{
+		{Model: "sonnet", Input: 100, Output: 20, CacheRead: 50},
+		{Model: "opus", Input: 10, Output: 5},
+	}
+	if len(session.Models) != len(want) || session.Models[0] != want[0] || session.Models[1] != want[1] {
+		t.Errorf("models = %+v, want %+v", session.Models, want)
+	}
+	events, err := a.ContextEvents(session.Session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var turns []agentlog.CtxEvent
+	var calls int
+	for _, e := range events {
+		switch e.Kind {
+		case agentlog.CtxTurnStart:
+			turns = append(turns, e)
+		case agentlog.CtxToolCall:
+			calls++
+		}
+	}
+	if calls != 1 || len(turns) != 3 || turns[0].Tokens.Input != 100 || turns[0].Tokens.Output != 20 {
+		t.Errorf("calls = %d, turns = %+v, want one call and three turns with updated first usage", calls, turns)
+	}
+}
+
+func TestDeferredUsageKeepsOriginalModel(t *testing.T) {
+	a := writeHomeLine(t,
+		`{"type":"assistant","message":{"id":"first","model":"sonnet","content":"start"}}`,
+		`{"type":"assistant","message":{"id":"second","model":"opus","content":"another response","usage":{"input_tokens":7}}}`,
+		`{"type":"assistant","message":{"id":"first","content":"finish","usage":{"input_tokens":100}}}`,
+	)
+	models := listUsage(t, a)[0].Models
+	if len(models) != 2 || models[0].Model != "sonnet" || models[0].Input != 100 || models[1].Model != "opus" || models[1].Input != 7 {
+		t.Errorf("models = %+v, want usage attributed to each response's model", models)
+	}
+}
+
 // listUsage streams SessionsUsage through a collecting iterator.
 func listUsage(t *testing.T, a *Adapter) []agentlog.SessionUsage {
 	t.Helper()

@@ -18,7 +18,7 @@ const agents: Row[] = [
   { name: 'codex', detected: true, path: 'C:\\Users\\dev\\.codex\\sessions', sessions: 187, bytes: 943_000_000 },
   { name: 'opencode', detected: true, path: 'C:\\Users\\dev\\.local\\share\\opencode', sessions: 28, bytes: 61_400_000 },
   { name: 'zcode', detected: true, path: 'C:\\Users\\dev\\.zcode\\sessions', sessions: 96, bytes: 418_500_000 },
-  { name: 'gemini-cli', detected: false, path: null, sessions: 0, bytes: 0 },
+  { name: 'antigravity', detected: false, path: null, sessions: 0, bytes: 0 },
 ];
 
 const projects = [
@@ -472,10 +472,6 @@ export async function ExportSessions() {
   return { status: 'ok' };
 }
 
-export async function ExportSearch() {
-  return { status: 'ok' };
-}
+export async function ExportSearch() {}
 
-export async function ExportStats() {
-  return { status: 'ok' };
-}
+export async function ExportStats() {}

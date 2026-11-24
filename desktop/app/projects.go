@@ -2,7 +2,6 @@ package app
 
 import (
 	"github.com/wrinfotel/pastlog/internal/agentlog"
-	"github.com/wrinfotel/pastlog/internal/cli"
 	"github.com/wrinfotel/pastlog/internal/render"
 )
 
@@ -37,11 +36,10 @@ type ProjectStatsOutcome struct {
 // Projects lists one agent's projects with their usage aggregates, keyed by
 // the raw project path. Long op: progress events and cancellation like Stats.
 func (a *App) Projects(agent string) (ProjectsOutcome, error) {
-	home, err := a.effectiveHome()
+	_, reg, err := a.registry()
 	if err != nil {
 		return ProjectsOutcome{}, err
 	}
-	reg := cli.NewRegistry(home)
 	if err := validateAgent(reg, agent); err != nil {
 		return ProjectsOutcome{}, err
 	}
@@ -73,11 +71,10 @@ func (a *App) Projects(agent string) (ProjectsOutcome, error) {
 // to the project's own sessions before grouping — sibling paths that merely
 // contain the project path as a substring stay out.
 func (a *App) ProjectStats(agent, project string) (ProjectStatsOutcome, error) {
-	home, err := a.effectiveHome()
+	home, reg, err := a.registry()
 	if err != nil {
 		return ProjectStatsOutcome{}, err
 	}
-	reg := cli.NewRegistry(home)
 	if err := validateAgent(reg, agent); err != nil {
 		return ProjectStatsOutcome{}, err
 	}
@@ -123,7 +120,7 @@ func projectRowOf(g render.StatsRow) ProjectRow {
 			Reasoning:  g.Usage.Reasoning,
 			CacheRead:  g.Usage.CacheRead,
 			CacheWrite: g.Usage.CacheWrite,
-			Total:      g.Usage.Input + g.Usage.Output + g.Usage.Reasoning,
+			Total:      g.Usage.TotalTokens(),
 		},
 		CostUSD: cost,
 	}

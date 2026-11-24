@@ -238,7 +238,7 @@ func NewStatsRows(rows []StatsRow) []StatsRowJSON {
 				Reasoning:  r.Usage.Reasoning,
 				CacheRead:  r.Usage.CacheRead,
 				CacheWrite: r.Usage.CacheWrite,
-				Total:      r.Usage.Input + r.Usage.Output + r.Usage.Reasoning,
+				Total:      r.Usage.TotalTokens(),
 			},
 			CostUSD: cost,
 		}

@@ -19,9 +19,26 @@ type record struct {
 
 // metaPayload is the session_meta payload.
 type metaPayload struct {
-	ID         string `json:"id"`
-	Cwd        string `json:"cwd"`
-	CLIVersion string `json:"cli_version"`
+	ID         string          `json:"id"`
+	Cwd        string          `json:"cwd"`
+	CLIVersion string          `json:"cli_version"`
+	Source     json.RawMessage `json:"source"`
+}
+
+// Session sources are strings for ordinary launches and tagged objects for
+// subagents. Only a spawned subagent's parent is relevant here.
+func (m metaPayload) parentID() string {
+	var source struct {
+		Subagent struct {
+			ThreadSpawn struct {
+				ParentID string `json:"parent_thread_id"`
+			} `json:"thread_spawn"`
+		} `json:"subagent"`
+	}
+	if err := json.Unmarshal(m.Source, &source); err != nil {
+		return ""
+	}
+	return source.Subagent.ThreadSpawn.ParentID
 }
 
 // itemPayload is one response_item payload; the fields used depend on the
@@ -67,11 +84,23 @@ func (u usageFields) present() bool {
 
 // usage materializes the fields; missing ones contribute zero.
 func (u usageFields) usage() tokenUsage {
-	return tokenUsage{
-		input:     ptrVal(u.InputTokens),
-		cached:    ptrVal(u.CachedInputTokens),
-		output:    ptrVal(u.OutputTokens),
-		reasoning: ptrVal(u.ReasoningOutputTokens),
+	var tokens tokenUsage
+	u.update(&tokens)
+	return tokens
+}
+
+func (u usageFields) update(tokens *tokenUsage) {
+	if u.InputTokens != nil {
+		tokens.input = max(0, *u.InputTokens)
+	}
+	if u.CachedInputTokens != nil {
+		tokens.cached = max(0, *u.CachedInputTokens)
+	}
+	if u.OutputTokens != nil {
+		tokens.output = max(0, *u.OutputTokens)
+	}
+	if u.ReasoningOutputTokens != nil {
+		tokens.reasoning = max(0, *u.ReasoningOutputTokens)
 	}
 }
 
@@ -115,32 +144,21 @@ type turnContextPayload struct {
 
 // lineInfo carries the per-line facts the session scanner aggregates.
 type lineInfo struct {
-	sessionID string
-	cwd       string
-	ts        time.Time
-	model     string      // turn_context model, "" when the record had none
-	tokens    *tokenUsage // cumulative usage totals, nil when the record had none
-	delta     *tokenUsage // per-turn usage delta, nil when absent (TASK.md backlog)
+	sessionID    string
+	parentID     string
+	cwd          string
+	ts           time.Time
+	model        string       // turn_context model, "" when the record had none
+	totals       *usageFields // cumulative usage totals, nil when absent
+	threadTotals bool         // totals belong to the token_usage_record series
 }
 
 // observeTotals folds one cumulative-totals observation: values are
 // cumulative in both usage series (token_count envelopes and
 // token_usage_records), so the scanner keeps the LAST one.
 func (li *lineInfo) observeTotals(total usageFields) {
-	t := total.usage()
-	li.tokens = &t
-}
-
-// observeDelta folds the token_count family's per-turn delta. Only that
-// family's last_token_usage is a true delta: its values sum to the
-// cumulative totals. A token_usage_record's turn_token_usage is per-response
-// gross usage — the same window is counted once per API call inside a turn,
-// so summing it overshoots the totals ~15× on real rollouts — and never
-// feeds the split (SCHEMA.md).
-func (li *lineInfo) observeDelta(last usageFields) {
-	if last.present() {
-		d := last.usage()
-		li.delta = &d
+	if total.present() {
+		li.totals = &total
 	}
 }
 
@@ -170,6 +188,7 @@ func processLine(line []byte) (info lineInfo, entries []agentlog.Entry, ok bool)
 			return info, nil, false // known type, unusable payload
 		}
 		info.sessionID = mp.ID
+		info.parentID = mp.parentID()
 		info.cwd = mp.Cwd
 		return info, nil, true
 	case "response_item":
@@ -195,7 +214,6 @@ func processLine(line []byte) (info lineInfo, entries []agentlog.Entry, ok bool)
 			return info, nil, false // known type, unusable payload
 		}
 		info.observeTotals(tp.Info.TotalTokenUsage)
-		info.observeDelta(tp.Info.LastTokenUsage)
 		return info, nil, true
 	case "event_msg":
 		// Recognized-silent envelope since the 0.2.6 format fix: current
@@ -212,14 +230,13 @@ func processLine(line []byte) (info lineInfo, entries []agentlog.Entry, ok bool)
 		}
 		if ep.Type == "token_count" {
 			info.observeTotals(ep.Info.TotalTokenUsage)
-			info.observeDelta(ep.Info.LastTokenUsage)
 		}
 		return info, nil, true
 	case "token_usage_record":
 		// Current rollouts' per-response usage record: thread_token_usage is
 		// a second cumulative totals source (observed to track the
-		// token_count envelope's total within ~2%). turn_token_usage is NOT
-		// a summable delta — see observeDelta — so it is ignored.
+		// token_count envelope's total within ~2%). Keep the two series
+		// separate so per-model attribution never sums both.
 		// Recognized-silent — no entries, not counted.
 		trimmed := bytes.TrimSpace(rec.Payload)
 		if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
@@ -230,6 +247,7 @@ func processLine(line []byte) (info lineInfo, entries []agentlog.Entry, ok bool)
 			return info, nil, false // known type, unusable payload
 		}
 		info.observeTotals(rp.ThreadTokenUsage)
+		info.threadTotals = true
 		return info, nil, true
 	case "turn_context":
 		// M7: recognized-silent — no entries, not counted. The model is
@@ -244,24 +262,14 @@ func processLine(line []byte) (info lineInfo, entries []agentlog.Entry, ok bool)
 		}
 		info.model = tp.Model
 		return info, nil, true
-	case "world_state", "inter_agent_communication_metadata":
+	case "world_state", "inter_agent_communication_metadata", "compacted":
 		// Pure metadata records interleaved by current rollouts; nothing is
 		// consumed and nothing validated — recognized-silent (SCHEMA.md).
 		return info, nil, true
 	default:
-		// compacted, … — unknown top-level types are skipped and counted
-		// (SCHEMA.md, Defensive behavior).
+		// Unknown top-level types are skipped and counted.
 		return info, nil, false
 	}
-}
-
-// ptrVal dereferences an optional token field: nil (missing) contributes
-// zero.
-func ptrVal(p *int64) int64 {
-	if p == nil {
-		return 0
-	}
-	return *p
 }
 
 // responseItemEntries maps one response_item payload to entries. ok=false
@@ -306,7 +314,7 @@ func responseItemEntries(ip itemPayload, ts time.Time) (entries []agentlog.Entry
 			return nil, true
 		}
 		return append(entries, agentlog.Entry{Kind: agentlog.Summary, Text: text, Timestamp: ts}), true
-	case "agent_message", "additional_tools", "compaction":
+	case "agent_message", "additional_tools", "compaction", "configuration_update":
 		// current rollouts interleave inter-agent traffic (routing headers +
 		// encrypted content), tool definitions and compaction payloads
 		// (encrypted) as response items — nothing transcript-worthy.

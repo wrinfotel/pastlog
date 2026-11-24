@@ -81,7 +81,7 @@ func TestDetect(t *testing.T) {
 	if !empty.Detect() {
 		t.Fatal("Detect should be true when .codex/sessions exists")
 	}
-	if got := empty.StoragePath(); filepath.ToSlash(got) != filepath.ToSlash(filepath.Join(empty.home, ".codex", "sessions")) {
+	if got := empty.StoragePath(); got != empty.sessionsDir() {
 		t.Errorf("StoragePath = %q", got)
 	}
 }
@@ -122,7 +122,7 @@ func TestSessionsRealisticFixture(t *testing.T) {
 	if messages != 4 { // 1 user + 2 assistant parts + 1 assistant
 		t.Errorf("Messages = %d, want 4", messages)
 	}
-	info, err := os.Stat(filepath.Join(a.home, ".codex", "sessions", filepath.FromSlash(realisticRel)))
+	info, err := os.Stat(filepath.Join(a.sessionsDir(), filepath.FromSlash(realisticRel)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -261,7 +261,7 @@ func TestScanFileIOErrorNotCountedAsSkipped(t *testing.T) {
 	a := newTestAdapter(t, nil)
 	// a directory named rollout-*.jsonl: os.Open succeeds, reading fails with
 	// an I/O error that is not bufio.ErrTooLong
-	dirFile := filepath.Join(a.home, ".codex", "sessions", "2026", "07", "01", "rollout-iam-a-directory.jsonl")
+	dirFile := filepath.Join(a.sessionsDir(), "2026", "07", "01", "rollout-iam-a-directory.jsonl")
 	if err := os.MkdirAll(dirFile, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -299,7 +299,7 @@ func TestTitleTruncatedFromFirstUserMessage(t *testing.T) {
 	content := `{"timestamp":"2026-08-02T10:00:00Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"` + long + `"}]}}` + "\n" +
 		`{"timestamp":"2026-08-02T10:00:05Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"ok"}]}}` + "\n"
 	a := newTestAdapter(t, nil)
-	dir := filepath.Join(a.home, ".codex", "sessions", "2026", "08", "02")
+	dir := filepath.Join(a.sessionsDir(), "2026", "08", "02")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -320,7 +320,7 @@ func TestTitleTruncatedFromFirstUserMessage(t *testing.T) {
 func TestTitleCollapsesNewlines(t *testing.T) {
 	content := `{"timestamp":"2026-08-02T10:00:00Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"fix the bug\n\nin auth"}]}}` + "\n"
 	a := newTestAdapter(t, nil)
-	dir := filepath.Join(a.home, ".codex", "sessions", "2026", "08", "02")
+	dir := filepath.Join(a.sessionsDir(), "2026", "08", "02")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}

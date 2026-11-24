@@ -11,7 +11,7 @@ import (
 // (1 session, 2 messages, input 120, output 45, cache write 30, cache read 200,
 // claude-sonnet-4-5), codex (1 session, 1 message, input 300, output 90,
 // reasoning 25, cache read 80, gpt-5.3-codex via the last turn_context),
-// gemini-cli (1 session, 2 messages, input 200, output 60, reasoning 10,
+// antigravity (1 session, 2 messages, input 200, output 60,
 // cache read 15, gemini-2.5-pro), opencode (two sessions: 1523/412/87/
 // 10240/512 cost 0.42 and 310/95/20/0/128 cost 0.08, qwen3-coder-480b) and
 // zcode (two sessions: usage summed from model_usage — 150/30/5/280/30 and
@@ -25,9 +25,9 @@ func TestStatsByAgentHumanGolden(t *testing.T) {
 		t.Fatalf("stats exit = %d, stderr: %s", code, errOut)
 	}
 	want := `agent        sessions  messages  input  output  reasoning  cache read  cache write  total  cost usd
+antigravity         1         2    200      60          0          15            0    260         -
 claude-code         1         2    120      45          0         200           30    165         -
-codex               1         1    300      90         25          80            0    415         -
-gemini-cli          1         2    200      60         10          15            0    270         -
+codex               1         1    300      90         25          80            0    390         -
 opencode            2         3  1,833     507        107      10,240          640  2,447      0.50
 zcode               2         3    160      32          6         296           34    198         -
 `
@@ -46,6 +46,20 @@ func TestStatsByAgentJSONGolden(t *testing.T) {
 		t.Fatalf("stats --json exit = %d, stderr: %s", code, errOut)
 	}
 	want := `[
+  {
+    "key": "antigravity",
+    "sessions": 1,
+    "messages": 2,
+    "tokens": {
+      "input": 200,
+      "output": 60,
+      "reasoning": 0,
+      "cache_read": 15,
+      "cache_write": 0,
+      "total": 260
+    },
+    "cost_usd": null
+  },
   {
     "key": "claude-code",
     "sessions": 1,
@@ -70,21 +84,7 @@ func TestStatsByAgentJSONGolden(t *testing.T) {
       "reasoning": 25,
       "cache_read": 80,
       "cache_write": 0,
-      "total": 415
-    },
-    "cost_usd": null
-  },
-  {
-    "key": "gemini-cli",
-    "sessions": 1,
-    "messages": 2,
-    "tokens": {
-      "input": 200,
-      "output": 60,
-      "reasoning": 10,
-      "cache_read": 15,
-      "cache_write": 0,
-      "total": 270
+      "total": 390
     },
     "cost_usd": null
   },

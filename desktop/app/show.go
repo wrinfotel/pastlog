@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/wrinfotel/pastlog/internal/agentlog"
-	"github.com/wrinfotel/pastlog/internal/cli"
 	"github.com/wrinfotel/pastlog/internal/mask"
 	"github.com/wrinfotel/pastlog/internal/render"
 )
@@ -23,11 +22,11 @@ type ShowOutcome struct {
 
 // Entries resolves a session id or prefix and returns the full transcript.
 func (a *App) Entries(idPrefix string) (ShowOutcome, error) {
-	home, err := a.effectiveHome()
+	_, reg, err := a.registry()
 	if err != nil {
 		return ShowOutcome{}, err
 	}
-	adapters := cli.NewRegistry(home).Adapters()
+	adapters := reg.Adapters()
 	res, err := agentlog.ResolveSession(adapters, idPrefix)
 	if !res.Found() {
 		out := ShowOutcome{Status: "notfound", Notes: a.combineNotes(adapters, nil)}

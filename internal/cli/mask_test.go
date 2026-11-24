@@ -122,6 +122,24 @@ func TestSearchNoMaskFlag(t *testing.T) {
 	}
 }
 
+func TestSearchMasksBeforeTruncatingHitAndContext(t *testing.T) {
+	home := maskHome(t)
+	path := filepath.Join(home, ".claude", "projects", "-home-dev-keys", "eeee5555-5555-4555-8555-555555555555.jsonl")
+	fixture := "ghp_" + strings.Repeat("synthetic", 45) + "ABCD"
+	prior := strings.ReplaceAll(claudeEContent, "__TOKEN__ please rotate", fixture+" previous")
+	hit := strings.ReplaceAll(claudeEContent, "__TOKEN__", fixture+" next")
+	if err := os.WriteFile(path, []byte(prior+hit), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	code, out, errOut := run(t, "--home", home, "search", `please rotate`, "--regex")
+	if code != 0 {
+		t.Fatalf("search exit = %d, stderr: %s", code, errOut)
+	}
+	if strings.Contains(out, "synthetic") || !strings.Contains(out, "ghp_…ABCD previous") || !strings.Contains(out, "ghp_…ABCD next") {
+		t.Errorf("expected the token to be masked in the hit and its context, got %q", out)
+	}
+}
+
 func TestSearchJSONStaysVerbatim(t *testing.T) {
 	home := maskHome(t)
 	code, out, errOut := run(t, "--home", home, "search", "please rotate", "--json")

@@ -224,8 +224,10 @@ func (p *Profile) analyzeOversized(events []agentlog.CtxEvent) {
 				last[ev.Tool] = ev.Label
 			}
 		case agentlog.CtxToolResult:
-			labels[ri] = last[ev.Tool]
-			ri++
+			if ev.ResBytes > 0 {
+				labels[ri] = last[ev.Tool]
+				ri++
+			}
 		}
 	}
 

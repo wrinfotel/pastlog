@@ -3,6 +3,7 @@ package app
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -85,6 +86,41 @@ func TestSearchMaxHitsTruncates(t *testing.T) {
 	want := cliSearchJSON(t, home, "--max-hits", "2", "token")
 	if !reflect.DeepEqual(stableView(got.Results), want) {
 		t.Errorf("capped search drift:\n GUI %+v\n CLI %+v", got.Results, want)
+	}
+}
+
+func TestExportSearchParityWithCLI(t *testing.T) {
+	home := claudeHome(t, "realistic.jsonl", "usage.jsonl")
+	a := homeApp(t, home)
+	for _, tc := range []struct {
+		query string
+		code  int
+	}{
+		{`refresh\s+token`, 0},
+		{"no-matching-entry", 1},
+	} {
+		t.Run(tc.query, func(t *testing.T) {
+			var want, stderr bytes.Buffer
+			args := []string{"search", "--json", "--home", home, "--regex", "--case-sensitive", "--project", "myapp", "--limit", "1", "--max-hits", "2", tc.query}
+			if code := cli.Execute(args, &want, &stderr); code != tc.code {
+				t.Fatalf("CLI exit = %d, want %d (stderr: %s)", code, tc.code, stderr.String())
+			}
+			path := filepath.Join(t.TempDir(), "search.json")
+			if err := os.WriteFile(path, []byte("previous export"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			opts := SearchOptions{Filter: FilterOptions{Project: "myapp", Limit: 1}, MaxHits: 2, CaseSensitive: true, Regex: true}
+			if err := a.ExportSearch(tc.query, opts, path); err != nil {
+				t.Fatal(err)
+			}
+			got, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(got, want.Bytes()) {
+				t.Errorf("search export = %s, want %s", got, want.String())
+			}
+		})
 	}
 }
 

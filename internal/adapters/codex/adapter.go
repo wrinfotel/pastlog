@@ -38,12 +38,15 @@ type Adapter struct {
 }
 
 // New builds an adapter rooted at the given user home directory.
-func New(home string) *Adapter { return &Adapter{home: home} }
+func New(home string) *Adapter { return NewCodexHome(filepath.Join(home, ".codex")) }
+
+// NewCodexHome uses an explicit directory containing sessions and archives.
+func NewCodexHome(dir string) *Adapter { return &Adapter{home: dir} }
 
 func (a *Adapter) Name() string { return agentName }
 
 func (a *Adapter) Detect() bool {
-	info, err := os.Stat(a.sessionsDir())
+	info, err := os.Stat(a.StoragePath())
 	return err == nil && info.IsDir()
 }
 
@@ -52,11 +55,23 @@ func (a *Adapter) SkippedLines() int { return a.skipped }
 
 // StoragePath implements agentlog.PathSource: the directory scanned for
 // sessions, for display in `agents`.
-func (a *Adapter) StoragePath() string { return a.sessionsDir() }
+func (a *Adapter) StoragePath() string {
+	active := a.sessionsDir()
+	if info, err := os.Stat(active); err == nil && info.IsDir() {
+		return active
+	}
+	archive := a.archiveDir()
+	if info, err := os.Stat(archive); err == nil && info.IsDir() {
+		return archive
+	}
+	return active
+}
 
 func (a *Adapter) sessionsDir() string {
-	return filepath.Join(a.home, ".codex", "sessions")
+	return filepath.Join(a.home, "sessions")
 }
+
+func (a *Adapter) archiveDir() string { return filepath.Join(a.home, "archived_sessions") }
 
 func (a *Adapter) Sessions(iter func(agentlog.Session) error) error {
 	return a.walk(func(m agentlog.SessionMeta) error {
@@ -128,7 +143,7 @@ func (a *Adapter) SessionsMetaFast(iter func(agentlog.SessionMeta) error) (bool,
 // a stat. fast=false when that line is not a classified record carrying all
 // of sessionId, cwd and timestamp — the caller then does a full parse.
 func (a *Adapter) fastMeta(path string) (agentlog.SessionMeta, bool) {
-	f, err := os.Open(path)
+	f, err := openRollout(path)
 	if err != nil {
 		return agentlog.SessionMeta{}, false
 	}
@@ -155,6 +170,7 @@ func (a *Adapter) fastMeta(path string) (agentlog.SessionMeta, bool) {
 				ID:        info.sessionID,
 				Agent:     agentName,
 				Project:   info.cwd,
+				ParentID:  info.parentID,
 				StartedAt: info.ts,
 				SizeBytes: st.Size(),
 			},
@@ -219,6 +235,7 @@ func (a *Adapter) walkSummaries(iter func(sum fileSummary, path string) error) e
 // fileSummary aggregates one scanned file.
 type fileSummary struct {
 	sessionID          string
+	parentID           string
 	cwd                string
 	title              string
 	startedAt, endedAt time.Time
@@ -236,6 +253,7 @@ func (f fileSummary) meta(path string) agentlog.SessionMeta {
 			ID:        f.id(path),
 			Agent:     agentName,
 			Project:   f.cwd,
+			ParentID:  f.parentID,
 			Title:     f.title,
 			StartedAt: f.startedAt,
 			EndedAt:   f.endedAt,
@@ -250,13 +268,11 @@ func (f fileSummary) meta(path string) agentlog.SessionMeta {
 // cached_input_tokens→CacheRead, reasoning_output_tokens→Reasoning
 // (0 when absent). Codex rollouts carry no per-session cost.
 func (f fileSummary) usage() agentlog.Usage {
-	u := agentlog.Usage{Model: f.model}
+	var u agentlog.Usage
 	if f.tokens != nil {
-		u.Input = f.tokens.input
-		u.CacheRead = f.tokens.cached
-		u.Output = f.tokens.output
-		u.Reasoning = f.tokens.reasoning
+		u = f.tokens.asUsage()
 	}
+	u.Model = f.model
 	return u
 }
 
@@ -266,7 +282,7 @@ func (f fileSummary) id(path string) string {
 	if f.sessionID != "" {
 		return f.sessionID
 	}
-	return strings.TrimSuffix(filepath.Base(path), ".jsonl")
+	return rolloutStem(path)
 }
 
 // scanFile streams one JSONL rollout file. keep may be nil (keep every line);
@@ -277,8 +293,11 @@ func (f fileSummary) id(path string) string {
 // malformed input.
 func (a *Adapter) scanFile(path string, keep func([]byte) bool, emit func(agentlog.Entry) error) (fileSummary, error) {
 	var sum fileSummary
+	var counts, threadCounts cumulativeUsage
+	var latest *cumulativeUsage
+	hasTokenCounts := false
 
-	f, err := os.Open(path)
+	f, err := openRollout(path)
 	if err != nil {
 		return sum, nil // unreadable file: skip silently
 	}
@@ -307,27 +326,23 @@ func (a *Adapter) scanFile(path string, keep func([]byte) bool, emit func(agentl
 		if info.sessionID != "" && sum.sessionID == "" {
 			sum.sessionID = info.sessionID
 		}
+		if info.parentID != "" && sum.parentID == "" {
+			sum.parentID = info.parentID
+		}
 		if info.cwd != "" && sum.cwd == "" {
 			sum.cwd = info.cwd
 		}
 		if info.model != "" {
 			sum.model = info.model // last non-empty turn_context model wins
-			sum.split.Note(info.model)
 		}
-		if info.tokens != nil {
-			sum.tokens = info.tokens // last cumulative totals win (both series agree)
-		}
-		if info.delta != nil {
-			// TASK.md backlog: the per-turn delta lands on the model in
-			// effect (the turn's turn_context), building the per-model
-			// breakdown; the session totals above stay last-wins (SCHEMA.md).
-			// Only the token_count family yields deltas — see observeDelta.
-			sum.split.Observe("", agentlog.Usage{
-				Input:     info.delta.input,
-				Output:    info.delta.output,
-				CacheRead: info.delta.cached,
-				Reasoning: info.delta.reasoning,
-			})
+		if info.totals != nil {
+			if info.threadTotals {
+				latest = &threadCounts
+			} else {
+				latest = &counts
+				hasTokenCounts = true
+			}
+			latest.observe(sum.model, *info.totals)
 		}
 		for _, e := range entries {
 			if e.Kind == agentlog.Message && e.Role == "user" && sum.title == "" {
@@ -363,18 +378,41 @@ func (a *Adapter) scanFile(path string, keep func([]byte) bool, emit func(agentl
 			a.skipped++
 		}
 	}
+	if latest != nil {
+		sum.tokens = &latest.total
+		split := latest.modelSplit()
+		models := split.Split()
+		if hasTokenCounts || len(models) > 1 || (len(models) == 1 && models[0].Model != sum.model) {
+			sum.split = split
+		}
+	}
 	return sum, nil
 }
 
-// sessionFiles lists all rollout JSONL paths, sorted for determinism
-// (WalkDir visits entries lexically, and files sort inside their directory).
-// It deliberately uses WalkDir instead of filepath.Glob: Glob silently
-// matches nothing when the home path contains glob metacharacters ([, *, ?),
-// while a directory walk is immune (M4). Only rollout-*.jsonl files exactly
-// three date levels below sessions/ are considered (SCHEMA.md) — anything
-// else is ignored, exactly like the old */*/*/rollout-*.jsonl pattern.
+// sessionFiles lists active and archived rollouts. The active copy takes
+// precedence, and WalkDir visits a plain file before its compressed sibling.
 func (a *Adapter) sessionFiles() ([]string, error) {
-	root := a.sessionsDir()
+	active, err := rolloutFiles(a.sessionsDir(), 4)
+	if err != nil {
+		return nil, err
+	}
+	archived, err := rolloutFiles(a.archiveDir(), 1)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]bool, len(active)+len(archived))
+	files := make([]string, 0, len(active)+len(archived))
+	for _, path := range append(active, archived...) {
+		stem := rolloutStem(path)
+		if !seen[stem] {
+			files = append(files, path)
+			seen[stem] = true
+		}
+	}
+	return files, nil
+}
+
+func rolloutFiles(root string, fileDepth int) ([]string, error) {
 	var files []string
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -385,12 +423,13 @@ func (a *Adapter) sessionFiles() ([]string, error) {
 		}
 		depth := relDepth(root, path)
 		if d.IsDir() {
-			if depth >= 4 {
-				return fs.SkipDir // rollouts live exactly three levels deep (YYYY/MM/DD)
+			if depth >= fileDepth {
+				return fs.SkipDir
 			}
 			return nil
 		}
-		if depth == 4 && strings.HasPrefix(d.Name(), "rollout-") && strings.HasSuffix(d.Name(), ".jsonl") {
+		name := d.Name()
+		if depth == fileDepth && strings.HasPrefix(name, "rollout-") && (strings.HasSuffix(name, ".jsonl") || strings.HasSuffix(name, ".jsonl.zst")) {
 			files = append(files, path)
 		}
 		return nil
@@ -434,7 +473,7 @@ func (a *Adapter) registerIDs(path, recordID string) {
 	if a.index == nil {
 		a.index = map[string]string{}
 	}
-	base := strings.TrimSuffix(filepath.Base(path), ".jsonl")
+	base := rolloutStem(path)
 	if _, ok := a.index[base]; !ok {
 		a.index[base] = path
 	}
@@ -461,7 +500,7 @@ func (a *Adapter) buildIndex() {
 // fileMetaID returns the first session_meta payload id in the file, "" when
 // the file has none (defensive parse).
 func (a *Adapter) fileMetaID(path string) string {
-	f, err := os.Open(path)
+	f, err := openRollout(path)
 	if err != nil {
 		return ""
 	}

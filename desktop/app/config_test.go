@@ -101,7 +101,7 @@ func TestEffectiveHomePrefersOverride(t *testing.T) {
 	a, _ := newTestApp(t)
 	override := t.TempDir()
 	a.cfg.Home = override
-	got, err := a.effectiveHome()
+	got, _, err := a.registry()
 	if err != nil || got != override {
 		t.Errorf("effectiveHome = %q, %v; want the override", got, err)
 	}
@@ -109,9 +109,27 @@ func TestEffectiveHomePrefersOverride(t *testing.T) {
 
 func TestEffectiveHomeFallsBackToDiscovery(t *testing.T) {
 	a, _ := newTestApp(t)
-	got, err := a.effectiveHome()
+	got, _, err := a.registry()
 	if err != nil || got == "" {
 		t.Errorf("effectiveHome = %q, %v; want the discovered home", got, err)
+	}
+}
+
+func TestClaudeConfigDirDiscoveryAndSavedHome(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("CLAUDE_CONFIG_DIR", filepath.Join(claudeHome(t, "realistic.jsonl"), ".claude"))
+	a, _ := newTestApp(t)
+	filter := FilterOptions{Agent: "claude-code"}
+	if got, err := a.Sessions(filter); err != nil || len(got.Sessions) != 1 {
+		t.Errorf("automatic sessions = %+v, %v; want the config directory session", got, err)
+	}
+	if _, err := a.SetHome(home); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := a.Sessions(filter); err != nil || len(got.Sessions) != 0 {
+		t.Errorf("explicit home sessions = %+v, %v; want an empty list", got, err)
 	}
 }
 

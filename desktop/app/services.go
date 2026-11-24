@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/wrinfotel/pastlog/internal/agentlog"
-	"github.com/wrinfotel/pastlog/internal/cli"
 	"github.com/wrinfotel/pastlog/internal/dates"
 	"github.com/wrinfotel/pastlog/internal/render"
 )
@@ -48,11 +47,11 @@ type ListOutcome struct {
 
 // Overview returns the per-agent detection summary for the Home view.
 func (a *App) Overview() OverviewOutcome {
-	home, err := a.effectiveHome()
+	home, reg, err := a.registry()
 	if err != nil {
 		return OverviewOutcome{Error: err.Error()}
 	}
-	rows, warnings := agentRows(cli.NewRegistry(home).Adapters())
+	rows, warnings := agentRows(reg.Adapters())
 	return OverviewOutcome{
 		Home:     home,
 		Agents:   render.AgentRowsJSON(rows),
@@ -63,11 +62,11 @@ func (a *App) Overview() OverviewOutcome {
 // Diagnostics returns the `agents` data with the CLI's stderr conditions
 // structured into the outcome.
 func (a *App) Diagnostics() DiagnosticsOutcome {
-	home, err := a.effectiveHome()
+	home, reg, err := a.registry()
 	if err != nil {
 		return DiagnosticsOutcome{Error: err.Error()}
 	}
-	adapters := cli.NewRegistry(home).Adapters()
+	adapters := reg.Adapters()
 	rows, warnings := agentRows(adapters)
 	return DiagnosticsOutcome{
 		Home:     home,
@@ -80,11 +79,10 @@ func (a *App) Diagnostics() DiagnosticsOutcome {
 // Sessions lists sessions, newest first, under the given filters — the
 // `pastlog sessions` contract.
 func (a *App) Sessions(f FilterOptions) (ListOutcome, error) {
-	home, err := a.effectiveHome()
+	_, reg, err := a.registry()
 	if err != nil {
 		return ListOutcome{}, err
 	}
-	reg := cli.NewRegistry(home)
 	if err := validateAgent(reg, f.Agent); err != nil {
 		return ListOutcome{}, err
 	}
