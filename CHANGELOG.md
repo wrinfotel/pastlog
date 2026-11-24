@@ -5,6 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.7] - 2026-11-24
+
+The CLI and the desktop app share this entry: the CLI ships as `v0.2.7`,
+the desktop app as `desktop-v0.2.7`. The agent set changes: Antigravity
+CLI takes the seat Gemini CLI held, and codex learns its new archive
+format — on a machine that upgraded its agents, pastlog suddenly sees
+hundreds of sessions that were invisible before.
+
+### Added
+
+- Antigravity CLI adapter: Google's `agy` storage under
+  `~/.gemini/antigravity-cli` — brain transcripts (`USER_INPUT`,
+  `PLANNER_RESPONSE`, model thoughts as summaries, `tool_calls`, step
+  results like `RUN_COMMAND`/`VIEW_FILE`), `history.jsonl` workspaces,
+  and the per-conversation SQLite database (strictly read-only) for
+  per-generation model and token counts. `CHECKPOINT` records mark
+  compaction boundaries in the context flow; `INVOKE_SUBAGENT` results
+  link locally available children. It replaces the Gemini CLI adapter
+  (see Removed).
+- Codex archived rollouts: `~/.codex/archived_sessions/*.jsonl.zst`
+  decompress transparently (a new zstd dependency, local only — the
+  no-network posture is untouched); the active copy wins when a session
+  exists in both places.
+- Codex subagent parents: `session_meta.source.subagent.thread_spawn`
+  supplies `ParentID`, so `related` now resolves codex subagent trees
+  too (claude-code gained the same from its subagents directory
+  layout).
+- `CLAUDE_CONFIG_DIR` and `CODEX_HOME` are honored when set (one shared
+  `ResolveRegistry` for the CLI and the Desktop; an explicit `--home`
+  still wins).
+- Desktop: ExportSearch — a search page button writes the results in
+  the CLI's verbatim `search --json` schema.
+- Search snippets mask secrets before display and keep the highlight
+  aligned with the redacted text (`mask.MaskMatch`); matching still
+  runs on the original text. The raw-line prefilter now also keeps
+  lines whose `\u`/`\/` escapes could encode the needle, closing a
+  quiet miss-rate hole.
+
+### Changed
+
+- `Usage` gained `ReasoningIncluded` (reasoning tokens already counted
+  inside output) and `TotalTokens()`; stats totals stop double-counting
+  reasoning for agents that report it that way. Codex's per-model split
+  is rebuilt from cumulative-totals diffs with counter-correction
+  handling instead of `last_token_usage` deltas — robust on rollouts
+  that only carry the record series.
+- Context analysis: R1's oversized-result attribution ignores zero-byte
+  results (an empty tool output no longer steals the previous call's
+  label).
+
+### Removed
+
+- The Gemini CLI adapter is no longer registered: Google migrated the
+  product to Antigravity and the `~/.gemini/tmp` store is no longer
+  written. The package remains in the tree (and its tests keep running)
+  for anyone pinning an older CLI.
+
 ## [0.2.6] - 2026-10-24
 
 The CLI and the desktop app share this entry: the CLI ships as `v0.2.6`,

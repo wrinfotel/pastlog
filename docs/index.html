@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>pastlog — search everything your AI coding agents ever did</title>
-<meta name="description" content="pastlog searches the full history of your AI coding agents — Claude Code, Codex CLI, Gemini CLI, OpenCode, ZCode — across every project. 100% local, read-only, one static binary. No index, no server, no telemetry.">
+<meta name="description" content="pastlog searches the full history of your AI coding agents — Claude Code, Codex CLI, Antigravity CLI, OpenCode, ZCode — across every project. 100% local, read-only, one static binary. No index, no server, no telemetry.">
 <meta property="og:title" content="pastlog — search everything your AI coding agents ever did">
-<meta property="og:description" content="100% local search across Claude Code, Codex CLI, Gemini CLI, OpenCode and ZCode session logs. One static binary, zero telemetry, strictly read-only.">
+<meta property="og:description" content="100% local search across Claude Code, Codex CLI, Antigravity CLI, OpenCode and ZCode session logs. One static binary, zero telemetry, strictly read-only.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://wrinfotel.github.io/pastlog/">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0d12'/%3E%3Cpath d='M14 20l12 12-12 12' stroke='%233ddc97' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Crect x='32' y='40' width='18' height='6' rx='3' fill='%233ddc97'/%3E%3C/svg%3E">
@@ -233,19 +233,19 @@
     <div>
       <span class="pill"><span class="dot"></span>100% local · read-only · zero config</span>
       <h1>Your agent forgot. <em>pastlog remembers.</em></h1>
-      <p class="sub">pastlog streams the session logs <strong>Claude Code</strong>, <strong>Codex CLI</strong>, <strong>Gemini CLI</strong>, <strong>OpenCode</strong> and <strong>ZCode</strong> already wrote on your machine — and makes them searchable across every project: user and assistant messages, tool calls and tool outputs included.</p>
+      <p class="sub">pastlog streams the session logs <strong>Claude Code</strong>, <strong>Codex CLI</strong>, <strong>Antigravity CLI</strong>, <strong>OpenCode</strong> and <strong>ZCode</strong> already wrote on your machine — and makes them searchable across every project: user and assistant messages, tool calls and tool outputs included.</p>
       <div class="install-box">
         <div class="cmd"><span class="ps">$</span><code id="install-cmd">go install github.com/wrinfotel/pastlog/cmd/pastlog@latest</code></div>
         <button class="copy-btn" data-copy="go install github.com/wrinfotel/pastlog/cmd/pastlog@latest">copy</button>
       </div>
-      <p class="alt-install">No Go? <a href="https://github.com/wrinfotel/pastlog/releases/tag/v0.2.6">Grab a prebuilt binary</a> — Windows, macOS, Linux · amd64 + arm64.</p>
+      <p class="alt-install">No Go? <a href="https://github.com/wrinfotel/pastlog/releases/tag/v0.2.7">Grab a prebuilt binary</a> — Windows, macOS, Linux · amd64 + arm64.</p>
     </div>
     <div>
       <div class="term" id="demo-term" aria-label="Animated terminal demo of pastlog commands">
         <div class="term-bar"><i></i><i></i><i></i><span>pastlog — zsh</span></div>
         <div class="term-body" id="term-body"></div>
       </div>
-      <p class="term-cap">Excerpt of real output · v0.2.6 binary · fixture data</p>
+      <p class="term-cap">Excerpt of real output · v0.2.7 binary · fixture data</p>
     </div>
   </div>
 </header>
@@ -258,7 +258,7 @@
     <div class="why-grid">
       <div class="why"><span class="n">01</span><div>
         <h3>Five agents, one search</h3>
-        <p>Claude Code, Codex CLI, Gemini CLI, OpenCode and ZCode — one query fans out across every project on the machine. It reads tool calls and tool outputs too, not just the chat.</p>
+        <p>Claude Code, Codex CLI, Antigravity CLI, OpenCode and ZCode — one query fans out across every project on the machine. It reads tool calls and tool outputs too, not just the chat.</p>
       </div></div>
       <div class="why"><span class="n">02</span><div>
         <h3>Nothing leaves your machine</h3>
@@ -289,7 +289,7 @@
     <div class="agents">
       <span class="agent-chip"><b>❯</b> claude-code</span>
       <span class="agent-chip"><b>❯</b> codex</span>
-      <span class="agent-chip"><b>❯</b> gemini-cli</span>
+      <span class="agent-chip"><b>❯</b> antigravity</span>
       <span class="agent-chip"><b>❯</b> opencode</span>
       <span class="agent-chip"><b>❯</b> zcode</span>
     </div>
@@ -314,13 +314,13 @@
       </ul>
     </div>
     <div class="desktop-panel">
-      <h3>pastlog Desktop v0.2.6</h3>
+      <h3>pastlog Desktop v0.2.7</h3>
       <div class="dl-row">
         <span class="dl-chip">Windows · installer / portable</span>
         <span class="dl-chip">macOS · dmg (arm64, amd64)</span>
         <span class="dl-chip">Linux · .deb</span>
       </div>
-      <a class="btn" href="https://github.com/wrinfotel/pastlog/releases/tag/desktop-v0.2.6" rel="noopener">Download Desktop</a>
+      <a class="btn" href="https://github.com/wrinfotel/pastlog/releases/tag/desktop-v0.2.7" rel="noopener">Download Desktop</a>
       <p style="height:12px"></p>
       <a class="btn-ghost" href="https://github.com/wrinfotel/pastlog#pastlog-desktop" rel="noopener">CLI ↔ Desktop feature map</a>
       <p class="desktop-note">~15–20 MB per platform. Unsigned — SmartScreen or Gatekeeper may ask on first run; the README explains the one-liner to proceed.</p>
@@ -337,7 +337,7 @@
       <div class="inst-card">
         <h3>1 · Release binary</h3>
         <p>Prebuilt for six platform targets, SHA256 checksums included.</p>
-        <pre>tar xzf pastlog_0.2.6_linux_amd64.tar.gz
+        <pre>tar xzf pastlog_0.2.7_linux_amd64.tar.gz
 sudo install pastlog /usr/local/bin/
 pastlog version</pre>
       </div>
@@ -433,13 +433,13 @@ go build ./cmd/pastlog</pre>
       hi('  → the jwt refresh kept failing because the old token was'),
       hi('    still accepted — moving it to an httpOnly cookie…'),
       '',
-      hi('gemini-cli · dev/myapp · 2026-08-02 · sess e4a7f2b3'),
+      hi('antigravity · dev/myapp · 2026-08-02 · sess e4a7f2b3'),
       hi('  → can you add a jwt refresh regression test?')
     ]},
     {cmd:'pastlog agents',out:[
       'claude-code  2 sessions  1.7 KB   ~/.claude/projects',
       'codex        1 session   664 B    ~/.codex/sessions',
-      'gemini-cli   1 session   548 B    ~/.gemini/tmp',
+      'antigravity   1 session   339 B    ~/.gemini/antigravity-cli',
       'opencode     2 sessions  28.0 KB  ~/.local/share/opencode',
       'zcode        0 sessions  (not found)'
     ]},
@@ -447,7 +447,7 @@ go build ./cmd/pastlog</pre>
       'agent        sessions  input  output  total  cost usd',
       'claude-code         3    120      45    165         -',
       'codex               2    300      90    415         -',
-      'gemini-cli          2    200      60    270         -',
+      'antigravity          2    200      60    260         -',
       'opencode            2  1,833     507  2,447      0.50'
     ]},
     {cmd:'pastlog context dddd4444',out:[
